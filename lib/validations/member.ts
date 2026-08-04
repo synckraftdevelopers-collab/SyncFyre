@@ -17,6 +17,7 @@ export const memberSchema = z.object({
   assigned_trainer_id: z.string().uuid().optional().nullable(),
   branch_id: z.string().uuid(),
   status: z.enum(["active", "inactive"]).default("active"),
+  profile_photo_url: z.string().url().optional().nullable(),
 });
 
 export type MemberInput = z.infer<typeof memberSchema>;
