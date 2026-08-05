@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { Bell, CalendarDays, ChartNoAxesCombined, CircleDollarSign, Dumbbell, Gauge, ShieldCheck, UserRoundCog, UsersRound, Utensils, Wrench } from "lucide-react";
 import { ModuleOverview, type ModuleConfig } from "@/components/modules/module-overview";
+import { createClient } from "@/lib/supabase/server";
+import { tableForResource, type ResourceName } from "@/lib/validations/resources";
 
 const modules: Record<string, ModuleConfig> = {
   memberships: { title: "Memberships", description: "Configure plans, activate subscriptions, and manage renewals.", icon: ShieldCheck, action: "Create plan", features: [
@@ -41,8 +43,19 @@ const modules: Record<string, ModuleConfig> = {
 };
 
 export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {
-  const config = modules[(await params).module];
+  const module = (await params).module;
+  const config = modules[module];
   if (!config) notFound();
-  const actionHref = (await params).module === "reports" ? "/api/reports?resource=members" : `/${(await params).module}/new`;
-  return <ModuleOverview config={config} actionHref={actionHref}/>;
+  const actionHref = module === "reports" ? "/api/reports?resource=members" : `/${module}/new`;
+  if (module === "reports") return <ModuleOverview config={config} actionHref={actionHref}/>;
+
+  const resource = (module === "memberships" ? "membership-plans" : module) as ResourceName;
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from(tableForResource[resource])
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  return <ModuleOverview config={config} actionHref={actionHref} records={data ?? []} error={error?.message}/>;
 }
