@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { memberSchema } from "@/lib/validations/member";
-import { createMember, deleteMember, updateMember } from "@/services/member.service";
+import { createMember, updateMember } from "@/services/member.service";
+import { deactivateMember } from "@/services/member-extended.service";
 
 export type MemberFormState = { error?: string; fields?: Record<string, string[]> };
 
@@ -25,7 +26,7 @@ export async function createMemberAction(
   if (!parsed.success)
     return { error: "Review the highlighted information.", fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
   try {
-    await createMember(parsed.data);
+    await createMember(parsed.data, profile.id);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to create member." };
   }
@@ -55,7 +56,7 @@ export async function updateMemberAction(
   if (!parsed.success)
     return { error: "Review the highlighted information.", fields: parsed.error.flatten().fieldErrors as Record<string, string[]> };
   try {
-    await updateMember(id, parsed.data);
+    await updateMember(id, parsed.data, profile.id);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to update member." };
   }
@@ -68,9 +69,9 @@ export async function updateMemberAction(
 export async function deleteMemberAction(id: string): Promise<{ error?: string }> {
   const profile = await requireUser(["admin", "manager"]);
   try {
-    await deleteMember(id);
+    await deactivateMember(id, profile.id);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Unable to delete member." };
+    return { error: error instanceof Error ? error.message : "Unable to deactivate member." };
   }
   const base = profile.role?.slug === "reception" ? "/reception" : "/admin";
   revalidatePath(`${base}/members`);
@@ -102,7 +103,7 @@ export async function uploadMemberPhotoAction(
   const url = publicData.publicUrl;
 
   try {
-    await updateMember(id, { profile_photo_url: url } as Parameters<typeof updateMember>[1]);
+    await updateMember(id, { profile_photo_url: url } as Parameters<typeof updateMember>[1], profile.id);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Photo saved but profile not updated." };
   }

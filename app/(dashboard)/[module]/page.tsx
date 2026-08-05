@@ -1,3 +1,8 @@
+
+
+
+
+
 import { notFound } from "next/navigation";
 import { Bell, CalendarDays, ChartNoAxesCombined, Dumbbell, Gauge, ShieldCheck, UserRoundCog, UsersRound, Utensils, Wrench } from "lucide-react";
 import { ModuleOverview, type ModuleConfig } from "@/components/modules/module-overview";
@@ -41,13 +46,13 @@ const modules: Record<string, ModuleConfig> = {
 };
 
 export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {
-  const module = (await params).module;
-  const config = modules[module];
+  const moduleKey = (await params).module;
+  const config = modules[moduleKey];
   if (!config) notFound();
-  const actionHref = module === "reports" ? "/api/reports?resource=members" : `/${module}/new`;
-  if (module === "reports") return <ModuleOverview config={config} actionHref={actionHref}/>;
+  const actionHref = moduleKey === "reports" ? "/api/reports?resource=members" : `/${moduleKey}/new`;
+  if (moduleKey === "reports") return <ModuleOverview config={config} actionHref={actionHref}/>;
 
-  const resource = (module === "memberships" ? "membership-plans" : module) as ResourceName;
+  const resource = (moduleKey === "memberships" ? "membership-plans" : moduleKey) as ResourceName;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from(tableForResource[resource])

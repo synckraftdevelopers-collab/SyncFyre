@@ -1,6 +1,6 @@
 import {
-  Activity, Bell, CalendarDays, ChartNoAxesCombined, CircleDollarSign,
-  Dumbbell, Gauge, LayoutDashboard, Settings, ShieldCheck,
+  Activity, Bell, BookOpen, CalendarDays, ChartNoAxesCombined, CircleDollarSign,
+  Dumbbell, Gauge, IndianRupee, LayoutDashboard, Settings, ShieldCheck,
   UserRoundCog, UsersRound, Utensils, Wrench,
 } from "lucide-react";
 import type { NavItem } from "@/lib/nav/types";
@@ -16,6 +16,8 @@ export const adminNav: NavItem[] = [
   { label: "Diet Plans",    href: "/admin/diet-plans",      icon: Utensils },
   { label: "Progress",      href: "/admin/progress",        icon: Gauge },
   { label: "Payments",      href: "/admin/payments",        icon: CircleDollarSign },
+  { label: "Finance",       href: "/admin/finance",         icon: IndianRupee },
+  { label: "Accounting",    href: "/admin/finance/accounting", icon: BookOpen },
   { label: "Staff",         href: "/admin/staff",           icon: UsersRound },
   { label: "Equipment",     href: "/admin/equipment",       icon: Wrench },
   { label: "Reports",       href: "/admin/reports",         icon: ChartNoAxesCombined },
