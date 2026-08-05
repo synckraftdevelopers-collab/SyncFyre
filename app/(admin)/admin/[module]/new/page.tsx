@@ -13,8 +13,8 @@ const titles: Record<string, string> = {
 
 export default async function AdminNewResourcePage({ params }: { params: Promise<{ module: string }> }) {
   await requireUser(["admin", "manager"]);
-  const module = (await params).module;
-  if (!titles[module]) notFound();
+  const moduleKey = (await params).module;
+  if (!titles[moduleKey]) notFound();
 
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -41,18 +41,18 @@ export default async function AdminNewResourcePage({ params }: { params: Promise
     "face-machines":[{ name:"machine_name",label:"Machine name",required:true },{ name:"device_id",label:"Device ID",required:true },{ name:"machine_ip",label:"Machine IP" },{ name:"machine_api_url",label:"API URL" },{ name:"api_key_encrypted",label:"API key" },{ name:"status",label:"Status",type:"select",defaultValue:"active",options:[{label:"Active",value:"active"},{label:"Inactive",value:"inactive"}] }],
   };
 
-  const resource = module === "memberships" ? "membership-plans" : module;
-  const returnTo = module === "face-machines" ? "/admin/settings" : `/admin/${module}`;
+  const resource = moduleKey === "memberships" ? "membership-plans" : module;
+  const returnTo = moduleKey === "face-machines" ? "/admin/settings" : `/admin/${moduleKey}`;
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">{titles[module]}</h1>
+        <h1 className="text-2xl font-bold">{titles[moduleKey]}</h1>
         <p className="text-sm text-muted-foreground">Complete the information below. Required fields are validated before saving.</p>
       </div>
       <Card>
         <CardContent className="p-5 md:p-7">
-          <ResourceCreateForm resource={resource} fields={fields[module]} returnTo={returnTo} />
+          <ResourceCreateForm resource={resource} fields={fields[moduleKey]} returnTo={returnTo} />
         </CardContent>
       </Card>
     </div>

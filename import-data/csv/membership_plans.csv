@@ -1,0 +1,21 @@
+plan_key,name,duration_months,duration_days,price,gst_percent,discount_percent,features,status,notes
+1m_standard,1 Month Standard,1,0,3000.00,18,0,"[""Gym Access"",""Locker Room""]",active,Basic monthly membership
+3m_standard,3 Month Standard,3,0,7000.00,18,0,"[""Gym Access"",""Locker Room""]",active,Quarterly membership
+6m_standard,6 Month Standard,6,0,10000.00,18,0,"[""Gym Access"",""Locker Room"",""Fitness Assessment""]",active,Half-yearly membership
+12m_standard,12 Month Standard,12,0,15000.00,18,0,"[""Gym Access"",""Locker Room"",""Fitness Assessment"",""Body Composition""]",active,Annual membership
+1m_pt,1 Month Personal Training,1,0,7000.00,18,0,"[""Gym Access"",""Personal Trainer"",""Custom Workout Plan""]",active,Monthly PT package
+1m_alt_pt,1 Month Alternate Day PT,1,0,4000.00,18,0,"[""Gym Access"",""Alternate Day Training""]",active,Alternate day PT
+1m_dbl_pt,1 Month Double PT,1,0,7000.00,18,0,"[""Gym Access"",""Two Daily Sessions""]",active,Double PT sessions per day
+3m_pt,3 Month Personal Training,3,0,18000.00,18,0,"[""Gym Access"",""Personal Trainer"",""Custom Workout Plan"",""Diet Guidance""]",active,Quarterly PT package
+6m_pt,6 Month Personal Training,6,0,22000.00,18,0,"[""Gym Access"",""Personal Trainer"",""Custom Workout Plan"",""Diet Guidance"",""Progress Tracking""]",active,Half-yearly PT package
+10m_pt,10 Month Personal Training,10,0,30000.00,18,0,"[""Gym Access"",""Personal Trainer"",""Custom Workout Plan"",""Diet Guidance"",""Progress Tracking""]",active,10-month PT package
+12m_pt,12 Month Personal Training,12,0,38000.00,18,0,"[""Gym Access"",""Personal Trainer"",""Custom Workout Plan"",""Diet Guidance"",""Progress Tracking"",""Annual Assessment""]",active,Annual PT package
+1m_couple,Couple Plan 1 Month,1,0,5000.00,18,0,"[""Gym Access"",""Couple Entry""]",active,Couple membership 1 month
+3m_couple,Couple Plan 3 Month,3,0,12000.00,18,0,"[""Gym Access"",""Couple Entry""]",active,Couple membership 3 months
+6m_couple,Couple Plan 6 Month,6,0,18000.00,18,0,"[""Gym Access"",""Couple Entry"",""Fitness Assessment""]",active,Couple membership 6 months
+12m_couple,Couple Plan 12 Month,12,0,25000.00,18,0,"[""Gym Access"",""Couple Entry"",""Fitness Assessment"",""Body Composition""]",active,Couple membership 12 months
+day_pass,Day Pass,1,0,500.00,18,0,"[""Single Day Access""]",active,Single day entry — duration_months set to 1 for schema compliance; actual duration 1 day
+weekly_pass,Weekly Pass,1,0,2000.00,18,0,"[""7-Day Access""]",active,7-day pass
+15day_pass,15 Day Pass,1,0,2500.00,18,0,"[""15-Day Access""]",active,Fortnightly pass
+10day_pass,10 Day Pass,1,0,2000.00,18,0,"[""10-Day Access""]",active,10-day pass
+locker_addon,Locker Rental,1,0,1000.00,18,0,"[""Locker Access""]",active,Monthly locker add-on

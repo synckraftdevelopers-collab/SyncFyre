@@ -1,5 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function POST(_:NextRequest,{params}:{params:Promise<{id:string}>}){const profile=await getCurrentProfile();if(!profile||!["admin","manager"].includes(profile.role?.slug??""))return NextResponse.json({error:"Forbidden"},{status:403});const supabase=await createClient();const{id}=await params;const{data:machine,error}=await supabase.from("face_machine_settings").select("id,machine_api_url,api_key_encrypted").eq("id",id).single();if(error||!machine)return NextResponse.json({error:"Machine not found"},{status:404});if(!machine.machine_api_url)return NextResponse.json({error:"Configure the machine API URL first"},{status:422});const url=new URL(machine.machine_api_url);if(!["http:","https:"].includes(url.protocol))return NextResponse.json({error:"Unsupported machine API protocol"},{status:422});try{const response=await fetch(url,{headers:machine.api_key_encrypted?{"x-api-key":machine.api_key_encrypted}:{},signal:AbortSignal.timeout(10000),cache:"no-store"});if(!response.ok)throw new Error(`Machine API returned ${response.status}`);await supabase.from("face_machine_settings").update({connection_status:"online",last_sync_at:new Date().toISOString(),last_error:null}).eq("id",id);return NextResponse.json({status:"online"});}catch(error){const message=error instanceof Error?error.message:"Connection failed";await supabase.from("face_machine_settings").update({connection_status:"error",last_error:message}).eq("id",id);return NextResponse.json({error:message},{status:502});}}
+export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const profile = await getCurrentProfile();
+  if (!profile || !["admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const supabase = await createClient();
+  const admin = createAdminClient();
+  const { id } = await params;
+  const { data: machine, error } = await supabase.from("face_machine_settings").select("id,branch_id,device_id,machine_name,machine_api_url,api_key_encrypted").eq("id", id).single();
+  if (error || !machine) return NextResponse.json({ error: "Machine not found" }, { status: 404 });
+  if (!machine.machine_api_url) return NextResponse.json({ error: "Configure the machine API URL first" }, { status: 422 });
+
+  const url = new URL(machine.machine_api_url);
+  if (!["http:", "https:"].includes(url.protocol)) return NextResponse.json({ error: "Unsupported machine API protocol" }, { status: 422 });
+
+  try {
+    const response = await fetch(url, { headers: machine.api_key_encrypted ? { "x-api-key": machine.api_key_encrypted } : {}, signal: AbortSignal.timeout(10000), cache: "no-store" });
+    if (!response.ok) throw new Error(`Machine API returned ${response.status}`);
+
+    await supabase.from("face_machine_settings").update({ connection_status: "online", last_sync_at: new Date().toISOString(), last_error: null }).eq("id", id);
+    await admin.from("activity_logs").insert({
+      user_id: profile.id,
+      branch_id: machine.branch_id,
+      action: "machine_sync_success",
+      entity_type: "face_machine",
+      entity_id: machine.id,
+      description: `Machine ${machine.machine_name} responded successfully`,
+      changes: { device_id: machine.device_id },
+    });
+    return NextResponse.json({ status: "online" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Connection failed";
+    await supabase.from("face_machine_settings").update({ connection_status: "error", last_error: message }).eq("id", id);
+    await admin.from("activity_logs").insert({
+      user_id: profile.id,
+      branch_id: machine.branch_id,
+      action: "machine_sync_failed",
+      entity_type: "face_machine",
+      entity_id: machine.id,
+      description: message,
+      changes: { device_id: machine.device_id, exception_type: "machine_offline" },
+    });
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
