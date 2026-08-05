@@ -2,7 +2,7 @@
 import { useActionState, useRef } from "react";
 import { Camera, LoaderCircle, UserRound } from "lucide-react";
 import Image from "next/image";
-import { uploadMemberPhotoAction } from "@/app/(dashboard)/members/actions";
+import { uploadMemberPhotoAction } from "@/app/actions/member-actions";
 import { Button } from "@/components/ui/button";
 
 export function PhotoUpload({

@@ -2,7 +2,7 @@
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { deleteMemberAction } from "@/app/(dashboard)/members/actions";
+import { deleteMemberAction } from "@/app/actions/member-actions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

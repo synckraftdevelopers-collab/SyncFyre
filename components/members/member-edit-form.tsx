@@ -1,7 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { LoaderCircle } from "lucide-react";
-import { updateMemberAction } from "@/app/(dashboard)/members/actions";
+import { updateMemberAction } from "@/app/actions/member-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Member } from "@/types";

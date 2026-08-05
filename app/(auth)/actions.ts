@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { forgotPasswordSchema, loginSchema, resetPasswordSchema } from "@/lib/validations/auth";
+import { PORTAL_DASHBOARD } from "@/lib/portals";
+import type { UserRole } from "@/types";
 
 export type AuthState = { error?: string; success?: string };
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
@@ -11,7 +13,20 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) return { error: error.message };
-  redirect("/dashboard");
+
+  // Fetch the user's role to redirect to the correct portal
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role:roles(slug)")
+      .eq("id", user.id)
+      .single();
+    const slug = (profile?.role as unknown as { slug: UserRole } | null)?.slug;
+    const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
+    redirect(dest);
+  }
+  redirect("/admin/dashboard");
 }
 
 export async function logoutAction() {
@@ -37,5 +52,13 @@ export async function resetPasswordAction(_: AuthState, formData: FormData): Pro
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
   if (error) return { error: error.message };
-  redirect("/dashboard");
+  // Redirect to portal dashboard after password reset
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase.from("users").select("role:roles(slug)").eq("id", user.id).single();
+    const slug = (profile?.role as unknown as { slug: UserRole } | null)?.slug;
+    const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
+    redirect(dest);
+  }
+  redirect("/admin/dashboard");
 }
