@@ -34,8 +34,8 @@ Production-oriented, multi-branch gym SaaS built with Next.js 15, TypeScript, Su
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url> SyncTyre
-cd SyncTyre
+git clone <repo-url> SyncFyre
+cd SyncFyre
 
 # 2. Install dependencies
 npm install
@@ -51,7 +51,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — you will be redirected to `/dashboard` after login.
+Open [http://localhost:3000](http://localhost:3000) — you will be redirected to your role's portal dashboard after login.
 
 ---
 
@@ -147,7 +147,10 @@ npm run lint       # ESLint
 ```
 app/
   (auth)/           Login, forgot-password, reset-password pages + server actions
-  (dashboard)/      All authenticated pages (dashboard, members, attendance, ...)
+  (admin)/          Admin and manager portal pages
+  (reception)/      Reception portal pages
+  (trainer)/        Trainer and dietician portal pages
+  (member)/         Member portal pages
   api/              REST API route handlers
   layout.tsx        Root layout (ThemeProvider, Toaster)
   globals.css       Global styles
@@ -155,7 +158,7 @@ app/
 components/
   auth/             Auth-specific UI (login form)
   dashboard/        MetricCard, DashboardCharts
-  layout/           AppShell, Header, Sidebar
+  layout/           PortalShell, PortalHeader, PortalSidebar
   members/          MembersTable, MemberForm, MemberEditForm
   modules/          Generic module overview, resource create form
   settings/         SyncMachineButton, DeviceStatusCard
@@ -164,15 +167,16 @@ components/
 lib/
   auth.ts           getCurrentProfile(), requireUser()
   env.ts            Environment variable validation
+  nav/              Portal navigation items per role
+  portals.ts        Portal-to-role mapping, PORTAL_DASHBOARD constants
   supabase/         Supabase client factories (server, client, admin)
   utils.ts          cn(), formatCurrency(), initials(), calculateAge(), calculateBmi()
   validations/      Zod schemas (auth, member, attendance, resources)
 
 services/
   member.service.ts     listMembers, createMember, updateMember, deleteMember
-  dashboard.service.ts  getDashboardData
-  payment.service.ts    listPayments, createPayment, getPaymentById
-  subscription.service.ts (Shradha's ownership)
+  dashboard.service.ts  getDashboardData, getRevenueChartData, getAttendanceChartData
+  payment.service.ts    listPayments, getPaymentById, listInvoices, getInvoiceById
 
 types/
   index.ts          Shared TypeScript types

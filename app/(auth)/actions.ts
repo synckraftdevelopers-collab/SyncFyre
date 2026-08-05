@@ -6,7 +6,7 @@ import { forgotPasswordSchema, loginSchema, resetPasswordSchema } from "@/lib/va
 import { PORTAL_DASHBOARD } from "@/lib/portals";
 import type { UserRole } from "@/types";
 
-export type AuthState = { error?: string; success?: string };
+export type AuthState = { error?: string; success?: string; redirectTo?: string };
 export async function loginAction(_: AuthState, formData: FormData): Promise<AuthState> {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "Enter a valid email and password (minimum 8 characters)." };
@@ -24,9 +24,9 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
       .single();
     const slug = (profile?.role as unknown as { slug: UserRole } | null)?.slug;
     const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
-    redirect(dest);
+    return { redirectTo: dest };
   }
-  redirect("/admin/dashboard");
+  return { redirectTo: "/admin/dashboard" };
 }
 
 export async function logoutAction() {
