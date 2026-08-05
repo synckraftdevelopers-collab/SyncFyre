@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Bell, CalendarDays, ChartNoAxesCombined, CircleDollarSign, Dumbbell, Gauge, ShieldCheck, UserRoundCog, UsersRound, Utensils, Wrench } from "lucide-react";
+import { Bell, CalendarDays, ChartNoAxesCombined, Dumbbell, Gauge, ShieldCheck, UserRoundCog, UsersRound, Utensils, Wrench } from "lucide-react";
 import { ModuleOverview, type ModuleConfig } from "@/components/modules/module-overview";
 import { createClient } from "@/lib/supabase/server";
 import { tableForResource, type ResourceName } from "@/lib/validations/resources";
@@ -25,9 +25,7 @@ const modules: Record<string, ModuleConfig> = {
   progress: { title: "Progress tracking", description: "Measure outcomes with consistent monthly check-ins.", icon: Gauge, action: "Record progress", features: [
     { title: "Body metrics", description: "Capture weight, BMI, body fat, muscle mass, and measurements." }, { title: "Progress photos", description: "Store private progress images in protected Supabase Storage." }, { title: "Trend charts", description: "Visualize changes and celebrate measurable improvement." },
   ]},
-  payments: { title: "Payments & invoices", description: "Collect, reconcile, refund, and report every transaction.", icon: CircleDollarSign, action: "Collect payment", features: [
-    { title: "Flexible payments", description: "Accept cash, UPI, card, and online transactions." }, { title: "Invoices & receipts", description: "Generate GST-ready invoices and downloadable receipts." }, { title: "Outstanding dues", description: "Monitor pending balances and process traceable refunds." },
-  ]},
+  // payments is handled by the dedicated /payments route
   staff: { title: "Staff management", description: "Manage reception, trainers, managers, dieticians, and admins.", icon: UsersRound, action: "Add staff", features: [
     { title: "Roles & permissions", description: "Apply least-privilege access based on each staff role." }, { title: "Attendance & leave", description: "Track staff presence and leave balances." }, { title: "Compensation", description: "Maintain salary and employment information securely." },
   ]},
