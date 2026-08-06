@@ -94,7 +94,18 @@ export async function createIncomeAction(
 
   try {
     const record = await createIncome({
-      ...parsed.data,
+      branch_id: parsed.data.branch_id,
+      category_id: parsed.data.category_id ?? null,
+      member_id: parsed.data.member_id ?? null,
+      amount: parsed.data.amount,
+      gst_amount: parsed.data.gst_amount,
+      total_amount: parsed.data.total_amount,
+      payment_method: parsed.data.payment_method,
+      transaction_ref: parsed.data.transaction_ref ?? null,
+      income_date: parsed.data.income_date,
+      description: parsed.data.description ?? null,
+      notes: parsed.data.notes ?? null,
+      hsn_sac: parsed.data.hsn_sac ?? null,
       is_membership_income: false,
       status: "posted",
       payment_id: null,
@@ -131,7 +142,20 @@ export async function createExpenseAction(
 
   try {
     const record = await createExpense({
-      ...parsed.data,
+      branch_id: parsed.data.branch_id,
+      category_id: parsed.data.category_id ?? null,
+      vendor_id: parsed.data.vendor_id ?? null,
+      amount: parsed.data.amount,
+      gst_amount: parsed.data.gst_amount,
+      total_amount: parsed.data.total_amount,
+      payment_method: parsed.data.payment_method,
+      bill_number: parsed.data.bill_number ?? null,
+      expense_date: parsed.data.expense_date,
+      description: parsed.data.description,
+      notes: parsed.data.notes ?? null,
+      is_recurring: parsed.data.is_recurring,
+      recurring_interval: parsed.data.recurring_interval ?? null,
+      hsn_sac: parsed.data.hsn_sac ?? null,
       approval_status: "pending",
       approved_by: null,
       approved_at: null,
@@ -235,8 +259,15 @@ export async function createBankAccountAction(
 
   try {
     const record = await createBankAccount({
-      ...parsed.data,
+      branch_id: parsed.data.branch_id,
+      account_name: parsed.data.account_name,
+      bank_name: parsed.data.bank_name,
+      account_number: parsed.data.account_number,
+      ifsc_code: parsed.data.ifsc_code ?? null,
+      account_type: parsed.data.account_type,
+      opening_balance: parsed.data.opening_balance,
       current_balance: parsed.data.opening_balance,
+      is_default: parsed.data.is_default,
       status: "active",
       created_by: userId,
       updated_by: userId,

@@ -750,30 +750,31 @@ export async function getProfitAndLoss(
   dateTo?: string
 ) {
   const supabase = await createClient();
-  const applyFilters = (q: ReturnType<typeof supabase.from>, dateCol: string) => {
-    let _q = q;
-    if (branchId) _q = (_q as ReturnType<typeof supabase.from>).eq("branch_id", branchId);
-    if (dateFrom) _q = (_q as ReturnType<typeof supabase.from>).gte(dateCol, dateFrom);
-    if (dateTo) _q = (_q as ReturnType<typeof supabase.from>).lte(dateCol, dateTo);
-    return _q;
-  };
 
-  const [incResult, expResult] = await Promise.all([
-    applyFilters(
-      supabase.from("income").select("total_amount, income_categories(name)").eq("status", "posted"),
-      "income_date"
-    ),
-    applyFilters(
-      supabase.from("expenses").select("total_amount, expense_categories(name)").eq("status", "posted").eq("approval_status", "approved"),
-      "expense_date"
-    ),
-  ]);
+  let incQuery = supabase
+    .from("income")
+    .select("total_amount, income_categories(name)")
+    .eq("status", "posted");
+  if (branchId) incQuery = incQuery.eq("branch_id", branchId);
+  if (dateFrom) incQuery = incQuery.gte("income_date", dateFrom);
+  if (dateTo)   incQuery = incQuery.lte("income_date", dateTo);
+
+  let expQuery = supabase
+    .from("expenses")
+    .select("total_amount, expense_categories(name)")
+    .eq("status", "posted")
+    .eq("approval_status", "approved");
+  if (branchId) expQuery = expQuery.eq("branch_id", branchId);
+  if (dateFrom) expQuery = expQuery.gte("expense_date", dateFrom);
+  if (dateTo)   expQuery = expQuery.lte("expense_date", dateTo);
+
+  const [incResult, expResult] = await Promise.all([incQuery, expQuery]);
 
   // Group income by category
   const incByCategory: Record<string, number> = {};
   let totalIncome = 0;
   for (const r of incResult.data ?? []) {
-    const cat = (r.income_categories as { name: string } | null)?.name ?? "Other";
+    const cat = (r.income_categories as unknown as { name: string } | null)?.name ?? "Other";
     incByCategory[cat] = (incByCategory[cat] ?? 0) + Number(r.total_amount);
     totalIncome += Number(r.total_amount);
   }
@@ -782,7 +783,7 @@ export async function getProfitAndLoss(
   const expByCategory: Record<string, number> = {};
   let totalExpenses = 0;
   for (const r of expResult.data ?? []) {
-    const cat = (r.expense_categories as { name: string } | null)?.name ?? "Other";
+    const cat = (r.expense_categories as unknown as { name: string } | null)?.name ?? "Other";
     expByCategory[cat] = (expByCategory[cat] ?? 0) + Number(r.total_amount);
     totalExpenses += Number(r.total_amount);
   }
