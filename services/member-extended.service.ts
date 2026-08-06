@@ -83,9 +83,19 @@ export async function listMembersRich(
     );
   }
 
-  const { data, count, error } = await query
+  let { data, count, error } = await query
     .order("joined_date", { ascending: false })
     .range(from, to);
+
+  // If page index is out of bounds (e.g., stale ?page=5 in URL), fallback to page 1
+  if (error && (error.code === "PGRST103" || error.message.toLowerCase().includes("range"))) {
+    const fallback = await query
+      .order("joined_date", { ascending: false })
+      .range(0, pageSize - 1);
+    data = fallback.data;
+    count = fallback.count;
+    error = fallback.error;
+  }
 
   if (error) throw new Error(error.message);
   const total = count ?? 0;

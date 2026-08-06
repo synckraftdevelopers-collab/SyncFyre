@@ -29,7 +29,7 @@ export default async function AdminMembersPage({
   const branchId = profile?.branch_id ?? null;
 
   const page     = Math.max(1, Number(sp.page ?? 1));
-  const pageSize = 25;
+  const pageSize = Math.max(1, Math.min(100, Number(sp.pageSize ?? 50)));
 
   // ── Parallel data fetch ─────────────────────────────────────────────────────
   const [result, branches, plans, trainers] = await Promise.all([

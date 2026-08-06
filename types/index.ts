@@ -27,7 +27,29 @@ export interface Member {
   weight_kg: number | null;
   status: RecordStatus;
   branch_id: string;
+  balance_amount?: number;
+  is_pt?: boolean;
+  pt_details?: string | null;
+  notes?: string | null;
   created_at: string;
+}
+
+export interface PersonalTraining {
+  id: string;
+  member_id: string;
+  branch_id: string;
+  subscription_id?: string | null;
+  package: string;
+  trainer_name?: string | null;
+  start_date: string;
+  end_date?: string | null;
+  total_amount: number;
+  paid_amount: number;
+  balance_amount: number;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PaginatedResult<T> {
@@ -84,6 +106,14 @@ export interface MemberRegisterRow {
   profile_photo_url: string | null;
   joined_date: string;
   created_at: string;
+  total_amount?: number | null;
+  paid_amount?: number | null;
+  balance_amount?: number | null;
+  payment_status?: string | null;
+  package_code?: string | null;
+  is_pt?: boolean | null;
+  pt_details?: string | null;
+  notes?: string | null;
 }
 
 export interface AttendanceReportRow {

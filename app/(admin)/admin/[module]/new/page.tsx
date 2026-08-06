@@ -41,7 +41,7 @@ export default async function AdminNewResourcePage({ params }: { params: Promise
     "face-machines":[{ name:"machine_name",label:"Machine name",required:true },{ name:"device_id",label:"Device ID",required:true },{ name:"machine_ip",label:"Machine IP" },{ name:"machine_api_url",label:"API URL" },{ name:"api_key_encrypted",label:"API key" },{ name:"status",label:"Status",type:"select",defaultValue:"active",options:[{label:"Active",value:"active"},{label:"Inactive",value:"inactive"}] }],
   };
 
-  const resource = moduleKey === "memberships" ? "membership-plans" : module;
+  const resource = moduleKey === "memberships" ? "membership-plans" : moduleKey;
   const returnTo = moduleKey === "face-machines" ? "/admin/settings" : `/admin/${moduleKey}`;
 
   return (

@@ -58,7 +58,7 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
     .from(tableForResource[resource])
     .select("*")
     .order("created_at", { ascending: false })
-    .limit(100);
+    .limit(500);
 
   return <ModuleOverview config={config} actionHref={actionHref} records={data ?? []} error={error?.message}/>;
 }

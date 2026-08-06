@@ -205,9 +205,16 @@ export function MembersRegisterTable({
     // 7. Plan
     helper.accessor("current_plan", {
       header: ({ column }) => <SortHeader column={column} label="Plan" />,
-      cell: ({ getValue }) => (
-        <span className="text-sm font-medium">{getValue() ?? <span className="text-muted-foreground">No plan</span>}</span>
-      ),
+      cell: ({ row, getValue }) => {
+        const val = getValue() || row.original.package_code;
+        const isPt = row.original.is_pt;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium">{val ?? <span className="text-muted-foreground">No plan</span>}</span>
+            {isPt && <Badge variant="outline" className="text-[10px] px-1 py-0 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border-purple-200">PT</Badge>}
+          </div>
+        );
+      },
     }),
 
     // 8. Join Date
@@ -261,7 +268,7 @@ export function MembersRegisterTable({
       id: "payment_status",
       header: "Payment",
       cell: ({ row }) => {
-        const status = paymentMap[row.original.member_id];
+        const status = row.original.payment_status || paymentMap[row.original.member_id];
         if (!status) return <Badge variant="outline">—</Badge>;
         const map: Record<string, { label: string; variant: "success" | "warning" | "danger" | "outline" }> = {
           paid:    { label: "Paid",    variant: "success" },
@@ -275,18 +282,17 @@ export function MembersRegisterTable({
     }),
 
     // 14. Total Plan Amount
-    helper.accessor("days_remaining", {
+    helper.display({
       id: "total_amount",
       header: "Plan Amount",
       cell: ({ row }) => {
-        // We need total from subscription — stored in MemberRegisterRow as joined data
-        // We'll show "—" if not in the data; the page can pass it via amountPaidMap
-        const memberId = row.original.member_id;
-        const paid = amountPaidMap[memberId];
-        // total is not in MemberRegisterRow directly; show from view if available
-        return <span className="tabular-nums text-sm">—</span>;
+        const total = row.original.total_amount;
+        return (
+          <span className="tabular-nums text-sm font-medium">
+            {total !== undefined && total !== null ? formatCurrency(total) : "—"}
+          </span>
+        );
       },
-      enableSorting: false,
     }),
 
     // 15. Amount Paid
@@ -294,10 +300,10 @@ export function MembersRegisterTable({
       id: "amount_paid",
       header: "Paid",
       cell: ({ row }) => {
-        const paid = amountPaidMap[row.original.member_id];
+        const paid = row.original.paid_amount ?? amountPaidMap[row.original.member_id];
         return (
           <span className="tabular-nums text-sm font-medium text-emerald-600">
-            {paid !== undefined ? formatCurrency(paid) : "—"}
+            {paid !== undefined && paid !== null ? formatCurrency(paid) : "—"}
           </span>
         );
       },
@@ -308,10 +314,17 @@ export function MembersRegisterTable({
       id: "balance",
       header: "Balance",
       cell: ({ row }) => {
-        const paid = amountPaidMap[row.original.member_id];
+        const bal = row.original.balance_amount;
+        if (bal !== undefined && bal !== null && bal > 0) {
+          return (
+            <span className="tabular-nums text-sm font-semibold text-rose-600">
+              {formatCurrency(bal)}
+            </span>
+          );
+        }
         return (
           <span className="tabular-nums text-sm text-muted-foreground">
-            {paid !== undefined ? "—" : "—"}
+            {bal === 0 ? "₹0" : "—"}
           </span>
         );
       },
