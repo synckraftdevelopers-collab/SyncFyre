@@ -159,7 +159,8 @@ export default async function AdminMemberDetailPage({
       {/* ── Profile tabs ────────────────────────────────────────────────── */}
       <Card className="overflow-hidden">
         <MemberProfileTabs
-          defaultTab={defaultTab}
+          activeTab={defaultTab}
+          memberId={id}
           tabs={[
             { id: "profile",     label: "Personal Info" },
             { id: "membership",  label: "Membership" },
@@ -170,38 +171,35 @@ export default async function AdminMemberDetailPage({
             { id: "diet",        label: "Diet Plan" },
             { id: "notifications", label: "Notifications" },
           ]}
-        >
-          {(activeTab) => (
-            <>
-              {/* Personal */}
-              {activeTab === "profile" && (
-                edit === "1" ? (
-                  <EditMemberSection id={id} branches={[]} trainers={trainers} member={member} />
-                ) : (
-                  <PersonalTab member={member} age={age} bmi={bmi} />
-                )
-              )}
-              {/* Membership */}
-              {activeTab === "membership" && (
-                <MembershipTab subscriptions={subscriptions} plans={plans} memberId={id} branchId={member.branch_id} />
-              )}
-              {/* Payments */}
-              {activeTab === "payments" && <PaymentsTab payments={payments} />}
-              {/* Attendance */}
-              {activeTab === "attendance" && (
-                <AttendanceTab summary={attendance} records={attendanceRecords.data} />
-              )}
-              {/* Progress */}
-              {activeTab === "progress" && <ProgressTab records={progress} />}
-              {/* Workouts */}
-              {activeTab === "workouts" && <WorkoutsTab workouts={workouts} />}
-              {/* Diet */}
-              {activeTab === "diet" && <DietTab plans={dietPlans} />}
-              {/* Notifications */}
-              {activeTab === "notifications" && <NotificationsTab items={notifications} />}
-            </>
+        />
+        <div className="p-5">
+          {/* Personal */}
+          {defaultTab === "profile" && (
+            edit === "1" ? (
+              <EditMemberSection id={id} branches={[]} trainers={trainers} member={member} />
+            ) : (
+              <PersonalTab member={member} age={age} bmi={bmi} />
+            )
           )}
-        </MemberProfileTabs>
+          {/* Membership */}
+          {defaultTab === "membership" && (
+            <MembershipTab subscriptions={subscriptions} plans={plans} memberId={id} branchId={member.branch_id} />
+          )}
+          {/* Payments */}
+          {defaultTab === "payments" && <PaymentsTab payments={payments} />}
+          {/* Attendance */}
+          {defaultTab === "attendance" && (
+            <AttendanceTab summary={attendance} records={attendanceRecords.data} />
+          )}
+          {/* Progress */}
+          {defaultTab === "progress" && <ProgressTab records={progress} />}
+          {/* Workouts */}
+          {defaultTab === "workouts" && <WorkoutsTab workouts={workouts} />}
+          {/* Diet */}
+          {defaultTab === "diet" && <DietTab plans={dietPlans} />}
+          {/* Notifications */}
+          {defaultTab === "notifications" && <NotificationsTab items={notifications} />}
+        </div>
       </Card>
     </div>
   );

@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { logoutAction } from "@/app/(auth)/actions";
+import { useId } from "react";
 
 export function PortalHeader({
   name,
@@ -23,6 +24,7 @@ export function PortalHeader({
   settingsHref?: string;
   notificationsHref?: string;
 }) {
+  const triggerId = useId();
   return (
     <header className="sticky top-0 z-30 flex h-20 items-center gap-3 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:px-8">
       <Button
@@ -79,8 +81,10 @@ export function PortalHeader({
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
+              id={triggerId}
               className="ml-2 flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="Open profile menu"
+              suppressHydrationWarning
             >
               <div className="grid size-9 place-items-center rounded-xl bg-[#071d38] text-sm font-bold text-white dark:bg-primary">
                 {initials(name)}
