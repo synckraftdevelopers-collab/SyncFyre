@@ -61,51 +61,127 @@ export async function listMembersRich(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  let query = supabase
-    .from("member_register_view")
-    .select("*", { count: "exact" });
+  // Try the rich view first; fall back to the base members table if unavailable.
+  try {
+    let query = supabase
+      .from("member_register_view")
+      .select("*", { count: "exact" });
 
-  if (branchId)                        query = query.eq("branch_id", branchId);
-  if (status && status !== "all")      query = query.eq("member_status", status);
-  if (gender && gender !== "all")      query = query.eq("gender", gender);
-  if (planId && planId !== "all")      query = query.eq("plan_id", planId);
-  if (trainerId && trainerId !== "all") query = query.eq("trainer_id", trainerId);
-  if (subscriptionStatus && subscriptionStatus !== "all")
-    query = query.eq("subscription_status", subscriptionStatus);
-  if (joinDateFrom)  query = query.gte("joined_date", joinDateFrom);
-  if (joinDateTo)    query = query.lte("joined_date", joinDateTo);
-  if (expiryDateFrom) query = query.gte("subscription_end", expiryDateFrom);
-  if (expiryDateTo)   query = query.lte("subscription_end", expiryDateTo);
-  if (search) {
-    const s = search.replace(/[%_]/g, "");
-    query = query.or(
-      `full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%`,
-    );
-  }
+    if (branchId)                         query = query.eq("branch_id", branchId);
+    if (status && status !== "all")       query = query.eq("member_status", status);
+    if (gender && gender !== "all")       query = query.eq("gender", gender);
+    if (planId && planId !== "all")       query = query.eq("plan_id", planId);
+    if (trainerId && trainerId !== "all") query = query.eq("trainer_id", trainerId);
+    if (subscriptionStatus && subscriptionStatus !== "all")
+      query = query.eq("subscription_status", subscriptionStatus);
+    if (joinDateFrom)   query = query.gte("joined_date", joinDateFrom);
+    if (joinDateTo)     query = query.lte("joined_date", joinDateTo);
+    if (expiryDateFrom) query = query.gte("subscription_end", expiryDateFrom);
+    if (expiryDateTo)   query = query.lte("subscription_end", expiryDateTo);
+    if (search) {
+      const s = search.replace(/[%_]/g, "");
+      query = query.or(
+        `full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%`,
+      );
+    }
 
-  let { data, count, error } = await query
-    .order("joined_date", { ascending: false })
-    .range(from, to);
-
-  // If page index is out of bounds (e.g., stale ?page=5 in URL), fallback to page 1
-  if (error && (error.code === "PGRST103" || error.message.toLowerCase().includes("range"))) {
-    const fallback = await query
+    let { data, count, error } = await query
       .order("joined_date", { ascending: false })
-      .range(0, pageSize - 1);
-    data = fallback.data;
-    count = fallback.count;
-    error = fallback.error;
-  }
+      .range(from, to);
 
-  if (error) throw new Error(error.message);
-  const total = count ?? 0;
-  return {
-    data: (data ?? []) as MemberRegisterRow[],
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  };
+    // If page index is out of bounds (e.g., stale ?page=5 in URL), fallback to page 1
+    if (error && (error.code === "PGRST103" || error.message.toLowerCase().includes("range"))) {
+      const fallback = await query
+        .order("joined_date", { ascending: false })
+        .range(0, pageSize - 1);
+      data = fallback.data;
+      count = fallback.count;
+      error = fallback.error;
+    }
+
+    if (error) throw new Error(error.message);
+    const total = count ?? 0;
+    return {
+      data: (data ?? []) as MemberRegisterRow[],
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  } catch {
+    // ── Fallback: query the base members table ───────────────────────────────
+    // Used when the view doesn't exist yet or Supabase returns an error for it.
+    let q = supabase
+      .from("members")
+      .select(
+        "id, member_code, full_name, gender, date_of_birth, phone, email, profile_photo_url, status, branch_id, assigned_trainer_id, created_at",
+        { count: "exact" },
+      );
+
+    if (branchId)                   q = q.eq("branch_id", branchId);
+    if (status && status !== "all") q = q.eq("status", status);
+    if (gender && gender !== "all") q = q.eq("gender", gender);
+    if (search) {
+      const s = search.replace(/[%_]/g, "");
+      q = q.or(`full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%`);
+    }
+
+    const { data: fallbackData, count: fallbackCount } = await q
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    const total = fallbackCount ?? 0;
+
+    // Map base member fields to MemberRegisterRow shape
+    const mapped = (fallbackData ?? []).map((m) => ({
+      member_id:          m.id,
+      member_code:        m.member_code,
+      full_name:          m.full_name,
+      gender:             m.gender ?? null,
+      date_of_birth:      m.date_of_birth ?? null,
+      age:                null,
+      phone:              m.phone,
+      email:              m.email ?? null,
+      blood_group:        null,
+      height_cm:          null,
+      weight_kg:          null,
+      fitness_goal:       null,
+      medical_conditions: null,
+      member_status:      m.status,
+      branch_id:          m.branch_id,
+      branch_name:        "",
+      branch_city:        null,
+      trainer_id:         m.assigned_trainer_id ?? null,
+      assigned_trainer:   null,
+      plan_id:            null,
+      current_plan:       null,
+      subscription_start: null,
+      subscription_end:   null,
+      subscription_status:null,
+      days_remaining:     null,
+      emergency_contact_name:  null,
+      emergency_contact_phone: null,
+      profile_photo_url:  m.profile_photo_url ?? null,
+      joined_date:        m.created_at,
+      created_at:         m.created_at,
+      total_amount:       null,
+      paid_amount:        null,
+      balance_amount:     null,
+      payment_status:     null,
+      package_code:       null,
+      is_pt:              null,
+      pt_details:         null,
+      notes:              null,
+    })) as MemberRegisterRow[];
+
+    return {
+      data: mapped,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
 }
 
 // ─── Full member profile (all fields) ────────────────────────────────────────

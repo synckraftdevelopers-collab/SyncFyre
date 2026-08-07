@@ -66,11 +66,14 @@ export interface DashboardMetrics {
   activeMembers: number;
   inactiveMembers: number;
   expiringMemberships: number;
+  expiredMemberships: number;
   revenue: number;
   pendingPayments: number;
   appointments: number;
   trainers: number;
   machines: number;
+  notifications: number;
+  branches: number;
 }
 
 // ─── Report view row types ────────────────────────────────────────────────────

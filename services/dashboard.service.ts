@@ -8,16 +8,23 @@ export async function getDashboardData(branchId?: string | null) {
   // Supabase exposes different builder types for aggregate and row queries; both support eq at runtime.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const branch = (query: any) => branchId ? query.eq("branch_id", branchId) : query;
-  const [members, active, attendance, expiring, revenue, pending, appointments, trainers, machines, activities] = await Promise.all([
+  const [members, active, attendance, expiring, expired, revenue, pending, appointments, trainers, machines, notifications, branches, activities] = await Promise.all([
     branch(supabase.from("members").select("id", { count: "exact", head: true })),
     branch(supabase.from("members").select("id", { count: "exact", head: true }).eq("status", "active")),
     branch(supabase.from("attendance").select("id", { count: "exact", head: true }).eq("attendance_date", today)),
     branch(supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").lte("end_date", inThirtyDays).gte("end_date", today)),
+    branch(supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "expired")),
     branch(supabase.from("payments").select("amount").eq("status", "completed").gte("paid_at", `${today}T00:00:00Z`)),
     branch(supabase.from("payments").select("amount").eq("status", "pending")),
     branch(supabase.from("appointments").select("id", { count: "exact", head: true }).eq("appointment_date", today)),
     branch(supabase.from("trainers").select("id", { count: "exact", head: true }).eq("status", "active")),
     branch(supabase.from("equipment").select("id", { count: "exact", head: true })),
+    // Notifications: unread count (scoped to branch if available)
+    branchId
+      ? supabase.from("notifications").select("id", { count: "exact", head: true }).eq("branch_id", branchId).is("read_at", null)
+      : supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+    // Branches: only meaningful for admin (no branch filter)
+    supabase.from("branches").select("id", { count: "exact", head: true }).eq("status", "active"),
     supabase.from("activity_logs").select("id, action, entity_type, description, created_at").order("created_at", { ascending: false }).limit(6),
   ]);
   const total = members.count ?? 0;
@@ -27,13 +34,89 @@ export async function getDashboardData(branchId?: string | null) {
     inactiveMembers: Math.max(0, total - (active.count ?? 0)),
     todayAttendance: attendance.count ?? 0,
     expiringMemberships: expiring.count ?? 0,
+    expiredMemberships: expired.count ?? 0,
     revenue: revenue.data?.reduce((sum: number, item: { amount: number | string }) => sum + Number(item.amount), 0) ?? 0,
     pendingPayments: pending.data?.reduce((sum: number, item: { amount: number | string }) => sum + Number(item.amount), 0) ?? 0,
     appointments: appointments.count ?? 0,
     trainers: trainers.count ?? 0,
     machines: machines.count ?? 0,
+    notifications: notifications.count ?? 0,
+    branches: branches.count ?? 0,
   };
   return { metrics, activities: activities.data ?? [] };
+}
+
+// ─── Recent data for dashboard feed ───────────────────────────────────────────
+
+export async function getRecentMembers(branchId?: string | null, limit = 5) {
+  const supabase = await createClient();
+  let q = supabase
+    .from("members")
+    .select("id, full_name, member_code, phone, status, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (branchId) q = q.eq("branch_id", branchId);
+  const { data } = await q;
+  return data ?? [];
+}
+
+export async function getRecentPayments(branchId?: string | null, limit = 5) {
+  const supabase = await createClient();
+  let q = supabase
+    .from("payments")
+    .select("id, amount, status, payment_method, paid_at, created_at, members(full_name, member_code)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (branchId) q = q.eq("branch_id", branchId);
+  const { data } = await q;
+  return (data ?? []) as Array<{
+    id: string;
+    amount: number;
+    status: string;
+    payment_method: string;
+    paid_at: string | null;
+    created_at: string;
+    members: { full_name: string; member_code: string } | null;
+  }>;
+}
+
+export async function getRecentAttendance(branchId?: string | null, limit = 5) {
+  const supabase = await createClient();
+  let q = supabase
+    .from("attendance")
+    .select("id, attendance_date, entry_time_ist, member_id, members(full_name, member_code)")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (branchId) q = q.eq("branch_id", branchId);
+  const { data } = await q;
+  return (data ?? []) as Array<{
+    id: string;
+    attendance_date: string;
+    entry_time_ist: string | null;
+    member_id: string;
+    members: { full_name: string; member_code: string } | null;
+  }>;
+}
+
+export async function getLatestRenewals(branchId?: string | null, limit = 5) {
+  const supabase = await createClient();
+  let q = supabase
+    .from("subscriptions")
+    .select("id, start_date, end_date, status, times_renewed, members(full_name, member_code), membership_plans(name)")
+    .gt("times_renewed", 0)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (branchId) q = q.eq("branch_id", branchId);
+  const { data } = await q;
+  return (data ?? []) as Array<{
+    id: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+    times_renewed: number;
+    members: { full_name: string; member_code: string } | null;
+    membership_plans: { name: string } | null;
+  }>;
 }
 
 // ─── Chart data ────────────────────────────────────────────────────────────
