@@ -1,0 +1,180 @@
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Pencil } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { requireUser } from "@/lib/auth";
+import { calculateAge, calculateBmi, formatCurrency } from "@/lib/utils";
+import { MemberProfileTabs } from "@/components/members/member-profile-tabs";
+import {
+  MemberStatusBadge,
+  SubscriptionStatusBadge,
+  DaysRemainingBadge,
+  AttendanceTodayBadge,
+} from "@/components/members/member-badges";
+import { PhotoUpload } from "@/components/members/photo-upload";
+import { RenewMembershipDialog } from "@/components/members/renew-membership-dialog";
+import {
+  getMemberById,
+  getMemberSubscriptions,
+  getMemberPayments,
+  getMemberAttendanceSummary,
+  getMemberAttendanceRecords,
+  getMemberProgress,
+  getMemberWorkouts,
+  getMemberDietPlans,
+  getMemberNotifications,
+  getPlanOptions,
+  getTrainerOptions,
+} from "@/services/member-extended.service";
+
+// Reuse all the tab content from the admin page
+import {
+  PersonalTab,
+  MembershipTab,
+  PaymentsTab,
+  AttendanceTab,
+  ProgressTab,
+  WorkoutsTab,
+  DietTab,
+  NotificationsTab,
+} from "@/components/members/member-detail-tabs";
+
+export default async function ReceptionMemberDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { id }  = await params;
+  const { tab } = await searchParams;
+  const profile = await requireUser(["reception", "admin", "manager"]);
+
+  const [member, subscriptions, payments, attendance, attendanceRecords,
+         progress, workouts, dietPlans, notifications, plans, trainers] =
+    await Promise.all([
+      getMemberById(id),
+      getMemberSubscriptions(id),
+      getMemberPayments(id),
+      getMemberAttendanceSummary(id),
+      getMemberAttendanceRecords(id),
+      getMemberProgress(id),
+      getMemberWorkouts(id),
+      getMemberDietPlans(id),
+      getMemberNotifications(id),
+      getPlanOptions(profile.branch_id),
+      getTrainerOptions(profile.branch_id),
+    ]);
+
+  if (!member) notFound();
+
+  const activeSub  = subscriptions.find((s) => s.status === "active");
+  const latestSub  = subscriptions[0];
+  const bmi        = calculateBmi(member.height_cm, member.weight_kg);
+  const age        = member.date_of_birth ? calculateAge(member.date_of_birth) : null;
+  const defaultTab = tab ?? "profile";
+
+  // Pre-render tabs
+  const profileContent     = <PersonalTab member={member} age={age} bmi={bmi} />;
+  const membershipContent  = await MembershipTab({ subscriptions, plans, memberId: id, branchId: member.branch_id });
+  const paymentsContent    = <PaymentsTab payments={payments} />;
+  const attendanceContent  = <AttendanceTab summary={attendance} records={attendanceRecords.data} />;
+  const progressContent    = <ProgressTab records={progress} />;
+  const workoutsContent    = <WorkoutsTab workouts={workouts} />;
+  const dietContent        = <DietTab plans={dietPlans} />;
+  const notifContent       = <NotificationsTab items={notifications} />;
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      {/* Back + Actions */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href="/reception/members" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <ArrowLeft className="size-4" /> Members
+        </Link>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Link
+            href={`/reception/members/${id}?tab=profile`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <Pencil className="size-4" /> Edit
+          </Link>
+          <RenewMembershipDialog memberId={id} branchId={member.branch_id} plans={plans} />
+        </div>
+      </div>
+
+      {/* Hero card */}
+      <Card>
+        <CardContent className="p-5">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+            <PhotoUpload memberId={id} currentPhotoUrl={member.profile_photo_url} memberName={member.full_name} />
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold">{member.full_name}</h1>
+                <MemberStatusBadge status={member.status} />
+                <SubscriptionStatusBadge status={activeSub?.status ?? latestSub?.status ?? null} />
+              </div>
+              <p className="mt-0.5 font-mono text-sm text-muted-foreground">{member.member_code}</p>
+              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                {member.phone && <span>📞 {member.phone}</span>}
+                {member.email && <span>✉ {member.email}</span>}
+                {age && <span>🎂 {age} yrs</span>}
+                {member.blood_group && <span>🩸 {member.blood_group}</span>}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2 text-right">
+              <AttendanceTodayBadge present={attendance.todayPresent} />
+              <div className="text-xs text-muted-foreground">
+                <p>Total visits: <strong>{attendance.totalVisits}</strong></p>
+                <p>This month: <strong>{attendance.currentMonthVisits}</strong></p>
+                {attendance.lastVisitDate && (
+                  <p>Last visit: <strong>{format(parseISO(attendance.lastVisitDate), "dd MMM yyyy")}</strong></p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick stats */}
+          <div className="mt-5 grid grid-cols-2 gap-3 border-t pt-4 sm:grid-cols-4">
+            <QuickStat label="Plan" value={activeSub?.plan_name ?? latestSub?.plan_name ?? "None"} />
+            <QuickStat label="Expiry">
+              {latestSub ? (
+                <DaysRemainingBadge days={Math.floor((new Date(latestSub.end_date).getTime() - Date.now()) / 86400000)} />
+              ) : <span className="text-muted-foreground text-sm">—</span>}
+            </QuickStat>
+            <QuickStat label="Plan Amount" value={latestSub ? formatCurrency(latestSub.total_amount) : "—"} />
+            <QuickStat label="Trainer" value={trainers.find((t) => t.id === member.assigned_trainer_id)?.name ?? "Not assigned"} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Profile tabs */}
+      <Card className="overflow-hidden">
+        <MemberProfileTabs
+          defaultTab={defaultTab}
+          tabs={[
+            { id: "profile",      label: "Personal Info", content: profileContent },
+            { id: "membership",   label: "Membership",    content: membershipContent },
+            { id: "payments",     label: "Payments",      content: paymentsContent },
+            { id: "attendance",   label: "Attendance",    content: attendanceContent },
+            { id: "progress",     label: "Progress",      content: progressContent },
+            { id: "workouts",     label: "Workouts",      content: workoutsContent },
+            { id: "diet",         label: "Diet Plan",     content: dietContent },
+            { id: "notifications",label: "Notifications", content: notifContent },
+          ]}
+        />
+      </Card>
+    </div>
+  );
+}
+
+function QuickStat({ label, value, children }: { label: string; value?: string; children?: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <div className="mt-0.5 font-semibold text-sm">{children ?? value ?? "—"}</div>
+    </div>
+  );
+}
