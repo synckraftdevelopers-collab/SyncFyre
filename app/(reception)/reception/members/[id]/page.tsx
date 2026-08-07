@@ -79,7 +79,7 @@ export default async function ReceptionMemberDetailPage({
 
   // Pre-render tabs
   const profileContent     = <PersonalTab member={member} age={age} bmi={bmi} />;
-  const membershipContent  = await MembershipTab({ subscriptions, plans, memberId: id, branchId: member.branch_id });
+  const membershipContent  = <MembershipTab subscriptions={subscriptions} plans={plans} memberId={id} branchId={member.branch_id} />;
   const paymentsContent    = <PaymentsTab payments={payments} />;
   const attendanceContent  = <AttendanceTab summary={attendance} records={attendanceRecords.data} />;
   const progressContent    = <ProgressTab records={progress} />;
@@ -154,6 +154,7 @@ export default async function ReceptionMemberDetailPage({
       <Card className="overflow-hidden">
         <MemberProfileTabs
           defaultTab={defaultTab}
+          baseUrl={`/reception/members/${id}`}
           tabs={[
             { id: "profile",      label: "Personal Info", content: profileContent },
             { id: "membership",   label: "Membership",    content: membershipContent },
