@@ -9,6 +9,16 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Membership Plans" };
 
+// Supabase may return features as a JSON string or already-parsed array
+function parseFeatures(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }
+  return [];
+}
+
 interface MembershipPlan {
   id: string;
   name: string;
@@ -31,6 +41,11 @@ export default async function MembershipsPage({
   const profile = await requireUser(["admin", "manager"]);
   const branchId = profile.branch_id;
 
+  // membership_plans.status is record_status enum: only "active" | "inactive"
+  // Dashboard cards may link with ?status=expired or ?status=expiring — treat those as "all"
+  const planStatus: "active" | "inactive" | "all" =
+    status === "active" || status === "inactive" ? status : "all";
+
   const supabase = await createClient();
   let query = supabase
     .from("membership_plans")
@@ -38,11 +53,14 @@ export default async function MembershipsPage({
     .order("created_at", { ascending: false });
 
   if (branchId) query = query.eq("branch_id", branchId);
-  if (status && status !== "all") query = query.eq("status", status);
+  if (planStatus !== "all") query = query.eq("status", planStatus);
 
   const { data: plans, error } = await query;
 
-  const allPlans = (plans ?? []) as MembershipPlan[];
+  const allPlans = (plans ?? []).map((p) => ({
+    ...(p as MembershipPlan),
+    features: parseFeatures((p as MembershipPlan).features),
+  }));
 
   // Count active subscriptions per plan
   const planIds = allPlans.map((p) => p.id);
@@ -122,7 +140,7 @@ export default async function MembershipsPage({
             key={s}
             href={`/admin/memberships?status=${s}`}
             className={buttonVariants({
-              variant: (status ?? "active") === s ? "default" : "outline",
+              variant: planStatus === s ? "default" : "outline",
               size: "sm",
             })}
           >

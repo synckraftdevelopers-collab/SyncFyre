@@ -32,7 +32,7 @@ export default async function AdminMembersPage({
   const pageSize = Math.max(1, Math.min(100, Number(sp.pageSize ?? 50)));
 
   // ── Parallel data fetch ─────────────────────────────────────────────────────
-  const [result, branches, plans, trainers] = await Promise.all([
+  const [result, branches, plans, trainers, activeCountRes] = await Promise.all([
     listMembersRich({
       page,
       pageSize,
@@ -51,10 +51,23 @@ export default async function AdminMembersPage({
     getBranchOptions(),
     getPlanOptions(branchId),
     getTrainerOptions(branchId),
+    // Real total-active count, not page-limited
+    (async () => {
+      const { createClient: cc } = await import("@/lib/supabase/server");
+      const sb = await cc();
+      let q = sb.from("members").select("id", { count: "exact", head: true }).eq("status", "active");
+      const effectiveBranch = sp.branch || branchId || null;
+      if (effectiveBranch) q = q.eq("branch_id", effectiveBranch);
+      const { count } = await q;
+      return count ?? 0;
+    })(),
   ]);
 
+  const totalActive = activeCountRes;
+
   // ── Today's attendance map ──────────────────────────────────────────────────
-  const today = new Date().toISOString().slice(0, 10);
+  const today        = new Date().toISOString().slice(0, 10);
+  const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const supabase = await createClient();
 
   const memberIds = result.data.map((m) => m.member_id);
@@ -120,12 +133,18 @@ export default async function AdminMembersPage({
 
       {/* Stats strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatPill label="Total" value={result.total} color="blue" />
+        <StatPill
+          label="Total"
+          value={result.total}
+          color="blue"
+          href="/admin/members"
+        />
         <StatPill
           label="Active"
-          value={result.data.filter((m) => m.member_status === "active").length}
-          note={`of ${result.data.length} shown`}
+          value={totalActive}
+          note="total active members"
           color="green"
+          href="/admin/members?status=active"
         />
         <StatPill
           label="Present Today"
@@ -140,6 +159,7 @@ export default async function AdminMembersPage({
             ).length
           }
           color="amber"
+          href={`/admin/members?sub_status=active&exp_from=${today}&exp_to=${inThirtyDays}`}
         />
       </div>
 
@@ -200,11 +220,13 @@ function StatPill({
   value,
   note,
   color,
+  href,
 }: {
   label: string;
   value: number;
   note?: string;
   color: "blue" | "green" | "emerald" | "amber";
+  href?: string;
 }) {
   const colors = {
     blue:    "bg-blue-500/8 text-blue-700",
@@ -212,11 +234,27 @@ function StatPill({
     emerald: "bg-emerald-500/8 text-emerald-700",
     amber:   "bg-amber-500/8 text-amber-700",
   };
-  return (
-    <div className={`rounded-xl px-4 py-3 ${colors[color]}`}>
+  const inner = (
+    <>
       <p className="text-xs font-medium opacity-70">{label}</p>
       <p className="mt-0.5 text-xl font-bold tabular-nums">{value.toLocaleString()}</p>
       {note && <p className="text-[10px] opacity-60 mt-0.5">{note}</p>}
+    </>
+  );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={`block cursor-pointer rounded-xl px-4 py-3 transition-all hover:brightness-95 hover:-translate-y-0.5 hover:shadow-md ${colors[color]}`}
+      >
+        {inner}
+        <p className="mt-1 text-[10px] opacity-50">Click to filter →</p>
+      </Link>
+    );
+  }
+  return (
+    <div className={`rounded-xl px-4 py-3 ${colors[color]}`}>
+      {inner}
     </div>
   );
 }

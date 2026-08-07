@@ -11,6 +11,16 @@ import {
   updateMembershipPlanAction,
 } from "@/app/actions/membership-plan-actions";
 
+// Normalize features to a string[] regardless of what Supabase returns
+function parseFeatures(raw: unknown): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw) as string[]; } catch { return []; }
+  }
+  return [];
+}
+
 interface Plan {
   id: string;
   name: string;
@@ -140,7 +150,7 @@ export function MembershipPlanForm({ branchId, plan }: Props) {
           <Input
             name="features"
             placeholder="e.g. Unlimited classes, Locker access, Personal trainer session"
-            defaultValue={plan?.features?.join(", ") ?? ""}
+            defaultValue={parseFeatures(plan?.features).join(", ") ?? ""}
           />
           <p className="text-xs text-muted-foreground">
             Comma-separated list of features included in this plan
