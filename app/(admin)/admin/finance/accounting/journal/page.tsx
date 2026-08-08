@@ -133,7 +133,7 @@ export default async function JournalEntriesPage({
                         <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(Number(j.total_credit))}</td>
                         <td className="px-4 py-3">
                           <Badge
-                            variant={j.status === "posted" ? "default" : "secondary"}
+                            variant={j.status === "posted" ? "default" : "outline"}
                             className="capitalize text-[10px]"
                           >
                             {j.status}

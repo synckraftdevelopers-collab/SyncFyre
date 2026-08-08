@@ -69,7 +69,7 @@ export async function getRecentPayments(branchId?: string | null, limit = 5) {
     .limit(limit);
   if (branchId) q = q.eq("branch_id", branchId);
   const { data } = await q;
-  return (data ?? []) as Array<{
+  return (data ?? []) as unknown as Array<{
     id: string;
     amount: number;
     status: string;
@@ -89,7 +89,7 @@ export async function getRecentAttendance(branchId?: string | null, limit = 5) {
     .limit(limit);
   if (branchId) q = q.eq("branch_id", branchId);
   const { data } = await q;
-  return (data ?? []) as Array<{
+  return (data ?? []) as unknown as Array<{
     id: string;
     attendance_date: string;
     entry_time_ist: string | null;
@@ -108,7 +108,7 @@ export async function getLatestRenewals(branchId?: string | null, limit = 5) {
     .limit(limit);
   if (branchId) q = q.eq("branch_id", branchId);
   const { data } = await q;
-  return (data ?? []) as Array<{
+  return (data ?? []) as unknown as Array<{
     id: string;
     start_date: string;
     end_date: string;

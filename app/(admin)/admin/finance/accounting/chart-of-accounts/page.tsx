@@ -103,7 +103,7 @@ export default async function ChartOfAccountsPage() {
                               {formatCurrency(Number(acc.opening_balance))}
                             </td>
                             <td className="px-4 py-2.5">
-                              <Badge variant={acc.status === "active" ? "default" : "secondary"} className="text-[10px]">
+                              <Badge variant={acc.status === "active" ? "default" : "outline"} className="text-[10px]">
                                 {acc.status}
                               </Badge>
                             </td>

@@ -200,7 +200,7 @@ export default async function MembershipsPage({
                         {plan.duration_months} month{plan.duration_months !== 1 ? "s" : ""}
                       </p>
                     </div>
-                    <Badge variant={plan.status === "active" ? "default" : "secondary"} className="shrink-0">
+                    <Badge variant={plan.status === "active" ? "default" : "outline"} className="shrink-0">
                       {plan.status}
                     </Badge>
                   </div>

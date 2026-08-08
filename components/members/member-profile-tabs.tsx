@@ -12,12 +12,15 @@ interface MemberProfileTabsProps {
   tabs: Tab[];
   activeTab: string;
   memberId: string;
+  /** Base path for tab links, e.g. "/admin/members" or "/reception/members" */
+  basePath?: string;
 }
 
 export function MemberProfileTabs({
   tabs,
   activeTab,
   memberId,
+  basePath = "/admin/members",
 }: MemberProfileTabsProps) {
   return (
     <div className="overflow-x-auto border-b">
@@ -25,7 +28,7 @@ export function MemberProfileTabs({
         {tabs.map((t) => (
           <Link
             key={t.id}
-            href={`/admin/members/${memberId}?tab=${t.id}`}
+            href={`${basePath}/${memberId}?tab=${t.id}`}
             scroll={false}
             className={cn(
               "relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors",

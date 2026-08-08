@@ -158,7 +158,7 @@ export default async function ReceptionDashboardPage() {
                         <p className="truncate text-sm font-medium">{m.full_name}</p>
                         <p className="text-xs text-muted-foreground">{m.member_code} · {m.phone}</p>
                       </div>
-                      <Badge variant={m.status === "active" ? "default" : "secondary"} className="text-[10px]">
+                      <Badge variant={m.status === "active" ? "default" : "outline"} className="text-[10px]">
                         {m.status}
                       </Badge>
                     </Link>
@@ -191,7 +191,7 @@ export default async function ReceptionDashboardPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-emerald-600">{formatCurrency(Number(p.amount))}</p>
-                      <Badge variant={p.status === "completed" ? "default" : "secondary"} className="text-[10px]">
+                      <Badge variant={p.status === "completed" ? "default" : "outline"} className="text-[10px]">
                         {p.status}
                       </Badge>
                     </div>
@@ -252,7 +252,7 @@ export default async function ReceptionDashboardPage() {
                         {r.membership_plans?.name ?? "Plan"} · expires {format(parseISO(r.end_date), "dd MMM yyyy")}
                       </p>
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">×{r.times_renewed}</Badge>
+                    <Badge variant="outline" className="text-[10px]">×{r.times_renewed}</Badge>
                   </li>
                 ))}
               </ul>
