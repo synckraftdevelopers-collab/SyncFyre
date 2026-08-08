@@ -1,11 +1,11 @@
-import { getCurrentProfile } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { listExpenseCategories, listVendors } from "@/services/finance.service";
 import { ExpenseForm } from "@/components/finance/expense-form";
 
 export const metadata = { title: "Add Expense" };
 
 export default async function NewExpensePage() {
-  const profile = await getCurrentProfile();
+  const profile = await requireUser(["admin", "manager"]);
   const branchId = profile?.branch_id ?? "";
 
   const [categories, { data: vendors }] = await Promise.all([

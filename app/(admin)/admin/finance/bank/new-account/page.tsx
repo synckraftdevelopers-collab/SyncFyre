@@ -1,10 +1,10 @@
-import { getCurrentProfile } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { BankAccountForm } from "@/components/finance/bank-account-form";
 
 export const metadata = { title: "Add Bank Account" };
 
 export default async function NewBankAccountPage() {
-  const profile = await getCurrentProfile();
+  const profile = await requireUser(["admin", "manager"]);
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>

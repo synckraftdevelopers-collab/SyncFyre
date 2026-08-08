@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentProfile } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { getProfitAndLoss } from "@/services/finance.service";
 
@@ -12,16 +13,13 @@ export default async function ProfitLossPage({
   searchParams: Promise<{ date_from?: string; date_to?: string }>;
 }) {
   const query = await searchParams;
-  const profile = await getCurrentProfile();
+  const profile = await requireUser(["admin", "manager"]);
   const branchId = profile?.branch_id;
 
-  // Default: current financial year (Apr 1 to today)
   const now = new Date();
-  const fyStart = now.getMonth() >= 3
-    ? `${now.getFullYear()}-04-01`
-    : `${now.getFullYear() - 1}-04-01`;
-
-  const dateFrom = query.date_from ?? fyStart;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString().slice(0, 10);
+  const dateFrom = query.date_from ?? monthStart;
   const dateTo   = query.date_to   ?? now.toISOString().slice(0, 10);
 
   const pl = await getProfitAndLoss(branchId, dateFrom, dateTo);
@@ -35,6 +33,16 @@ export default async function ProfitLossPage({
             {dateFrom} to {dateTo}
           </p>
         </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {[3, 6, 12].map((months) => {
+            const from = new Date(now.getFullYear(), now.getMonth() - months + 1, 1).toISOString().slice(0, 10);
+            return (
+              <Link key={months} href={`/admin/finance/reports/profit-loss?date_from=${from}&date_to=${dateTo}`} className="h-9 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted">
+                {months === 12 ? "1Y" : `${months}M`}
+              </Link>
+            );
+          })}
+          <a href={`/api/finance/profit-loss?from=${dateFrom}&to=${dateTo}`} className="h-9 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted">Export</a>
         <form className="flex items-center gap-2">
           <input type="date" name="date_from" defaultValue={dateFrom}
             className="h-9 rounded-lg border bg-background px-3 text-sm" />
@@ -46,6 +54,7 @@ export default async function ProfitLossPage({
             Apply
           </button>
         </form>
+        </div>
       </div>
 
       {/* Net Summary */}

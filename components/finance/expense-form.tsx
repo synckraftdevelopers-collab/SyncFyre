@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -21,6 +21,11 @@ const PAYMENT_METHODS = ["cash", "upi", "card", "online"] as const;
 export function ExpenseForm({ branchId, categories, vendors }: ExpenseFormProps) {
   const router = useRouter();
   const [state, action, pending] = useActionState(createExpenseAction, {});
+  const [amount, setAmount] = useState("");
+  const [gstPercent, setGstPercent] = useState("0");
+  const subtotal = Number(amount) || 0;
+  const gstAmount = subtotal * ((Number(gstPercent) || 0) / 100);
+  const totalAmount = subtotal + gstAmount;
 
   useEffect(() => {
     if (state.success) {
@@ -77,17 +82,18 @@ export function ExpenseForm({ branchId, categories, vendors }: ExpenseFormProps)
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Amount (₹) <span className="text-destructive">*</span></label>
-              <Input type="number" name="amount" placeholder="0.00" step="0.01" min="0.01" required />
+              <Input type="number" name="amount" placeholder="0.00" step="0.01" min="0.01" required value={amount} onChange={(event) => setAmount(event.target.value)} />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">GST Amount (₹)</label>
-              <Input type="number" name="gst_amount" placeholder="0.00" step="0.01" min="0" defaultValue="0" />
+              <Input type="number" name="gst_percent" step="0.01" min="0" value={gstPercent} onChange={(event) => setGstPercent(event.target.value)} />
+              <input type="hidden" name="gst_amount" value={gstAmount.toFixed(2)} />
             </div>
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Total Amount (₹) <span className="text-destructive">*</span></label>
-              <Input type="number" name="total_amount" placeholder="0.00" step="0.01" min="0.01" required />
+              <Input type="number" name="total_amount" step="0.01" min="0.01" required readOnly value={totalAmount.toFixed(2)} />
             </div>
 
             <div className="space-y-1.5">
@@ -119,7 +125,7 @@ export function ExpenseForm({ branchId, categories, vendors }: ExpenseFormProps)
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">
-              <label className="text-sm font-medium">Notes</label>
+              <label className="text-sm font-medium">Attachment note / Notes</label>
               <textarea
                 name="notes"
                 rows={3}

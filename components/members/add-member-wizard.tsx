@@ -124,7 +124,7 @@ export function AddMemberWizard({
       ["height_cm", "weight_kg", "blood_group", "medical_conditions", "fitness_goal"],
       ["plan_id", "start_date"],
       ["payment_amount", "payment_method"],
-      ["assigned_trainer_id"],
+      [],
       [],
       [],
     ];
@@ -514,7 +514,7 @@ function StepTrainer({ register, errors, trainers }: {
         </select>
       </label>
       <p className="mt-3 text-xs text-muted-foreground">
-        Trainer assignments can be changed anytime from the member profile.
+        Trainer assignment is optional and can be changed anytime from the member profile.
       </p>
     </div>
   );

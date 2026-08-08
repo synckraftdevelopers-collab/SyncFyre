@@ -1,12 +1,17 @@
-import { getCurrentProfile } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { listIncomeCategories } from "@/services/finance.service";
+import { listMembers } from "@/services/member.service";
 import { IncomeForm } from "@/components/finance/income-form";
 
 export const metadata = { title: "Add Income" };
 
 export default async function NewIncomePage() {
-  const profile = await getCurrentProfile();
-  const categories = await listIncomeCategories(profile?.branch_id);
+  const profile = await requireUser(["admin", "manager"]);
+  const branchId = profile?.branch_id ?? "";
+  const [categories, { data: members }] = await Promise.all([
+    listIncomeCategories(branchId),
+    listMembers({ branchId, pageSize: 200, status: "active" }),
+  ]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -15,8 +20,9 @@ export default async function NewIncomePage() {
         <p className="text-sm text-muted-foreground">Record a new income entry</p>
       </div>
       <IncomeForm
-        branchId={profile?.branch_id ?? ""}
+        branchId={branchId}
         categories={categories}
+        members={members}
       />
     </div>
   );

@@ -79,6 +79,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const supabase = await createClient();
+  if (resource === "workouts" && profile.role?.slug === "trainer") {
+    const { data: trainer } = await supabase
+      .from("trainers")
+      .select("id")
+      .eq("user_id", profile.id)
+      .single();
+    if (!trainer) return NextResponse.json({ error: "Trainer profile not found" }, { status: 400 });
+    payload.trainer_id = trainer.id;
+  }
+  if (resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")) {
+    const { data: staff } = await supabase
+      .from("staff")
+      .select("id")
+      .eq("user_id", profile.id)
+      .single();
+    if (staff) payload.staff_id = staff.id;
+  }
   const { data, error } = await supabase.from(tableForResource[resource]).insert(payload).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
