@@ -1,7 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-// ─── Constants (inlined — cannot import lib/portals.ts in Edge) ───────────────
+// â”€â”€â”€ Constants (inlined â€” cannot import lib/portals.ts in Edge) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PUBLIC_PATHS = [
   "/",
@@ -32,7 +32,7 @@ const PORTAL_ROLES: Record<string, string[]> = {
 
 const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
 
-// ─── Middleware ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Middleware â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -54,17 +54,26 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const pathname = request.nextUrl.pathname;
+
+  // `getUser()` validates a session with Supabase. It can throw when a browser
+  // has an old or corrupt auth cookie. Do not let that turn the public login
+  // page into a 500 response.
+  let user = null;
+  try {
+    const {
+      data: { user: authenticatedUser },
+    } = await supabase.auth.getUser();
+    user = authenticatedUser;
+  } catch (error) {
+    console.error("[middleware] Unable to validate Supabase session", error);
+  }
 
   const isPublic = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 
-  // 1. Unauthenticated user hitting a protected route → login
+  // 1. Unauthenticated user hitting a protected route â†’ login
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -72,7 +81,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // For the rest we need the user's role — fetch it from the DB.
+  // For the rest we need the user's role â€” fetch it from the DB.
   // Only do this when the user is authenticated and hits a meaningful route.
   if (user) {
     const { data: profile } = await supabase
@@ -84,19 +93,19 @@ export async function middleware(request: NextRequest) {
     const roleSlug: string =
       (profile?.role as unknown as { slug: string } | null)?.slug ?? "";
 
-    // 2. Authenticated user on login → redirect to their portal dashboard
+    // 2. Authenticated user on login â†’ redirect to their portal dashboard
     if (pathname === "/login") {
       const dest = PORTAL_DASHBOARD[roleSlug] ?? "/admin/dashboard";
       return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    // 3. Root / and old /dashboard → redirect to portal
+    // 3. Root / and old /dashboard â†’ redirect to portal
     if (pathname === "/" || pathname === "/dashboard") {
       const dest = PORTAL_DASHBOARD[roleSlug] ?? "/admin/dashboard";
       return NextResponse.redirect(new URL(dest, request.url));
     }
 
-    // 4. Portal route accessed by wrong role → redirect to own portal
+    // 4. Portal route accessed by wrong role â†’ redirect to own portal
     const matchedPortal = PROTECTED_PREFIXES.find((prefix) =>
       pathname.startsWith(prefix),
     );
