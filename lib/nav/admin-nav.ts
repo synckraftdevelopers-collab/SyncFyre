@@ -1,7 +1,7 @@
 import {
   Activity, Bell, BookOpen, CalendarDays, ChartNoAxesCombined, CircleDollarSign,
   Dumbbell, Gauge, IndianRupee, LayoutDashboard, Settings, ShieldCheck,
-  UserRoundCog, UsersRound, Utensils, Wrench,
+  UserPlus, UserRoundCog, UsersRound, Utensils, Wrench,
 } from "lucide-react";
 import type { NavItem } from "@/lib/nav/types";
 
@@ -9,9 +9,11 @@ export const adminNav: NavItem[] = [
   { label: "Dashboard",     href: "/admin/dashboard",              icon: LayoutDashboard },
   { label: "Members",       href: "/admin/members",                icon: UsersRound },
   { label: "Memberships",   href: "/admin/memberships",            icon: ShieldCheck },
+  { label: "Subscriptions", href: "/admin/subscriptions",           icon: ShieldCheck },
   { label: "Attendance",    href: "/admin/attendance",             icon: Activity },
   { label: "Appointments",  href: "/admin/appointments",           icon: CalendarDays },
   { label: "Trainers",      href: "/admin/trainers",               icon: UserRoundCog },
+  { label: "Add Staff",     href: "/admin/staff/new",              icon: UserPlus },
   { label: "Workouts",      href: "/admin/workouts",               icon: Dumbbell },
   { label: "Diet Plans",    href: "/admin/diet-plans",             icon: Utensils },
   { label: "Progress",      href: "/admin/progress",               icon: Gauge },

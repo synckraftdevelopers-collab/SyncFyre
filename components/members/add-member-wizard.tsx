@@ -175,6 +175,7 @@ export function AddMemberWizard({
 
   return (
     <div className="space-y-6">
+      <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">* Required:</span> Full name, Phone, and Branch. Fields marked optional can be skipped and completed later.</p>
       {/* Step indicator */}
       <div className="flex items-center gap-0 overflow-x-auto pb-2">
         {STEPS.map((s, idx) => {
@@ -281,21 +282,21 @@ function StepPersonal({ register, errors, branches }: {
       <h2 className="mb-5 text-base font-semibold">Personal Information</h2>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <label className={fieldClass}>
-          Full name *
+          Full name * (required)
           <Input {...register("full_name")} placeholder="e.g. Rahul Sharma" />
           {errors.full_name && <p className="text-xs text-red-600">{errors.full_name.message}</p>}
         </label>
         <label className={fieldClass}>
-          Phone *
+          Phone * (required)
           <Input {...register("phone")} type="tel" placeholder="+91 98765 43210" />
           {errors.phone && <p className="text-xs text-red-600">{errors.phone.message}</p>}
         </label>
         <label className={fieldClass}>
-          Email
+          Email (optional)
           <Input {...register("email")} type="email" placeholder="rahul@email.com" />
         </label>
         <label className={fieldClass}>
-          Gender
+          Gender (optional)
           <select {...register("gender")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
             <option value="">Select</option>
             <option value="male">Male</option>
@@ -305,11 +306,11 @@ function StepPersonal({ register, errors, branches }: {
           </select>
         </label>
         <label className={fieldClass}>
-          Date of birth
+          Date of birth (optional)
           <Input {...register("date_of_birth")} type="date" />
         </label>
         <label className={fieldClass}>
-          Branch *
+          Branch * (required)
           <select {...register("branch_id")} required className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
             <option value="">Select branch</option>
             {branches.map((b) => (
@@ -319,7 +320,7 @@ function StepPersonal({ register, errors, branches }: {
           {errors.branch_id && <p className="text-xs text-red-600">{errors.branch_id.message}</p>}
         </label>
         <label className={cn(fieldClass, "md:col-span-2 xl:col-span-3")}>
-          Address
+          Address (optional)
           <Input {...register("address")} placeholder="Full address" />
         </label>
       </div>
@@ -338,11 +339,11 @@ function StepEmergency({ register, errors }: {
       <h2 className="mb-5 text-base font-semibold">Emergency Contact</h2>
       <div className="grid gap-4 md:grid-cols-2">
         <label className={fieldClass}>
-          Contact name
+          Contact name (optional)
           <Input {...register("emergency_contact_name")} placeholder="Parent / Spouse name" />
         </label>
         <label className={fieldClass}>
-          Contact phone
+          Contact phone (optional)
           <Input {...register("emergency_contact_phone")} type="tel" placeholder="+91 …" />
         </label>
       </div>
@@ -361,23 +362,23 @@ function StepMedical({ register, errors }: {
       <h2 className="mb-5 text-base font-semibold">Medical Information</h2>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <label className={fieldClass}>
-          Height (cm)
+          Height (cm) (optional)
           <Input {...register("height_cm")} type="number" min="1" step="0.1" placeholder="170" />
         </label>
         <label className={fieldClass}>
-          Weight (kg)
+          Weight (kg) (optional)
           <Input {...register("weight_kg")} type="number" min="1" step="0.1" placeholder="70" />
         </label>
         <label className={fieldClass}>
-          Blood group
+          Blood group (optional)
           <Input {...register("blood_group")} placeholder="e.g. O+" />
         </label>
         <label className={fieldClass}>
-          Fitness goal
+          Fitness goal (optional)
           <Input {...register("fitness_goal")} placeholder="Weight loss, muscle gain…" />
         </label>
         <label className={cn(fieldClass, "md:col-span-2 xl:col-span-2")}>
-          Medical conditions
+          Medical conditions (optional)
           <Input {...register("medical_conditions")} placeholder="Allergies, injuries, conditions" />
         </label>
       </div>
@@ -399,7 +400,7 @@ function StepMembership({ register, errors, plans, watched }: {
       <h2 className="mb-5 text-base font-semibold">Membership Plan</h2>
       <div className="grid gap-4 md:grid-cols-2">
         <label className={fieldClass}>
-          Select plan
+          Select plan (optional)
           <select {...register("plan_id")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
             <option value="">No plan — add later</option>
             {plans.map((p) => (
@@ -410,7 +411,7 @@ function StepMembership({ register, errors, plans, watched }: {
           </select>
         </label>
         <label className={fieldClass}>
-          Start date
+          Start date (optional)
           <Input
             {...register("start_date")}
             type="date"
@@ -466,7 +467,7 @@ function StepPayment({ register, errors, selectedPlan, planPrice, gstAmt, totalA
       )}
       <div className="grid gap-4 md:grid-cols-2">
         <label className={fieldClass}>
-          Amount collected (₹)
+          Amount collected (optional)
           <Input
             {...register("payment_amount")}
             type="number"
@@ -477,7 +478,7 @@ function StepPayment({ register, errors, selectedPlan, planPrice, gstAmt, totalA
           />
         </label>
         <label className={fieldClass}>
-          Payment method
+          Payment method (optional)
           <select {...register("payment_method")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
             <option value="cash">Cash</option>
             <option value="upi">UPI</option>
@@ -486,7 +487,7 @@ function StepPayment({ register, errors, selectedPlan, planPrice, gstAmt, totalA
           </select>
         </label>
         <label className={cn(fieldClass, "md:col-span-2")}>
-          Transaction reference
+          Transaction reference (optional)
           <Input {...register("transaction_ref")} placeholder="UPI ID, card last 4 digits, etc." />
         </label>
       </div>

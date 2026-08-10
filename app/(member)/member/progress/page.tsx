@@ -2,6 +2,7 @@ import { Gauge } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { MemberProgressChart } from "@/components/progress/member-progress-chart";
 
 export const metadata = { title: "My Progress" };
 
@@ -61,6 +62,8 @@ export default async function MemberProgressPage() {
               </CardContent>
             )}
           </Card>
+
+          {data && <MemberProgressChart records={data} />}
 
           {data && data.length > 1 && (
             <Card>

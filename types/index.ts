@@ -11,6 +11,7 @@ export interface UserProfile {
   avatar_url: string | null;
   role: { name: string; slug: UserRole } | null;
   branch_id: string | null;
+  status: RecordStatus;
 }
 
 export interface Member {

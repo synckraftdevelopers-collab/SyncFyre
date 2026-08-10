@@ -47,6 +47,7 @@ const quickActions = [
   { label: "Mark Attendance",    href: "/admin/attendance",        icon: Activity,          tone: "blue" },
   { label: "Create Appointment", href: "/admin/appointments/new",  icon: CalendarDays,      tone: "purple" },
   { label: "Add Trainer",        href: "/admin/trainers/new",      icon: UserRoundCog,      tone: "orange" },
+  { label: "Add Staff",          href: "/admin/staff/new",         icon: UsersRound,        tone: "primary" },
   { label: "Add Expense",        href: "/admin/finance/expenses/new", icon: CircleDollarSign, tone: "red" },
   { label: "Create Invoice",     href: "/admin/invoices/new",      icon: ShieldCheck,       tone: "green" },
   { label: "Add Equipment",      href: "/admin/equipment/new",     icon: Dumbbell,          tone: "blue" },
@@ -77,7 +78,7 @@ export default async function AdminDashboardPage() {
   ]);
 
   return (
-    <div className="space-y-7">
+    <div className="select-none space-y-7 [&_*]:!cursor-default [&_a]:!cursor-pointer [&_button]:!cursor-pointer">
       {/* ── Hero Banner ─────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden rounded-3xl bg-[#071d38] px-6 py-7 text-white shadow-[0_16px_45px_rgba(7,29,56,.18)] md:px-8">
         <div className="absolute -right-16 -top-20 size-56 rounded-full border-[38px] border-[#52c7ea]/10" />
@@ -89,6 +90,10 @@ export default async function AdminDashboardPage() {
         <p className="mt-2 max-w-xl text-sm text-white/55">
           Everything happening across your gym, in one intelligent workspace.
         </p>
+        <Link href="/admin/staff/new" className={buttonVariants({ variant: "outline", size: "sm", className: "relative mt-5 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" })}>
+          <UserPlus className="size-4" />
+          Add Staff
+        </Link>
       </div>
 
       {/* ── KPI Cards — Row 1: Members & Attendance ─────────────────────── */}
@@ -228,7 +233,7 @@ export default async function AdminDashboardPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {quickActions.map((action) => (
               <Link
                 key={action.href}
