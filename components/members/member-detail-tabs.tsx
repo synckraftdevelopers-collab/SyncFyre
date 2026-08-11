@@ -15,7 +15,7 @@ import {
   getMemberAttendanceSummary,
 } from "@/services/member-extended.service";
 
-// ─── Personal tab ────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Personal tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function PersonalTab({
   member,
   age,
@@ -31,35 +31,39 @@ export function PersonalTab({
       title: "Basic Details",
       rows: [
         ["Full name", member.full_name],
-        ["Gender", member.gender ?? "—"],
+        ["Gender", member.gender ?? "Ã¢â‚¬â€"],
         [
           "Date of birth",
           member.date_of_birth
             ? format(parseISO(member.date_of_birth), "dd MMM yyyy")
-            : "—",
+            : "Ã¢â‚¬â€",
         ],
-        ["Age", age ? `${age} years` : "—"],
+        ["Age", age ? `${age} years` : "Ã¢â‚¬â€"],
         ["Phone", member.phone],
-        ["Email", member.email ?? "—"],
-        ["Address", member.address ?? "—"],
+        ["Email", member.email ?? "Ã¢â‚¬â€"],
+        ["Address", member.address ?? "Ã¢â‚¬â€"],
       ],
     },
     {
       title: "Health & Fitness",
       rows: [
-        ["Height", member.height_cm ? `${member.height_cm} cm` : "—"],
-        ["Weight", member.weight_kg ? `${member.weight_kg} kg` : "—"],
-        ["BMI", bmi ? String(bmi) : "—"],
-        ["Blood group", member.blood_group ?? "—"],
-        ["Fitness goal", member.fitness_goal ?? "—"],
-        ["Medical conditions", member.medical_conditions ?? "—"],
+        ["Height", member.height_cm ? `${member.height_cm} cm` : "Ã¢â‚¬â€"],
+        ["Weight", member.weight_kg ? `${member.weight_kg} kg` : "Ã¢â‚¬â€"],
+        ["BMI", bmi ? String(bmi) : "Ã¢â‚¬â€"],
+        ["Blood group", member.blood_group ?? "Ã¢â‚¬â€"],
+        ["Fitness goal", member.fitness_goal ?? "Ã¢â‚¬â€"],
+        ["Medical conditions", member.medical_conditions ?? "Ã¢â‚¬â€"],
       ],
     },
     {
       title: "Emergency Contact",
       rows: [
-        ["Contact name", member.emergency_contact_name ?? "—"],
+        ["Contact name", member.emergency_contact_name ?? "Ã¢â‚¬â€"],
         ["Contact phone", member.emergency_contact_phone ?? "—"],
+        ["Consent name", member.candidate_consent_name ?? "—"],
+        ["Relationship", member.relationship_to_candidate ?? "—"],
+        ["Screening date", member.screening_date ?? "—"],
+        ["Valid until", member.screening_valid_until ?? "—"],
       ],
     },
   ];
@@ -87,7 +91,7 @@ export function PersonalTab({
   );
 }
 
-// ─── Membership tab ───────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Membership tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function MembershipTab({
   subscriptions,
   plans,
@@ -183,7 +187,7 @@ export function MembershipTab({
   );
 }
 
-// ─── Payments tab ─────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Payments tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function PaymentsTab({
   payments,
 }: {
@@ -231,7 +235,7 @@ export function PaymentsTab({
                     {format(parseISO(p.payment_date), "dd MMM yyyy")}
                   </td>
                   <td className="py-2.5 pr-4 font-mono text-xs">
-                    {p.invoice_number ?? "—"}
+                    {p.invoice_number ?? "Ã¢â‚¬â€"}
                   </td>
                   <td className="py-2.5 pr-4">{p.plan_name ?? "Direct"}</td>
                   <td className="py-2.5 pr-4 tabular-nums font-medium">
@@ -242,10 +246,10 @@ export function PaymentsTab({
                     <PaymentStatusBadge status={p.payment_status} />
                   </td>
                   <td className="py-2.5 pr-4 font-mono text-xs text-muted-foreground">
-                    {p.transaction_reference ?? "—"}
+                    {p.transaction_reference ?? "Ã¢â‚¬â€"}
                   </td>
                   <td className="py-2.5 pr-4 text-muted-foreground">
-                    {p.collected_by ?? "—"}
+                    {p.collected_by ?? "Ã¢â‚¬â€"}
                   </td>
                 </tr>
               ))}
@@ -257,7 +261,7 @@ export function PaymentsTab({
   );
 }
 
-// ─── Attendance tab ───────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Attendance tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function AttendanceTab({
   summary,
   records,
@@ -312,8 +316,8 @@ export function AttendanceTab({
                   <td className="py-2 pr-4 whitespace-nowrap">
                     {format(parseISO(r.attendance_date), "dd MMM yyyy")}
                   </td>
-                  <td className="py-2 pr-4">{r.entry_time_ist ?? "—"}</td>
-                  <td className="py-2 pr-4">{r.exit_time_ist ?? "—"}</td>
+                  <td className="py-2 pr-4">{r.entry_time_ist ?? "Ã¢â‚¬â€"}</td>
+                  <td className="py-2 pr-4">{r.exit_time_ist ?? "Ã¢â‚¬â€"}</td>
                   <td className="py-2 pr-4">{r.duration_label}</td>
                 </tr>
               ))}
@@ -325,7 +329,7 @@ export function AttendanceTab({
   );
 }
 
-// ─── Progress tab ─────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Progress tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function ProgressTab({ records }: { records: any[] }) {
   if (!records.length)
     return (
@@ -361,17 +365,17 @@ export function ProgressTab({ records }: { records: any[] }) {
               <td className="py-2 pr-4 whitespace-nowrap">
                 {format(parseISO(r.measured_at), "dd MMM yyyy")}
               </td>
-              <td className="py-2 pr-4">{r.weight_kg ?? "—"}</td>
-              <td className="py-2 pr-4">{r.bmi ?? "—"}</td>
+              <td className="py-2 pr-4">{r.weight_kg ?? "Ã¢â‚¬â€"}</td>
+              <td className="py-2 pr-4">{r.bmi ?? "Ã¢â‚¬â€"}</td>
               <td className="py-2 pr-4">
-                {r.body_fat_percent != null ? `${r.body_fat_percent}%` : "—"}
+                {r.body_fat_percent != null ? `${r.body_fat_percent}%` : "Ã¢â‚¬â€"}
               </td>
-              <td className="py-2 pr-4">{r.waist_cm ?? "—"}</td>
-              <td className="py-2 pr-4">{r.chest_cm ?? "—"}</td>
-              <td className="py-2 pr-4">{r.arms_cm ?? "—"}</td>
-              <td className="py-2 pr-4">{r.legs_cm ?? "—"}</td>
+              <td className="py-2 pr-4">{r.waist_cm ?? "Ã¢â‚¬â€"}</td>
+              <td className="py-2 pr-4">{r.chest_cm ?? "Ã¢â‚¬â€"}</td>
+              <td className="py-2 pr-4">{r.arms_cm ?? "Ã¢â‚¬â€"}</td>
+              <td className="py-2 pr-4">{r.legs_cm ?? "Ã¢â‚¬â€"}</td>
               <td className="py-2 pr-4 text-muted-foreground max-w-[160px] truncate">
-                {r.notes ?? "—"}
+                {r.notes ?? "Ã¢â‚¬â€"}
               </td>
             </tr>
           ))}
@@ -381,7 +385,7 @@ export function ProgressTab({ records }: { records: any[] }) {
   );
 }
 
-// ─── Workouts tab ─────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Workouts tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function WorkoutsTab({ workouts }: { workouts: any[] }) {
   if (!workouts.length)
     return (
@@ -415,21 +419,21 @@ export function WorkoutsTab({ workouts }: { workouts: any[] }) {
             <tr key={w.id} className="hover:bg-muted/20">
               <td className="py-2 pr-4 font-medium">{w.name}</td>
               <td className="py-2 pr-4">{w.exercise_name}</td>
-              <td className="py-2 pr-4">{w.sets ?? "—"}</td>
-              <td className="py-2 pr-4">{w.reps ?? "—"}</td>
+              <td className="py-2 pr-4">{w.sets ?? "Ã¢â‚¬â€"}</td>
+              <td className="py-2 pr-4">{w.reps ?? "Ã¢â‚¬â€"}</td>
               <td className="py-2 pr-4">
-                {w.weight_kg ? `${w.weight_kg} kg` : "—"}
+                {w.weight_kg ? `${w.weight_kg} kg` : "Ã¢â‚¬â€"}
               </td>
               <td className="py-2 pr-4">
-                {w.cardio_minutes ? `${w.cardio_minutes} min` : "—"}
+                {w.cardio_minutes ? `${w.cardio_minutes} min` : "Ã¢â‚¬â€"}
               </td>
               <td className="py-2 pr-4 whitespace-nowrap">
                 {w.scheduled_date
                   ? format(parseISO(w.scheduled_date), "dd MMM")
-                  : "—"}
+                  : "Ã¢â‚¬â€"}
               </td>
               <td className="py-2 pr-4 max-w-[140px] truncate text-muted-foreground">
-                {w.trainer_notes ?? "—"}
+                {w.trainer_notes ?? "Ã¢â‚¬â€"}
               </td>
             </tr>
           ))}
@@ -439,7 +443,7 @@ export function WorkoutsTab({ workouts }: { workouts: any[] }) {
   );
 }
 
-// ─── Diet tab ─────────────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Diet tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function DietTab({ plans }: { plans: any[] }) {
   if (!plans.length)
     return (
@@ -456,7 +460,7 @@ export function DietTab({ plans }: { plans: any[] }) {
             <span className="text-xs text-muted-foreground">
               {format(parseISO(p.start_date), "dd MMM yyyy")}
               {p.end_date
-                ? ` – ${format(parseISO(p.end_date), "dd MMM yyyy")}`
+                ? ` Ã¢â‚¬â€œ ${format(parseISO(p.end_date), "dd MMM yyyy")}`
                 : " (ongoing)"}
             </span>
           </div>
@@ -477,11 +481,11 @@ export function DietTab({ plans }: { plans: any[] }) {
           </div>
           {(p.calories || p.protein_g || p.fat_g || p.carbs_g) && (
             <div className="mt-3 flex flex-wrap gap-4 border-t pt-3 text-xs">
-              {p.calories && <span>🔥 {p.calories} kcal</span>}
-              {p.protein_g && <span>🥩 {p.protein_g}g protein</span>}
-              {p.fat_g && <span>🧈 {p.fat_g}g fat</span>}
-              {p.carbs_g && <span>🍞 {p.carbs_g}g carbs</span>}
-              {p.water_liters && <span>💧 {p.water_liters}L water</span>}
+              {p.calories && <span>Ã°Å¸â€Â¥ {p.calories} kcal</span>}
+              {p.protein_g && <span>Ã°Å¸Â¥Â© {p.protein_g}g protein</span>}
+              {p.fat_g && <span>Ã°Å¸Â§Ë† {p.fat_g}g fat</span>}
+              {p.carbs_g && <span>Ã°Å¸ÂÅ¾ {p.carbs_g}g carbs</span>}
+              {p.water_liters && <span>Ã°Å¸â€™Â§ {p.water_liters}L water</span>}
             </div>
           )}
         </div>
@@ -490,7 +494,7 @@ export function DietTab({ plans }: { plans: any[] }) {
   );
 }
 
-// ─── Notifications tab ────────────────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Notifications tab Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 export function NotificationsTab({ items }: { items: any[] }) {
   if (!items.length)
     return (
