@@ -17,6 +17,7 @@ export async function createMemberAction(
   const raw = Object.fromEntries(formData);
   const parsed = memberSchema.safeParse({
     ...raw,
+    phone: raw.phone || "",
     height_cm: raw.height_cm || null,
     weight_kg: raw.weight_kg || null,
     date_of_birth: raw.date_of_birth || null,
@@ -47,6 +48,7 @@ export async function updateMemberAction(
   void _id;
   const parsed = memberSchema.partial().safeParse({
     ...rest,
+    phone: rest.phone || "",
     height_cm: rest.height_cm || null,
     weight_kg: rest.weight_kg || null,
     date_of_birth: rest.date_of_birth || null,

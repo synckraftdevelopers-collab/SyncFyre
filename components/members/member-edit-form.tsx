@@ -39,8 +39,8 @@ export function MemberEditForm({
             <Input name="full_name" required defaultValue={member.full_name} />
           </label>
           <label className={fieldClass}>
-            Phone *
-            <Input name="phone" type="tel" required defaultValue={member.phone} />
+            Phone
+            <Input name="phone" type="tel" defaultValue={member.phone ?? ""} />
           </label>
           <label className={fieldClass}>
             Email

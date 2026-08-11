@@ -72,11 +72,16 @@ const STEPS = [
 
 const fullSchema = memberSchema.extend({
   // Payment fields (optional, handled separately after member creation)
-  plan_id: z.string().uuid().optional().nullable(),
-  start_date: z.string().optional().nullable(),
-  payment_amount: z.coerce.number().nonnegative().optional().nullable(),
-  payment_method: z.enum(["cash", "upi", "card", "online"]).optional().nullable(),
-  transaction_ref: z.string().optional().nullable(),
+  // OPTIONAL FIELD — should not block next-step navigation
+  plan_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  // OPTIONAL FIELD — should not block next-step navigation
+  start_date: z.string().optional().or(z.literal("")).nullable(),
+  // OPTIONAL FIELD — should not block next-step navigation
+  payment_amount: z.union([z.coerce.number().nonnegative(), z.literal("")]).optional().nullable(),
+  // OPTIONAL FIELD — should not block next-step navigation
+  payment_method: z.enum(["cash", "upi", "card", "online"]).optional().or(z.literal("")).nullable(),
+  // OPTIONAL FIELD — should not block next-step navigation
+  transaction_ref: z.string().optional().or(z.literal("")).nullable(),
 });
 
 type WizardFormData = z.infer<typeof fullSchema>;
@@ -175,7 +180,7 @@ export function AddMemberWizard({
 
   return (
     <div className="space-y-6">
-      <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">* Required:</span> Full name, Phone, and Branch. Fields marked optional can be skipped and completed later.</p>
+      <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs text-muted-foreground"><span className="font-semibold text-foreground">* Required:</span> Full name and Branch. Fields marked optional can be skipped and completed later.</p>
       {/* Step indicator */}
       <div className="flex items-center gap-0 overflow-x-auto pb-2">
         {STEPS.map((s, idx) => {
@@ -287,7 +292,7 @@ function StepPersonal({ register, errors, branches }: {
           {errors.full_name && <p className="text-xs text-red-600">{errors.full_name.message}</p>}
         </label>
         <label className={fieldClass}>
-          Phone * (required)
+          Phone (optional)
           <Input {...register("phone")} type="tel" placeholder="+91 98765 43210" />
           {errors.phone && <p className="text-xs text-red-600">{errors.phone.message}</p>}
         </label>
