@@ -28,7 +28,7 @@ export default async function AdminNewMemberPage() {
         </p>
         <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
           <span className="font-semibold text-primary">Required to register:</span>{" "}
-          Full name, Phone, and Branch. Every other field is optional and can be added later.
+          Full name, package, start date, and payment amount.
         </div>
       </div>
       <Card>
