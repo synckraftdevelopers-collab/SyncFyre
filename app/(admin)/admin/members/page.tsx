@@ -14,11 +14,11 @@ import { createClient } from "@/lib/supabase/server";
 import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberTableToolbar } from "@/components/members/member-table-toolbar";
-import { OhlcImportDialog } from "@/components/market-data/ohlc-import-dialog";
+import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
 
 export const metadata = { title: "Members Register" };
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default async function AdminMembersPage({
   searchParams,
@@ -32,7 +32,7 @@ export default async function AdminMembersPage({
   const page     = Math.max(1, Number(sp.page ?? 1));
   const pageSize = Math.max(1, Math.min(100, Number(sp.pageSize ?? 50)));
 
-  // ── Parallel data fetch ─────────────────────────────────────────────────────
+  // â”€â”€ Parallel data fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [result, branches, plans, trainers, activeCountRes] = await Promise.all([
     listMembersRich({
       page,
@@ -66,7 +66,7 @@ export default async function AdminMembersPage({
 
   const totalActive = activeCountRes;
 
-  // ── Today's attendance map ──────────────────────────────────────────────────
+  // â”€â”€ Today's attendance map â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const today        = new Date().toISOString().slice(0, 10);
   const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
   const supabase = await createClient();
@@ -91,13 +91,13 @@ export default async function AdminMembersPage({
       : { data: [] },
   ]);
 
-  // Build attendance map: member_id → present today
+  // Build attendance map: member_id â†’ present today
   const attendanceMap: Record<string, boolean> = {};
   for (const r of attendanceRes.data ?? []) {
     attendanceMap[r.member_id] = true;
   }
 
-  // Build last visit map: member_id → most recent date (excluding today)
+  // Build last visit map: member_id â†’ most recent date (excluding today)
   const lastVisitMap: Record<string, string> = {};
   for (const r of lastVisitRes.data ?? []) {
     if (!lastVisitMap[r.member_id]) {
@@ -105,7 +105,7 @@ export default async function AdminMembersPage({
     }
   }
 
-  // ── Pagination URL builder ──────────────────────────────────────────────────
+  // â”€â”€ Pagination URL builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function pageUrl(p: number) {
     const params = new URLSearchParams(sp as Record<string, string>);
     params.set("page", String(p));
@@ -121,11 +121,11 @@ export default async function AdminMembersPage({
         <div>
           <h1 className="text-2xl font-bold">Members Register</h1>
           <p className="text-sm text-muted-foreground">
-            Full operational view of all gym members — plans, payments, attendance, and more.
+            Full operational view of all gym members â€” plans, payments, attendance, and more.
           </p>
         </div>
         <div className="ml-auto flex flex-shrink-0 flex-wrap items-center gap-2">
-          <OhlcImportDialog branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))} defaultBranchId={branchId} />
+          <MemberExcelImportDialog branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))} defaultBranchId={branchId} />
           <Link href="/admin/members/new" className={buttonVariants({ size: "sm" })}>
             <Plus className="size-4" />
             Add Member
@@ -154,7 +154,7 @@ export default async function AdminMembersPage({
           color="emerald"
         />
         <StatPill
-          label="Expiring ≤30d"
+          label="Expiring â‰¤30d"
           value={
             result.data.filter(
               (m) => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 30,
@@ -192,13 +192,13 @@ export default async function AdminMembersPage({
         {/* Pagination */}
         <div className="flex items-center justify-between border-t px-4 py-3 text-sm">
           <span className="text-muted-foreground">
-            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, result.total)} of {result.total.toLocaleString()} members
+            Showing {(page - 1) * pageSize + 1}â€“{Math.min(page * pageSize, result.total)} of {result.total.toLocaleString()} members
           </span>
           <div className="flex items-center gap-1.5">
             <PaginationLink
               href={pageUrl(page - 1)}
               disabled={page <= 1}
-              label="← Prev"
+              label="â† Prev"
             />
             <span className="px-2 text-xs text-muted-foreground">
               {page} / {totalPages}
@@ -206,7 +206,7 @@ export default async function AdminMembersPage({
             <PaginationLink
               href={pageUrl(page + 1)}
               disabled={page >= totalPages}
-              label="Next →"
+              label="Next â†’"
             />
           </div>
         </div>
@@ -215,7 +215,7 @@ export default async function AdminMembersPage({
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StatPill({
   label,
@@ -250,7 +250,7 @@ function StatPill({
         className={`block cursor-pointer rounded-xl px-4 py-3 transition-all hover:brightness-95 hover:-translate-y-0.5 hover:shadow-md ${colors[color]}`}
       >
         {inner}
-        <p className="mt-1 text-[10px] opacity-50">Click to filter →</p>
+        <p className="mt-1 text-[10px] opacity-50">Click to filter â†’</p>
       </Link>
     );
   }

@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberTableToolbar } from "@/components/members/member-table-toolbar";
-import { OhlcImportDialog } from "@/components/market-data/ohlc-import-dialog";
+import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
 
 export const metadata = { title: "Members" };
 
@@ -85,11 +85,11 @@ export default async function ReceptionMembersPage({
         <div>
           <h1 className="text-2xl font-bold">Members</h1>
           <p className="text-sm text-muted-foreground">
-            Full view of all members — plans, payments, attendance, and more.
+            Full view of all members â€” plans, payments, attendance, and more.
           </p>
         </div>
         <div className="ml-auto flex flex-shrink-0 flex-wrap items-center gap-2">
-          <OhlcImportDialog
+          <MemberExcelImportDialog
             branches={branches.filter((branch) => branch.id === branchId).map((branch) => ({ id: branch.id, name: branch.name }))}
             defaultBranchId={branchId}
           />
@@ -104,7 +104,7 @@ export default async function ReceptionMembersPage({
         <StatPill label="Total"         value={result.total}                                                                   color="blue" />
         <StatPill label="Active"        value={result.data.filter((m) => m.member_status === "active").length}                 color="green" note={`of ${result.data.length} shown`} />
         <StatPill label="Present Today" value={Object.keys(attendanceMap).length}                                              color="emerald" />
-        <StatPill label="Expiring ≤30d" value={result.data.filter((m) => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 30).length} color="amber" />
+        <StatPill label="Expiring â‰¤30d" value={result.data.filter((m) => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 30).length} color="amber" />
       </div>
 
       <Card className="overflow-hidden">
@@ -126,12 +126,12 @@ export default async function ReceptionMembersPage({
         />
         <div className="flex items-center justify-between border-t px-4 py-3 text-sm">
           <span className="text-muted-foreground">
-            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, result.total)} of {result.total.toLocaleString()} members
+            Showing {(page - 1) * pageSize + 1}â€“{Math.min(page * pageSize, result.total)} of {result.total.toLocaleString()} members
           </span>
           <div className="flex items-center gap-1.5">
-            <PaginationLink href={pageUrl(page - 1)} disabled={page <= 1}     label="← Prev" />
+            <PaginationLink href={pageUrl(page - 1)} disabled={page <= 1}     label="â† Prev" />
             <span className="px-2 text-xs text-muted-foreground">{page} / {totalPages}</span>
-            <PaginationLink href={pageUrl(page + 1)} disabled={page >= totalPages} label="Next →" />
+            <PaginationLink href={pageUrl(page + 1)} disabled={page >= totalPages} label="Next â†’" />
           </div>
         </div>
       </Card>
