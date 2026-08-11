@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberTableToolbar } from "@/components/members/member-table-toolbar";
+import { MemberImportDialog } from "@/components/members/member-import-dialog";
 
 export const metadata = { title: "Members" };
 
@@ -87,7 +88,11 @@ export default async function ReceptionMembersPage({
             Full view of all members — plans, payments, attendance, and more.
           </p>
         </div>
-        <div className="ml-auto flex-shrink-0">
+        <div className="ml-auto flex flex-shrink-0 flex-wrap items-center gap-2">
+          <MemberImportDialog
+            branches={branches.filter((branch) => branch.id === branchId).map((branch) => ({ id: branch.id, name: branch.name }))}
+            defaultBranchId={branchId}
+          />
           <Link href="/reception/members/new" className={buttonVariants({ size: "sm" })}>
             <Plus className="size-4" />Add Member
           </Link>

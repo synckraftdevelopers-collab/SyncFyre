@@ -22,13 +22,19 @@ function normalizedHeader(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function headerMatches(header: string, name: string) {
+  // Empty cells are emitted by SheetJS as empty header names. They must never
+  // match an alias: every string includes the empty string, which previously
+  // caused a blank/title row to be selected as the spreadsheet header row.
+  if (!header || !name) return false;
+  return header === name || (name.length >= 4 && header.includes(name));
+}
+
 function cell(row: SheetRow, names: string[]) {
   const accepted = names.map(normalizedHeader);
   for (const [key, value] of Object.entries(row)) {
     const header = normalizedHeader(key);
-    const matches = accepted.some((name) =>
-      header === name || (name.length >= 4 && (header.includes(name) || name.includes(header))),
-    );
+    const matches = accepted.some((name) => headerMatches(header, name));
     if (matches && value !== undefined && value !== null && String(value).trim() !== "") return String(value).trim();
   }
   return "";
@@ -101,13 +107,16 @@ export async function importMembersAction(
   _: MemberImportState,
   formData: FormData,
 ): Promise<MemberImportState> {
-  await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["admin", "manager", "reception"]);
   const file = formData.get("file");
   const branchId = String(formData.get("branch_id") ?? "");
 
   if (!(file instanceof File) || file.size === 0) return { error: "Choose an Excel or CSV file to import." };
   if (file.size > MAX_FILE_SIZE) return { error: "The file must be 10 MB or smaller." };
   if (!branchId) return { error: "Choose the branch that these members belong to." };
+  if (profile.role === "reception" && branchId !== profile.branch_id) {
+    return { error: "You can only import members into your assigned branch." };
+  }
 
   let rows: SheetRow[];
   let headerRowIndex = -1;
@@ -116,7 +125,7 @@ export async function importMembersAction(
     const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: "buffer", cellDates: false });
     const isHeader = (headers: string[], names: string[]) => names.some((label) => {
       const name = normalizedHeader(label);
-      return headers.some((header) => header === name || (name.length >= 4 && (header.includes(name) || name.includes(header))));
+      return headers.some((header) => headerMatches(header, name));
     });
     for (const sheetName of workbook.SheetNames) {
       const sheet = workbook.Sheets[sheetName];
@@ -200,5 +209,6 @@ export async function importMembersAction(
   }
 
   revalidatePath("/admin/members");
+  revalidatePath("/reception/members");
   return { imported, skipped: rows.length - imported, errors: errors.slice(0, 10) };
 }
