@@ -114,7 +114,7 @@ export async function importMembersAction(
   if (!(file instanceof File) || file.size === 0) return { error: "Choose an Excel or CSV file to import." };
   if (file.size > MAX_FILE_SIZE) return { error: "The file must be 10 MB or smaller." };
   if (!branchId) return { error: "Choose the branch that these members belong to." };
-  if (profile.role === "reception" && branchId !== profile.branch_id) {
+  if (profile.role?.slug === "reception" && branchId !== profile.branch_id) {
     return { error: "You can only import members into your assigned branch." };
   }
 
@@ -150,7 +150,7 @@ export async function importMembersAction(
   if (rows.length > 10_000) return { error: "Import up to 10,000 members at a time." };
 
   const errors: string[] = [];
-  const candidates: { member: MemberInput; rowNumber: number }[] = [];
+  const candidates: { member: MemberInput & { phone: string }; rowNumber: number }[] = [];
   const uploadedPhones = new Set<string>();
 
   rows.forEach((row, index) => {
@@ -171,12 +171,17 @@ export async function importMembersAction(
       errors.push(`Row ${rowNumber}: ${field} — ${issue?.message ?? "Invalid data"}`);
       return;
     }
-    if (uploadedPhones.has(parsed.data.phone)) {
+    const memberPhone = parsed.data.phone;
+    if (!memberPhone) {
+      errors.push(`Row ${rowNumber}: Phone is required.`);
+      return;
+    }
+    if (uploadedPhones.has(memberPhone)) {
       errors.push(`Row ${rowNumber}: duplicate phone number in this file.`);
       return;
     }
-    uploadedPhones.add(parsed.data.phone);
-    candidates.push({ member: parsed.data, rowNumber });
+    uploadedPhones.add(memberPhone);
+    candidates.push({ member: { ...parsed.data, phone: memberPhone }, rowNumber });
   });
 
   const supabase = await createClient();

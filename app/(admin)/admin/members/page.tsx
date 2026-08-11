@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberTableToolbar } from "@/components/members/member-table-toolbar";
-import { MemberImportDialog } from "@/components/members/member-import-dialog";
+import { OhlcImportDialog } from "@/components/market-data/ohlc-import-dialog";
 
 export const metadata = { title: "Members Register" };
 
@@ -125,7 +125,7 @@ export default async function AdminMembersPage({
           </p>
         </div>
         <div className="ml-auto flex flex-shrink-0 flex-wrap items-center gap-2">
-          <MemberImportDialog branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))} defaultBranchId={branchId} />
+          <OhlcImportDialog branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))} defaultBranchId={branchId} />
           <Link href="/admin/members/new" className={buttonVariants({ size: "sm" })}>
             <Plus className="size-4" />
             Add Member

@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberTableToolbar } from "@/components/members/member-table-toolbar";
-import { MemberImportDialog } from "@/components/members/member-import-dialog";
+import { OhlcImportDialog } from "@/components/market-data/ohlc-import-dialog";
 
 export const metadata = { title: "Members" };
 
@@ -89,7 +89,7 @@ export default async function ReceptionMembersPage({
           </p>
         </div>
         <div className="ml-auto flex flex-shrink-0 flex-wrap items-center gap-2">
-          <MemberImportDialog
+          <OhlcImportDialog
             branches={branches.filter((branch) => branch.id === branchId).map((branch) => ({ id: branch.id, name: branch.name }))}
             defaultBranchId={branchId}
           />
