@@ -351,15 +351,15 @@ export function MemberExcelImportDialog({
             </label>
 
             <p className="text-xs text-muted-foreground">
-              Supported: .xlsx, .xls, .csv • Maximum 10,000 rows • Maximum 10 MB
+              Supported: .xlsx, .xls, .csv â€¢ Maximum 10,000 rows â€¢ Maximum 10 MB
             </p>
 
             {data && (
               <div className="rounded-lg border bg-muted/20 p-3 text-sm">
                 <p className="font-medium">{file?.name}</p>
                 <p className="text-muted-foreground">
-                  {file && `${(file.size / 1024).toFixed(1)} KB`} • {data.columns.length} columns
-                  detected • {data.rows.length.toLocaleString()} rows detected • {data.worksheet}
+                  {file && `${(file.size / 1024).toFixed(1)} KB`} â€¢ {data.columns.length} columns
+                  detected â€¢ {data.rows.length.toLocaleString()} rows detected â€¢ {data.worksheet}
                 </p>
               </div>
             )}
@@ -408,7 +408,7 @@ export function MemberExcelImportDialog({
                     ))}
                   </select>
                   <span className="mt-2 block text-xs font-normal text-muted-foreground">
-                    Sample: {String(data.rows.find((row) => String(row[sourceColumns[index] ?? index] ?? "").trim())?.[sourceColumns[index] ?? index] ?? "—")}
+                    Sample: {String(data.rows.find((row) => String(row[sourceColumns[index] ?? index] ?? "").trim())?.[sourceColumns[index] ?? index] ?? "â€”")}
                   </span>
                 </label>
               ))}
