@@ -1,12 +1,12 @@
 import { Utensils } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentProfile } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "My Diet Plan" };
 
 export default async function MemberDietPlanPage() {
-  const profile = await getCurrentProfile();
+  const profile = await requireUser(["member"]);
   const supabase = await createClient();
 
   const { data: memberRecord } = await supabase
@@ -19,6 +19,7 @@ export default async function MemberDietPlanPage() {
         .from("diet_plans")
         .select("id,name,start_date,end_date,breakfast,lunch,dinner,snacks,calories,protein_g,fat_g,carbs_g,water_liters,notes")
         .eq("member_id", memberId)
+        .eq("status", "active")
         .order("start_date", { ascending: false })
         .limit(1)
     : { data: [] };
@@ -27,11 +28,11 @@ export default async function MemberDietPlanPage() {
 
   const macros = plan
     ? [
-        ["Calories", plan.calories ? `${plan.calories} kcal` : "—"],
-        ["Protein", plan.protein_g ? `${plan.protein_g} g` : "—"],
-        ["Carbohydrates", plan.carbs_g ? `${plan.carbs_g} g` : "—"],
-        ["Fat", plan.fat_g ? `${plan.fat_g} g` : "—"],
-        ["Water", plan.water_liters ? `${plan.water_liters} L` : "—"],
+        ["Calories", plan.calories ? `${plan.calories} kcal` : "â€”"],
+        ["Protein", plan.protein_g ? `${plan.protein_g} g` : "â€”"],
+        ["Carbohydrates", plan.carbs_g ? `${plan.carbs_g} g` : "â€”"],
+        ["Fat", plan.fat_g ? `${plan.fat_g} g` : "â€”"],
+        ["Water", plan.water_liters ? `${plan.water_liters} L` : "â€”"],
       ] as const
     : [];
 
@@ -57,7 +58,7 @@ export default async function MemberDietPlanPage() {
               </div>
               <div>
                 <CardTitle>{plan.name}</CardTitle>
-                <p className="text-sm text-muted-foreground">{plan.start_date}{plan.end_date ? ` → ${plan.end_date}` : ""}</p>
+                <p className="text-sm text-muted-foreground">{plan.start_date}{plan.end_date ? ` â†’ ${plan.end_date}` : ""}</p>
               </div>
             </CardHeader>
 

@@ -15,7 +15,7 @@ export default async function TrainerNewDietPlanPage() {
 
   const { data: membersData } = await supabase
     .from("members").select("id,full_name,member_code")
-    .eq("assigned_trainer_id", trainerId).eq("status", "active").order("full_name");
+    .eq("assigned_trainer_id", trainerId).eq("branch_id", profile?.branch_id ?? "").eq("status", "active").order("full_name");
 
   const members = (membersData ?? []).map((m) => ({ value: m.id, label: `${m.full_name} (${m.member_code})` }));
   const today = new Date().toISOString().slice(0, 10);
@@ -42,6 +42,7 @@ export default async function TrainerNewDietPlanPage() {
               { name: "fat_g", label: "Fat (g)", type: "number" },
               { name: "carbs_g", label: "Carbs (g)", type: "number" },
               { name: "water_liters", label: "Water (L)", type: "number" },
+              { name: "notes", label: "Notes", type: "textarea" },
             ]}
           />
         </CardContent>

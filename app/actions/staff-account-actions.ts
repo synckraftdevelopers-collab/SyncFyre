@@ -10,7 +10,7 @@ export async function createStaffAccountAction(
   _: StaffAccountState,
   formData: FormData,
 ): Promise<StaffAccountState> {
-  await requireUser(["admin"]);
+  await requireUser(["admin", "manager"]);
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
@@ -20,12 +20,14 @@ export async function createStaffAccountAction(
   if (!fullName || !email || !branchId || password.length < 8) return { error: "Name, email, branch, and a password of at least 8 characters are required." };
   if (!['reception', 'trainer', 'dietician', 'manager'].includes(role)) return { error: "Select a valid staff role." };
 
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return { error: "SUPABASE_SERVICE_ROLE_KEY is not configured. Add it in .env.local to create staff accounts." };
+
   const admin = createAdminClient();
   const [{ data: roleRow }, { data: branch }] = await Promise.all([
     admin.from("roles").select("id").eq("slug", role).maybeSingle(),
     admin.from("branches").select("id").eq("id", branchId).eq("status", "active").maybeSingle(),
   ]);
-  if (!roleRow || !branch) return { error: "Choose an active branch and role." };
+  if (!roleRow || !branch) return { error: "Choose a valid branch and role." };
 
   const { data: authResult, error: authError } = await admin.auth.admin.createUser({
     email,

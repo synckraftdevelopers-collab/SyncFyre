@@ -89,14 +89,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     payload.trainer_id = trainer.id;
   }
   if (resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")) {
-    const { data: staff } = await supabase
-      .from("staff")
-      .select("id")
-      .eq("user_id", profile.id)
-      .single();
-    if (staff) payload.staff_id = staff.id;
-  }
-  const { data, error } = await supabase.from(tableForResource[resource]).insert(payload).select().single();
+    const { data: trainer } = await supabase.from("trainers").select("id,staff_id").eq("user_id", profile.id).eq("branch_id", profile.branch_id ?? "").eq("status", "active").maybeSingle();
+    if (!trainer) return NextResponse.json({ error: "Active trainer profile not found" }, { status: 403 });
+    const { data: member } = await supabase.from("members").select("id").eq("id", String(payload.member_id)).eq("assigned_trainer_id", trainer.id).eq("branch_id", profile.branch_id ?? "").eq("status", "active").maybeSingle();
+    if (!member) return NextResponse.json({ error: "You can only create plans for active assigned members." }, { status: 403 });
+    if (trainer.staff_id) payload.staff_id = trainer.staff_id;
+  }  const { data, error } = await supabase.from(tableForResource[resource]).insert(payload).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   await logActivity({

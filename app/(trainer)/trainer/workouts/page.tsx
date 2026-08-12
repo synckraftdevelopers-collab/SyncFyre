@@ -49,12 +49,12 @@ export default async function TrainerWorkoutsPage() {
                     <p className="font-semibold">{w.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {w.exercise_name}
-                      {w.sets && w.reps ? ` · ${w.sets}×${w.reps}` : ""}
-                      {w.weight_kg ? ` · ${w.weight_kg} kg` : ""}
+                      {w.sets && w.reps ? ` - ${w.sets}x${w.reps}` : ""}
+                      {w.weight_kg ? ` - ${w.weight_kg} kg` : ""}
                     </p>
-                    <p className="text-xs text-muted-foreground">{(w.members as unknown as { full_name: string } | null)?.full_name ?? "—"}{w.scheduled_date ? ` · ${w.scheduled_date}` : ""}</p>
+                    <p className="text-xs text-muted-foreground">{(w.members as unknown as { full_name: string } | null)?.full_name ?? "-"}{w.scheduled_date ? ` - ${w.scheduled_date}` : ""}</p>
                   </div>
-                  {w.status && <Badge variant={w.status === "active" ? "success" : "outline"}>{w.status}</Badge>}
+                  {w.status && <Badge variant={w.status === "active" ? "success" : "outline"}>{w.status}</Badge>}<Link href={`/trainer/workouts/${w.id}/edit`} className="text-sm text-primary hover:underline">Edit</Link>
                 </div>
               ))}
             </div>
