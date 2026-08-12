@@ -32,7 +32,7 @@ export async function queueSubscriptionReminders() {
         type,
         title: days === 0 ? "Membership expired" : `Membership expires in ${days} day${days === 1 ? "" : "s"}`,
         message: days === 0 ? `${member.full_name}'s membership has expired. Renew it to restore access.` : `${member.full_name}'s membership ends on ${date}.`,
-        channels: ["dashboard", "email", "sms"],
+        channels: ["dashboard", "email", "sms", "whatsapp"],
         scheduled_for: new Date().toISOString(),
         metadata: { fingerprint, subscription_id: subscription.id, remaining_days: days },
       }).select("id").single();

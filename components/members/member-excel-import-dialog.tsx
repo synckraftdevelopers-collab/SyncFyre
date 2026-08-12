@@ -1,24 +1,722 @@
 "use client";
+
 import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { CircleHelp, Download, FileSpreadsheet, LoaderCircle, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { importMemberExcelAction, previewMemberExcelImportAction, type MemberExcelImportResult } from "@/app/actions/member-excel-import-actions";
-import { autoDetectMemberMapping, memberErrorReport, memberFieldLabels, MEMBER_FIELDS, missingMemberFields, parseMemberSpreadsheet, validateMemberRows, type MemberCandidate, type MemberField, type MemberImportError, type MemberMapping, type SpreadsheetData } from "@/lib/members/member-import";
+import {
+  importMemberExcelAction,
+  previewMemberExcelImportAction,
+  type MemberExcelImportResult,
+} from "@/app/actions/member-excel-import-actions";
+import {
+  autoDetectMemberMapping,
+  memberErrorReport,
+  memberFieldLabels,
+  MEMBER_FIELDS,
+  missingMemberFields,
+  parseMemberSpreadsheet,
+  validateMemberRows,
+  type MemberCandidate,
+  type MemberField,
+  type MemberImportError,
+  type MemberMapping,
+  type SpreadsheetData,
+} from "@/lib/members/member-import";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-type Branch = { id: string; name: string }; const steps = ["Upload", "Define Fields", "Preview", "Validate", "Import"];
-export function MemberExcelImportDialog({ branches, defaultBranchId }: { branches: Branch[]; defaultBranchId?: string | null }) {
- const [open,setOpen]=useState(false),[step,setStep]=useState<"upload"|"define"|"preview"|"validate"|"result">("upload"),[file,setFile]=useState<File|null>(null),[buffer,setBuffer]=useState<ArrayBuffer|null>(null),[data,setData]=useState<SpreadsheetData|null>(null),[mapping,setMapping]=useState<MemberMapping>({}),[sourceColumns,setSourceColumns]=useState<number[]>([]),[branchId,setBranchId]=useState(defaultBranchId??""),[separator,setSeparator]=useState(","),[skipFirst,setSkipFirst]=useState(0),[errors,setErrors]=useState<MemberImportError[]>([]),[ready,setReady]=useState(0),[duplicates,setDuplicates]=useState(0),[pending,setPending]=useState(false),[result,setResult]=useState<MemberExcelImportResult|null>(null); const inputRef=useRef<HTMLInputElement>(null); const effectiveMapping=useMemo<MemberMapping>(()=>Object.fromEntries(sourceColumns.map((source,index)=>[source,mapping[index]??"ignore"])) as MemberMapping,[sourceColumns,mapping]); const missing=useMemo(()=>missingMemberFields(effectiveMapping),[effectiveMapping]); const isCsv=file?.name.toLowerCase().endsWith(".csv")??false;
- function downloadTemplate(){const ws=XLSX.utils.aoa_to_sheet([["FULL_NAME *","PHONE","EMAIL","GENDER","DATE_OF_BIRTH","ADDRESS","PAYMENT *","PACKAGE *","MEMBERSHIP_START_DATE *","MEMBERSHIP_END_DATE *","HEIGHT","WEIGHT","BLOOD_GROUP","MEDICAL_CONDITIONS","FITNESS_GOAL","STATUS","EMERGENCY_CONTACT","EMERGENCY_PHONE","NOTES"],["Example Member","9876543210","member@example.com","Male","1995-01-10","Example address",15000,"Premium","2026-01-10","2027-01-10",175,70,"O+","None","Fitness","Active","Emergency Contact","9876543211","Imported from template"]]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Members");XLSX.writeFile(wb,"syncfyre-member-import-template.xlsx")} function reset(){setStep("upload");setFile(null);setBuffer(null);setData(null);setMapping({});setSourceColumns([]);setSeparator(",");setSkipFirst(0);setErrors([]);setReady(0);setDuplicates(0);setResult(null);if(inputRef.current)inputRef.current.value=""}
- async function loadFile(next:File,worksheet?:string,nextSeparator=separator,nextSkip=skipFirst){if(next.size>10*1024*1024)return toast.error("The file must be 10 MB or smaller.");try{const nextBuffer=buffer&&file===next?buffer:await next.arrayBuffer();const parsed=parseMemberSpreadsheet(nextBuffer,next.name,worksheet,nextSeparator,nextSkip);if(parsed.rows.length>10_000)return toast.error("Import up to 10,000 rows at a time.");setFile(next);setBuffer(nextBuffer);setData(parsed);setSourceColumns(parsed.columns.map((_,index)=>index));setMapping(autoDetectMemberMapping(parsed.columns))}catch{toast.error("We could not read this spreadsheet. Upload a valid .xlsx, .xls, or .csv file.")}}
- async function reparse(worksheet=data?.worksheet,nextSeparator=separator,nextSkip=skipFirst){if(file)await loadFile(file,worksheet,nextSeparator,nextSkip)} function updateMapping(index:number,field:MemberField){setMapping(current=>{const next={...current};if(field!=="ignore")Object.keys(next).forEach(key=>{if(Number(key)!==index&&next[Number(key)]===field)next[Number(key)]="ignore"});next[index]=field;return next})} function updateSource(index:number,source:number){setSourceColumns(current=>{const next=[...current];const other=next.indexOf(source);if(other>=0){next[other]=next[index]??index}next[index]=source;return next})} const parsed=()=>data?validateMemberRows(data.rows,data.rowOffset,effectiveMapping,data.columns):null;
- async function validate(){const rows=parsed();if(!rows)return;setPending(true);try{const preview=await previewMemberExcelImportAction({branchId,candidates:rows.candidates});if(preview.error)return toast.error(preview.error);setErrors([...rows.errors,...preview.errors]);setReady(preview.ready);setDuplicates(preview.duplicates);setStep("validate")}finally{setPending(false)}} async function importData(){const rows=parsed();if(!rows)return;setPending(true);try{const response=await importMemberExcelAction({branchId,candidates:rows.candidates,validationErrors:rows.errors});if(response.error)toast.error(response.error);else{setResult(response);setErrors(response.errors);setStep("result")}}finally{setPending(false)}} function downloadErrors(){const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([memberErrorReport(errors)],{type:"text/csv;charset=utf-8"}));link.download="member-import-errors.csv";link.click();URL.revokeObjectURL(link.href)} const total=data?.rows.length??0;
- return <Dialog open={open} onOpenChange={(next)=>{setOpen(next);if(!next)reset()}}><DialogTrigger asChild><Button type="button" size="sm"><Upload className="size-4"/>Import Excel</Button></DialogTrigger><DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto"><DialogHeader><DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="size-5 text-primary"/>Import Members from Excel</DialogTitle><DialogDescription>Upload your gym member spreadsheet and map its columns to SyncFyre member fields before importing.</DialogDescription></DialogHeader><ol className="grid grid-cols-5 gap-1 text-center text-[11px] text-muted-foreground">{steps.map((label,index)=><li key={label} className={index<=["upload","define","preview","validate","result"].indexOf(step)?"font-semibold text-primary":""}>Ã¢â€˜Â Ã¢â€˜Â¡Ã¢â€˜Â¢Ã¢â€˜Â£Ã¢â€˜Â¤{label}</li>)}</ol>
- {step==="upload"&&<div className="space-y-5"><label className="block text-sm font-medium">Branch *<select value={branchId} onChange={e=>setBranchId(e.target.value)} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Select Branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><label className="block text-sm font-medium">Member spreadsheet *<input ref={inputRef} type="file" accept=".xlsx,.xls,.csv" className="mt-1.5 block w-full rounded-lg border bg-background p-2 text-sm" onChange={e=>{const selected=e.target.files?.[0];if(selected)void loadFile(selected)}}/></label><p className="text-xs text-muted-foreground">Supported: .xlsx, .xls, .csv Ã‚Â· Maximum 10,000 rows Ã‚Â· Maximum 10 MB</p>{data&&<div className="rounded-lg border bg-muted/20 p-3 text-sm"><p className="font-medium">{file?.name}</p><p className="text-muted-foreground">{file&&`${(file.size/1024).toFixed(1)} KB`} Ã‚Â· {data.columns.length} columns detected Ã‚Â· {data.rows.length.toLocaleString()} rows detected Ã‚Â· {data.worksheet}</p></div>}</div>}
- {step==="define"&&data&&<div className="space-y-5"><div><h2 className="text-xl font-semibold">Define Member Fields</h2><p className="mt-1 text-sm text-muted-foreground">Here you can define the fields in your data file. Use the dropdowns to select the appropriate SyncFyre member field.</p></div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{data.columns.map((column,index)=><label key={`${column}-${index}`} className="rounded-lg border p-3 text-sm font-medium"><span className="block text-muted-foreground">Column {index+1}</span><select value={sourceColumns[index]??index} onChange={e=>updateSource(index,Number(e.target.value))} className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm">{data.columns.map((header,sourceIndex)=><option key={`${header}-${sourceIndex}`} value={sourceIndex}>{header}</option>)}</select><select value={mapping[index]??"ignore"} onChange={e=>updateMapping(index,e.target.value as MemberField)} className="mt-2 h-10 w-full rounded-md border bg-background px-2 text-sm">{MEMBER_FIELDS.map(field=><option key={field} value={field}>{memberFieldLabels[field]}</option>)}</select><span className="mt-2 block text-xs font-normal text-muted-foreground">Sample: {String(data.rows.find(row=>String(row[sourceColumns[index]??index]??"").trim())?.[sourceColumns[index]??index]??"â€”")}</span></label>)}</div>{isCsv&&<div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2"><label className="text-sm font-medium">Separator<select value={separator} onChange={e=>{setSeparator(e.target.value);void reparse(data.worksheet,e.target.value,skipFirst)}} className="mt-1 h-10 w-full rounded-md border bg-background px-2"><option value=",">Comma (,)</option><option value=";">Semicolon (;)</option><option value={"\t"}>Tab</option><option value="|">Pipe (|)</option></select></label><label className="text-sm font-medium">Skip first lines<input type="number" min="0" value={skipFirst} onChange={e=>{const value=Math.max(0,Number(e.target.value));setSkipFirst(value);void reparse(data.worksheet,separator,value)}} className="mt-1 h-10 w-full rounded-md border bg-background px-2"/></label></div>}{!isCsv&&data.worksheets.length>1&&<label className="block max-w-sm text-sm font-medium">Worksheet<select value={data.worksheet} onChange={e=>void reparse(e.target.value)} className="mt-1 h-10 w-full rounded-md border bg-background px-2">{data.worksheets.map(sheet=><option key={sheet}>{sheet}</option>)}</select></label>}{missing.length>0&&<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"><p className="font-medium">Please map all required member fields before continuing.</p><p>Missing required fields: {missing.map(field=>memberFieldLabels[field]).join(", ")}</p></div>}<Sample data={data}/></div>}
- {step==="preview"&&data&&<div className="space-y-5"><div><h2 className="text-xl font-semibold">Preview Data</h2><p className="text-sm text-muted-foreground">These normalized mapped values are the exact candidates validated and submitted.</p></div><MappedPreview candidates={parsed()?.candidates??[]}/></div>}{step==="validate"&&<div className="space-y-5"><div><h2 className="text-xl font-semibold">Validate import</h2><p className="text-sm text-muted-foreground">Review validation results before inserting any data.</p></div><div className="grid gap-3 sm:grid-cols-4"><Summary label="Total Rows" value={total}/><Summary label="Valid Rows" value={ready} tone="success"/><Summary label="Invalid Rows" value={errors.length-duplicates} tone="danger"/><Summary label="Duplicates" value={duplicates} tone="warning"/></div>{ready>0&&<p className="font-medium">Ready to import: {ready.toLocaleString()} members</p>}{errors.length>0&&<ErrorList errors={errors}/>}</div>}{step==="result"&&result&&<div className="space-y-4"><div><h2 className="text-xl font-semibold">Import Complete</h2><p className="mt-2 text-sm text-emerald-700">Ã¢Å“â€œ {result.imported.toLocaleString()} members imported</p><p className="text-sm text-amber-700">Ã¢Å¡Â  {result.errors.length-result.duplicates} rows failed</p><p className="text-sm text-muted-foreground">Ã¢â€ Â» {result.duplicates} duplicates skipped</p></div>{result.errors.length>0&&<ErrorList errors={result.errors}/>}</div>}
- <DialogFooter className="mt-2"><Button type="button" variant="ghost" onClick={()=>step==="upload"?setOpen(false):setStep(step==="define"?"upload":step==="preview"?"define":step==="validate"?"preview":"upload")}>{step==="upload"?"Cancel":"Back"}</Button><Button type="button" variant="ghost" title="Upload a file, map columns, preview, validate, then import."><CircleHelp className="size-4"/>Help</Button>{step==="upload"&&<Button disabled={!data||!branchId||!data.rows.length} onClick={()=>setStep("define")}>Next</Button>}{step==="define"&&<Button disabled={missing.length>0} onClick={()=>setStep("preview")}>Next</Button>}{step==="preview"&&<Button onClick={()=>void validate()} disabled={pending}>{pending&&<LoaderCircle className="size-4 animate-spin"/>}Validate</Button>}{step==="validate"&&<><Button variant="outline" disabled={!errors.length} onClick={()=>document.getElementById("member-import-errors")?.scrollIntoView({behavior:"smooth"})}>View Errors</Button><Button disabled={!ready||pending} onClick={()=>void importData()}>{pending&&<LoaderCircle className="size-4 animate-spin"/>}Import Members</Button></>}{step==="result"&&<><Button variant="outline" onClick={()=>window.location.assign("/reception/members")}>View Members</Button><Button variant="outline" disabled={!errors.length} onClick={downloadErrors}><Download className="size-4"/>Download Error Report</Button><Button onClick={reset}>Import Another Excel</Button></>}</DialogFooter></DialogContent></Dialog>;
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+type Branch = { id: string; name: string };
+
+export function MemberExcelImportDialog({
+  branches,
+  defaultBranchId,
+}: {
+  branches: Branch[];
+  defaultBranchId?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"upload" | "define" | "preview" | "validate" | "result">("upload");
+  const [file, setFile] = useState<File | null>(null);
+  const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
+  const [data, setData] = useState<SpreadsheetData | null>(null);
+  const [mapping, setMapping] = useState<MemberMapping>({});
+  const [sourceColumns, setSourceColumns] = useState<number[]>([]);
+  const [branchId, setBranchId] = useState(defaultBranchId ?? "");
+  const [separator, setSeparator] = useState(",");
+  const [skipFirst, setSkipFirst] = useState(0);
+  const [errors, setErrors] = useState<MemberImportError[]>([]);
+  const [ready, setReady] = useState(0);
+  const [duplicates, setDuplicates] = useState(0);
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<MemberExcelImportResult | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const effectiveMapping = useMemo<MemberMapping>(
+    () =>
+      Object.fromEntries(
+        sourceColumns.map((source, index) => [source, mapping[index] ?? "ignore"]),
+      ) as MemberMapping,
+    [sourceColumns, mapping],
+  );
+  const missing = useMemo(() => missingMemberFields(effectiveMapping), [effectiveMapping]);
+  const isCsv = file?.name.toLowerCase().endsWith(".csv") ?? false;
+
+  function downloadTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      [
+        "FULL_NAME *",
+        "PHONE",
+        "EMAIL",
+        "GENDER",
+        "DATE_OF_BIRTH",
+        "ADDRESS",
+        "PAYMENT",
+        "PACKAGE",
+        "MEMBERSHIP_START_DATE",
+        "MEMBERSHIP_END_DATE",
+        "HEIGHT",
+        "WEIGHT",
+        "BLOOD_GROUP",
+        "MEDICAL_CONDITIONS",
+        "FITNESS_GOAL",
+        "STATUS",
+        "EMERGENCY_CONTACT",
+        "EMERGENCY_PHONE",
+        "NOTES",
+      ],
+      [
+        "Example Member",
+        "9876543210",
+        "member@example.com",
+        "Male",
+        "1995-01-10",
+        "Example address",
+        15000,
+        "Premium",
+        "2026-01-10",
+        "2027-01-10",
+        175,
+        70,
+        "O+",
+        "None",
+        "Fitness",
+        "Active",
+        "Emergency Contact",
+        "9876543211",
+        "Imported from template",
+      ],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Members");
+    XLSX.writeFile(wb, "syncfyre-member-import-template.xlsx");
+  }
+
+  function reset() {
+    setStep("upload");
+    setFile(null);
+    setBuffer(null);
+    setData(null);
+    setMapping({});
+    setSourceColumns([]);
+    setSeparator(",");
+    setSkipFirst(0);
+    setErrors([]);
+    setReady(0);
+    setDuplicates(0);
+    setPending(false);
+    setResult(null);
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }
+
+  async function loadFile(
+    next: File,
+    worksheet?: string,
+    nextSeparator = separator,
+    nextSkip = skipFirst,
+  ) {
+    if (next.size > 10 * 1024 * 1024) {
+      toast.error("The file must be 10 MB or smaller.");
+      return;
+    }
+
+    try {
+      const nextBuffer = buffer && file === next ? buffer : await next.arrayBuffer();
+      const parsed = parseMemberSpreadsheet(nextBuffer, next.name, worksheet, nextSeparator, nextSkip);
+      if (parsed.rows.length > 10_000) {
+        toast.error("Import up to 10,000 rows at a time.");
+        return;
+      }
+
+      setFile(next);
+      setBuffer(nextBuffer);
+      setData(parsed);
+      setSourceColumns(parsed.columns.map((_, index) => index));
+      setMapping(autoDetectMemberMapping(parsed.columns));
+    } catch {
+      toast.error("We could not read this spreadsheet. Upload a valid .xlsx, .xls, or .csv file.");
+    }
+  }
+
+  async function reparse(worksheet = data?.worksheet, nextSeparator = separator, nextSkip = skipFirst) {
+    if (file) {
+      await loadFile(file, worksheet, nextSeparator, nextSkip);
+    }
+  }
+
+  function addColumn() {
+    if (!data) {
+      return;
+    }
+
+    setSourceColumns((current) => {
+      const next = data.columns.findIndex((_, index) => !current.includes(index));
+      if (next < 0) {
+        toast.message("All spreadsheet columns are already available.");
+        return current;
+      }
+      return [...current, next];
+    });
+  }
+
+  function updateMapping(index: number, field: MemberField) {
+    setMapping((current) => {
+      const next = { ...current };
+      if (field !== "ignore") {
+        Object.keys(next).forEach((key) => {
+          if (Number(key) !== index && next[Number(key)] === field) {
+            next[Number(key)] = "ignore";
+          }
+        });
+      }
+      next[index] = field;
+      return next;
+    });
+  }
+
+  function updateSource(index: number, source: number) {
+    setSourceColumns((current) => {
+      const next = [...current];
+      const other = next.indexOf(source);
+      if (other >= 0) {
+        next[other] = next[index] ?? index;
+      }
+      next[index] = source;
+      return next;
+    });
+  }
+
+  const parsed = () =>
+    data ? validateMemberRows(data.rows, data.rowOffset, effectiveMapping, data.columns) : null;
+
+  async function validate() {
+    const rows = parsed();
+    if (!rows) {
+      return;
+    }
+
+    setPending(true);
+    try {
+      const preview = await previewMemberExcelImportAction({
+        branchId,
+        candidates: rows.candidates,
+      });
+      if (preview.error) {
+        toast.error(preview.error);
+        return;
+      }
+
+      setErrors([...rows.errors, ...preview.errors]);
+      setReady(preview.ready);
+      setDuplicates(preview.duplicates);
+      setStep("validate");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function importData() {
+    const rows = parsed();
+    if (!rows) {
+      return;
+    }
+
+    setPending(true);
+    try {
+      const response = await importMemberExcelAction({
+        branchId,
+        candidates: rows.candidates,
+        validationErrors: rows.errors,
+      });
+      if (response.error) {
+        toast.error(response.error);
+      } else {
+        setResult(response);
+        setErrors(response.errors);
+        setStep("result");
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function downloadErrors() {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(
+      new Blob([memberErrorReport(errors)], { type: "text/csv;charset=utf-8" }),
+    );
+    link.download = "member-import-errors.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  }
+
+  const total = data?.rows.length ?? 0;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          reset();
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button type="button" size="sm">
+          <Upload className="size-4" />
+          Import Excel
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileSpreadsheet className="size-5 text-primary" />
+            Import Members from Excel
+          </DialogTitle>
+          <DialogDescription>
+            Upload your gym member spreadsheet and map its columns to SyncFyre member fields before
+            importing.
+          </DialogDescription>
+        </DialogHeader>
+
+        {step === "upload" && (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between gap-3">
+              <label className="block flex-1 text-sm font-medium">
+                Branch *
+                <select
+                  value={branchId}
+                  onChange={(e) => setBranchId(e.target.value)}
+                  className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"
+                >
+                  <option value="">Select Branch</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Button type="button" variant="outline" onClick={downloadTemplate}>
+                <Download className="size-4" />
+                Template
+              </Button>
+            </div>
+
+            <label className="block text-sm font-medium">
+              Member spreadsheet *
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="mt-1.5 block w-full rounded-lg border bg-background p-2 text-sm"
+                onChange={(e) => {
+                  const selected = e.target.files?.[0];
+                  if (selected) {
+                    void loadFile(selected);
+                  }
+                }}
+              />
+            </label>
+
+            <p className="text-xs text-muted-foreground">
+              Supported: .xlsx, .xls, .csv � Maximum 10,000 rows � Maximum 10 MB
+            </p>
+
+            {data && (
+              <div className="rounded-lg border bg-muted/20 p-3 text-sm">
+                <p className="font-medium">{file?.name}</p>
+                <p className="text-muted-foreground">
+                  {file && `${(file.size / 1024).toFixed(1)} KB`} � {data.columns.length} columns
+                  detected � {data.rows.length.toLocaleString()} rows detected � {data.worksheet}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === "define" && data && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-semibold">Define Member Fields</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Map spreadsheet columns to SyncFyre member fields before validation.
+              </p>
+            </div>
+
+            {missing.length > 0 && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+                Missing fields: {missing.map((field) => memberFieldLabels[field]).join(", ")}
+              </div>
+            )}
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {sourceColumns.map((source, index) => (
+                <label key={`column-${index}`} className="rounded-lg border p-3 text-sm font-medium">
+                  <span className="block text-muted-foreground">Column {index + 1}</span>
+                  <select
+                    value={source}
+                    onChange={(e) => updateSource(index, Number(e.target.value))}
+                    className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                  >
+                    {data.columns.map((header, sourceIndex) => (
+                      <option key={`${header}-${sourceIndex}`} value={sourceIndex}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={mapping[index] ?? "ignore"}
+                    onChange={(e) => updateMapping(index, e.target.value as MemberField)}
+                    className="mt-2 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                  >
+                    {MEMBER_FIELDS.map((field) => (
+                      <option key={field} value={field}>
+                        {memberFieldLabels[field]}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-2 block text-xs font-normal text-muted-foreground">
+                    Sample: {String(data.rows.find((row) => String(row[sourceColumns[index] ?? index] ?? "").trim())?.[sourceColumns[index] ?? index] ?? "�")}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            <Button type="button" variant="outline" onClick={addColumn}>
+              + Add column
+            </Button>
+
+            {isCsv && (
+              <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2">
+                <label className="text-sm font-medium">
+                  Separator
+                  <select
+                    value={separator}
+                    onChange={(e) => {
+                      setSeparator(e.target.value);
+                      void reparse(data.worksheet, e.target.value, skipFirst);
+                    }}
+                    className="mt-1 h-10 w-full rounded-md border bg-background px-2"
+                  >
+                    <option value=",">Comma (,)</option>
+                    <option value=";">Semicolon (;)</option>
+                    <option value={"\t"}>Tab</option>
+                    <option value="|">Pipe (|)</option>
+                  </select>
+                </label>
+                <label className="text-sm font-medium">
+                  Skip first lines
+                  <input
+                    type="number"
+                    min="0"
+                    value={skipFirst}
+                    onChange={(e) => {
+                      const value = Math.max(0, Number(e.target.value));
+                      setSkipFirst(value);
+                      void reparse(data.worksheet, separator, value);
+                    }}
+                    className="mt-1 h-10 w-full rounded-md border bg-background px-2"
+                  />
+                </label>
+              </div>
+            )}
+
+            {!isCsv && data.worksheets.length > 1 && (
+              <label className="block max-w-sm text-sm font-medium">
+                Worksheet
+                <select
+                  value={data.worksheet}
+                  onChange={(e) => void reparse(e.target.value)}
+                  className="mt-1 h-10 w-full rounded-md border bg-background px-2"
+                >
+                  {data.worksheets.map((sheet) => (
+                    <option key={sheet}>{sheet}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <Sample data={data} />
+          </div>
+        )}
+
+        {step === "preview" && data && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-semibold">Preview Data</h2>
+              <p className="text-sm text-muted-foreground">
+                These normalized values are the exact candidates validated and submitted.
+              </p>
+            </div>
+            <MappedPreview candidates={parsed()?.candidates ?? []} />
+          </div>
+        )}
+
+        {step === "validate" && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-xl font-semibold">Validate Import</h2>
+              <p className="text-sm text-muted-foreground">
+                Review validation results before inserting any data.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <Summary label="Total Rows" value={total} />
+              <Summary label="Valid Rows" value={ready} tone="success" />
+              <Summary label="Invalid Rows" value={errors.length - duplicates} tone="danger" />
+              <Summary label="Duplicates" value={duplicates} tone="warning" />
+            </div>
+            {ready > 0 && <p className="font-medium">Ready to import: {ready.toLocaleString()} members</p>}
+            {errors.length > 0 && <ErrorList errors={errors} />}
+          </div>
+        )}
+
+        {step === "result" && result && (
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold">Import Complete</h2>
+              <p className="mt-2 text-sm text-emerald-700">
+                {result.imported.toLocaleString()} members imported
+              </p>
+              <p className="text-sm text-amber-700">
+                {result.errors.length - result.duplicates} rows failed
+              </p>
+              <p className="text-sm text-muted-foreground">{result.duplicates} duplicates skipped</p>
+            </div>
+            {result.errors.length > 0 && <ErrorList errors={result.errors} />}
+          </div>
+        )}
+
+        <DialogFooter className="mt-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() =>
+              step === "upload"
+                ? setOpen(false)
+                : setStep(
+                    step === "define"
+                      ? "upload"
+                      : step === "preview"
+                        ? "define"
+                        : step === "validate"
+                          ? "preview"
+                          : "upload",
+                  )
+            }
+          >
+            {step === "upload" ? "Cancel" : "Back"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            title="Upload a file, map columns, preview, validate, then import."
+          >
+            <CircleHelp className="size-4" />
+            Help
+          </Button>
+          {step === "upload" && (
+            <Button disabled={!data || !branchId || !data.rows.length} onClick={() => setStep("define")}>
+              Next
+            </Button>
+          )}
+          {step === "define" && (
+            <Button onClick={() => setStep("preview")} disabled={missing.length > 0}>
+              Next
+            </Button>
+          )}
+          {step === "preview" && (
+            <Button onClick={() => void validate()} disabled={pending}>
+              {pending && <LoaderCircle className="size-4 animate-spin" />}
+              Validate
+            </Button>
+          )}
+          {step === "validate" && (
+            <>
+              <Button
+                variant="outline"
+                disabled={!errors.length}
+                onClick={() =>
+                  document.getElementById("member-import-errors")?.scrollIntoView({ behavior: "smooth" })
+                }
+              >
+                View Errors
+              </Button>
+              <Button disabled={!ready || pending} onClick={() => void importData()}>
+                {pending && <LoaderCircle className="size-4 animate-spin" />}
+                Import Members
+              </Button>
+            </>
+          )}
+          {step === "result" && (
+            <>
+              <Button variant="outline" onClick={() => window.location.assign("/reception/members")}>
+                View Members
+              </Button>
+              <Button variant="outline" disabled={!errors.length} onClick={downloadErrors}>
+                <Download className="size-4" />
+                Download Error Report
+              </Button>
+              <Button onClick={reset}>Import Another Excel</Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
-function Sample({data}:{data:SpreadsheetData}){return <div><h3 className="font-semibold">Data file sample</h3><div className="mt-2 overflow-x-auto rounded-lg border"><table className="w-full text-left text-xs"><thead className="bg-muted"><tr>{data.columns.map((column,index)=><th key={`${column}-${index}`} className="whitespace-nowrap px-3 py-2">{column}</th>)}</tr></thead><tbody>{data.rows.slice(0,10).map((row,index)=><tr key={index} className="border-t">{data.columns.map((_,columnIndex)=><td key={columnIndex} className="whitespace-nowrap px-3 py-2">{String(row[columnIndex]??"")}</td>)}</tr>)}</tbody></table></div></div>}; function Summary({label,value,tone}:{label:string;value:number;tone?:"success"|"warning"|"danger"}){return <div className={`rounded-lg border p-3 ${tone==="success"?"bg-emerald-500/10":tone==="warning"?"bg-amber-500/10":tone==="danger"?"bg-destructive/10":""}`}><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-semibold">{value.toLocaleString()}</p></div>}; function ErrorList({errors}:{errors:MemberImportError[]}){return <div id="member-import-errors" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"><p className="font-medium">Row-level errors</p><ul className="mt-2 space-y-1">{errors.slice(0,20).map((item,index)=><li key={`${item.row}-${item.error}-${index}`}>Row {item.row}{item.name?` (${item.name})`:""}: {item.error}</li>)}</ul></div>}
-function MappedPreview({candidates}:{candidates:MemberCandidate[]}){const columns:[keyof MemberCandidate,string][]=[["fullName","Full Name"],["phone","Phone"],["payment","Payment"],["package","Package"],["membershipStartDate","Start Date"],["membershipEndDate","End Date"]];return <div><h3 className="font-semibold">Mapped member data</h3><div className="mt-2 overflow-x-auto rounded-lg border"><table className="w-full text-left text-xs"><thead className="bg-muted"><tr>{columns.map(([,label])=><th key={label} className="whitespace-nowrap px-3 py-2">{label}</th>)}</tr></thead><tbody>{candidates.slice(0,10).map(candidate=><tr key={candidate.row} className="border-t">{columns.map(([key])=><td key={String(key)} className="whitespace-nowrap px-3 py-2">{key==="payment"?`?${Number(candidate.payment).toLocaleString("en-IN")}`:String(candidate[key]??"")}</td>)}</tr>)}</tbody></table></div></div>}
+
+function Sample({ data }: { data: SpreadsheetData }) {
+  return (
+    <div>
+      <h3 className="font-semibold">Data file sample</h3>
+      <div className="mt-2 overflow-x-auto rounded-lg border">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-muted">
+            <tr>
+              {data.columns.map((column, index) => (
+                <th key={`${column}-${index}`} className="whitespace-nowrap px-3 py-2">
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.slice(0, 10).map((row, index) => (
+              <tr key={index} className="border-t">
+                {data.columns.map((_, columnIndex) => (
+                  <td key={columnIndex} className="whitespace-nowrap px-3 py-2">
+                    {String(row[columnIndex] ?? "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Summary({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "success" | "warning" | "danger";
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        tone === "success"
+          ? "bg-emerald-500/10"
+          : tone === "warning"
+            ? "bg-amber-500/10"
+            : tone === "danger"
+              ? "bg-destructive/10"
+              : ""
+      }`}
+    >
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-xl font-semibold">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+function ErrorList({ errors }: { errors: MemberImportError[] }) {
+  return (
+    <div
+      id="member-import-errors"
+      className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+    >
+      <p className="font-medium">Row-level errors</p>
+      <ul className="mt-2 space-y-1">
+        {errors.slice(0, 20).map((item, index) => (
+          <li key={`${item.row}-${item.error}-${index}`}>
+            Row {item.row}
+            {item.name ? ` (${item.name})` : ""}: {item.error}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MappedPreview({ candidates }: { candidates: MemberCandidate[] }) {
+  const columns: [keyof MemberCandidate, string][] = [
+    ["fullName", "Full Name"],
+    ["phone", "Phone"],
+    ["payment", "Payment"],
+    ["package", "Package"],
+    ["membershipStartDate", "Start Date"],
+    ["membershipEndDate", "End Date"],
+  ];
+
+  return (
+    <div>
+      <h3 className="font-semibold">Mapped member data</h3>
+      <div className="mt-2 overflow-x-auto rounded-lg border">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-muted">
+            <tr>
+              {columns.map(([, label]) => (
+                <th key={label} className="whitespace-nowrap px-3 py-2">
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {candidates.slice(0, 10).map((candidate) => (
+              <tr key={candidate.row} className="border-t">
+                {columns.map(([key]) => (
+                  <td key={String(key)} className="whitespace-nowrap px-3 py-2">
+                    {key === "payment"
+                      ? candidate.payment === null
+                        ? ""
+                        : `?${Number(candidate.payment).toLocaleString("en-IN")}`
+                      : String(candidate[key] ?? "")}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
