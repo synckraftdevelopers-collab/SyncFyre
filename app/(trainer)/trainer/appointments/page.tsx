@@ -51,8 +51,8 @@ export default async function TrainerAppointmentsPage() {
                 <div key={appt.id} className="flex items-center gap-4 py-4">
                   <CalendarDays className="size-5 shrink-0 text-muted-foreground" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold">{(appt.members as unknown as { full_name: string } | null)?.full_name ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">{appt.appointment_date} · {appt.start_time} – {appt.end_time}</p>
+                    <p className="font-semibold">{(appt.members as unknown as { full_name: string } | null)?.full_name ?? "â€”"}</p>
+                    <p className="text-xs text-muted-foreground">{appt.appointment_date} Â· {appt.start_time} â€“ {appt.end_time}</p>
                     {appt.purpose && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{appt.purpose}</p>}
                   </div>
                   <Badge variant={statusVariant[appt.status] ?? "outline"}>{appt.status}</Badge>

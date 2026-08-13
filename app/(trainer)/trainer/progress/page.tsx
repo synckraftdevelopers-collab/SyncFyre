@@ -52,14 +52,14 @@ export default async function TrainerProgressPage() {
                     <Gauge className="size-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold">{(p.members as unknown as { full_name: string } | null)?.full_name ?? "—"}</p>
+                    <p className="font-semibold">{(p.members as unknown as { full_name: string } | null)?.full_name ?? "-"}</p>
                     <p className="text-xs text-muted-foreground">
                       {p.measured_at}
-                      {p.weight_kg ? ` · ${p.weight_kg} kg` : ""}
-                      {p.bmi ? ` · BMI ${p.bmi}` : ""}
-                      {p.body_fat_percent ? ` · ${p.body_fat_percent}% fat` : ""}
+                      {p.weight_kg ? ` - ${p.weight_kg} kg` : ""}
+                      {p.bmi ? ` - BMI ${p.bmi}` : ""}
+                      {p.body_fat_percent ? ` - ${p.body_fat_percent}% fat` : ""}
                     </p>
-                    {p.notes && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{p.notes}</p>}
+                    {p.notes && <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{p.notes}</p>}<Link href={`/trainer/progress/${p.id}/edit`} className="text-sm text-primary hover:underline">Edit</Link>
                   </div>
                 </div>
               ))}

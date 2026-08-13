@@ -23,7 +23,8 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
         .select("role:roles(slug)")
         .eq("id", user.id)
         .single();
-      const slug = (profile?.role as unknown as { slug: UserRole } | null)?.slug;
+      const roleValue = profile?.role as unknown as { slug?: UserRole } | { slug?: UserRole }[] | null;
+      const slug = Array.isArray(roleValue) ? roleValue[0]?.slug : roleValue?.slug;
       const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
       return { redirectTo: dest };
     }
@@ -67,13 +68,14 @@ export async function resetPasswordAction(_: AuthState, formData: FormData): Pro
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: profile } = await supabase.from("users").select("role:roles(slug)").eq("id", user.id).single();
-      const slug = (profile?.role as unknown as { slug: UserRole } | null)?.slug;
+      const roleValue = profile?.role as unknown as { slug?: UserRole } | { slug?: UserRole }[] | null;
+      const slug = Array.isArray(roleValue) ? roleValue[0]?.slug : roleValue?.slug;
       const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
       redirect(dest);
     }
     redirect("/admin/dashboard");
   } catch (err: any) {
-    // next/navigation redirect throws internally — let it propagate
+    // next/navigation redirect throws internally â€” let it propagate
     if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
     console.error("[resetPasswordAction]", err);
     return { error: "Something went wrong. Please try again." };

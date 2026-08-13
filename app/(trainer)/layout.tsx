@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { PortalShell } from "@/components/layout/portal-shell";
 
 export default async function TrainerLayout({ children }: { children: React.ReactNode }) {
-  const profile = await requireUser(["trainer", "dietician"]);
+  const profile = await requireUser(["trainer", "dietician", "diet-planner", "diet_planner"]);
   return (
     <PortalShell
       name={profile.full_name}

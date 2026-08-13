@@ -73,8 +73,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ resource: string; id: string }> }) {
   const { resource, id } = await params;
   const profile = await authorize(resource);
-  if (!profile || !isResourceName(resource) || !["admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!profile || !isResourceName(resource) || (!["admin", "manager"].includes(profile.role?.slug ?? "") && !(resource === "progress" || resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  if (resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")) {
+    const supabase = await createClient(); const { data: trainer } = await supabase.from("trainers").select("staff_id").eq("user_id", profile.id).eq("branch_id", profile.branch_id ?? "").maybeSingle();
+    const { data: plan } = await supabase.from("diet_plans").select("id").eq("id", id).eq("staff_id", trainer?.staff_id ?? "").eq("branch_id", profile.branch_id ?? "").maybeSingle();
+    if (!plan) return NextResponse.json({ error: "Diet plan not found." }, { status: 403 });
+    const { error } = await supabase.from("diet_plans").update({ status: "inactive" }).eq("id", id); if (error) return NextResponse.json({ error: error.message }, { status: 400 }); return NextResponse.json({ success: true });
+  }
+  if (resource === "progress" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")) {
+    const supabase = await createClient();
+    const { data: record } = await supabase.from("progress").select("id").eq("id", id).eq("branch_id", profile.branch_id ?? "").eq("recorded_by", profile.id).maybeSingle();
+    if (!record) return NextResponse.json({ error: "Progress record not found." }, { status: 403 });
+    const { error } = await supabase.from("progress").delete().eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ success: true });
+  }
   if (!supportsSoftDelete(resource)) {
     return NextResponse.json({ error: "Soft delete is not supported for this resource." }, { status: 405 });
   }

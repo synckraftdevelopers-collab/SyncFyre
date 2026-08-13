@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "reception" | "trainer" | "dietician" | "member";
+export type UserRole = "admin" | "manager" | "reception" | "trainer" | "dietician" | "diet-planner" | "diet_planner" | "member";
 export type RecordStatus = "active" | "inactive";
 export type SubscriptionStatus = "pending" | "active" | "expired" | "cancelled" | "paused";
 export type AppointmentStatus = "pending" | "approved" | "completed" | "cancelled";
@@ -77,7 +77,7 @@ export interface DashboardMetrics {
   branches: number;
 }
 
-// ─── Report view row types ────────────────────────────────────────────────────
+// â”€â”€â”€ Report view row types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface MemberRegisterRow {
   member_id: string;
@@ -369,7 +369,7 @@ export interface MonthlyJoiningParams extends ReportParams {
 }
 
 
-// ─── Finance Module Types ─────────────────────────────────────────────────────
+// â”€â”€â”€ Finance Module Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type FinEntryType = "debit" | "credit";
 export type FinTxnStatus = "draft" | "pending" | "posted" | "voided" | "reversed";
@@ -676,7 +676,7 @@ export interface FinAttachment {
   created_at: string;
 }
 
-// ─── Finance Dashboard KPIs ───────────────────────────────────────────────────
+// â”€â”€â”€ Finance Dashboard KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FinanceDashboardMetrics {
   todayCollection: number;
@@ -697,7 +697,7 @@ export interface FinanceRevenuePoint { date: string; income: number; expense: nu
 export interface FinancePaymentModePoint { mode: string; amount: number; count: number; }
 export interface FinanceReceivableAgingPoint { bucket: string; amount: number; count: number; }
 
-// ─── Finance Query Params ────────────────────────────────────────────────────
+// â”€â”€â”€ Finance Query Params â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FinanceParams extends ReportParams {
   dateFrom?: string;

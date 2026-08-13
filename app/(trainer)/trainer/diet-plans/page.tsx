@@ -50,8 +50,8 @@ export default async function TrainerDietPlansPage() {
                   <div className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary shrink-0"><Utensils className="size-4" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold">{plan.name}</p>
-                    <p className="text-xs text-muted-foreground">{(plan.members as unknown as { full_name: string } | null)?.full_name ?? "—"}{plan.calories ? ` · ${plan.calories} kcal` : ""}</p>
-                    <p className="text-xs text-muted-foreground">{plan.start_date}{plan.end_date ? ` → ${plan.end_date}` : ""}</p>
+                    <p className="text-xs text-muted-foreground">{(plan.members as unknown as { full_name: string } | null)?.full_name ?? "â€”"}{plan.calories ? ` Â· ${plan.calories} kcal` : ""}</p>
+                    <p className="text-xs text-muted-foreground">{plan.start_date}{plan.end_date ? ` â†’ ${plan.end_date}` : ""}</p>
                   </div>
                 </div>
               ))}
