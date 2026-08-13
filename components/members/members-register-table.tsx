@@ -27,6 +27,10 @@ import {
   ChevronUp,
   Settings2,
   UserRound,
+  Share2,
+  Phone,
+  MessageSquare,
+  Bell,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -530,23 +534,45 @@ function ActionMenu({
   basePath: string;
   onDeactivate: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]           = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [notifPending, setNotifPending] = useState(false);
   const id = row.member_id;
 
   const actions = [
-    { label: "View profile",    icon: Eye,          href: `${basePath}/${id}` },
-    { label: "Edit",            icon: Pencil,        href: `${basePath}/${id}?edit=1` },
-    { label: "Renew membership", icon: RotateCcw,   href: `${basePath}/${id}?tab=membership` },
-    { label: "Collect payment", icon: CreditCard,   href: `${basePath}/${id}?tab=payment` },
-    { label: "Generate invoice", icon: FileText,    href: `${basePath}/${id}?tab=invoice` },
-    { label: "Assign trainer",  icon: Dumbbell,     href: `${basePath}/${id}?tab=trainer` },
-    { label: "View attendance", icon: ClipboardList, href: `${basePath}/${id}?tab=attendance` },
+    { label: "View profile",     icon: Eye,          href: `${basePath}/${id}` },
+    { label: "Edit",             icon: Pencil,        href: `${basePath}/${id}?edit=1` },
+    { label: "Renew membership", icon: RotateCcw,    href: `${basePath}/${id}?tab=membership` },
+    { label: "Collect payment",  icon: CreditCard,   href: `${basePath}/${id}?tab=payment` },
+    { label: "Generate invoice", icon: FileText,     href: `${basePath}/${id}?tab=invoice` },
+    { label: "Assign trainer",   icon: Dumbbell,     href: `${basePath}/${id}?tab=trainer` },
+    { label: "View attendance",  icon: ClipboardList, href: `${basePath}/${id}?tab=attendance` },
   ];
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center gap-1">
+      {/* ── Share button ───────────────────────────── */}
+      <div className="relative">
+        <button
+          onClick={() => { setShareOpen((v) => !v); setOpen(false); }}
+          className="rounded-lg p-1.5 hover:bg-blue-50 text-blue-600 transition-colors"
+          aria-label="Share / Contact"
+          title="Share / Contact"
+        >
+          <Share2 className="size-4" />
+        </button>
+
+        {shareOpen && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={() => setShareOpen(false)} />
+            <ShareMenu row={row} onClose={() => setShareOpen(false)} />
+          </>
+        )}
+      </div>
+
+      {/* ── Actions (⋯) button ─────────────────────── */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { setOpen((v) => !v); setShareOpen(false); }}
         className="rounded-lg p-1.5 hover:bg-muted transition-colors"
         aria-label="Member actions"
       >
@@ -555,10 +581,7 @@ function ActionMenu({
 
       {open && (
         <>
-          <div
-            className="fixed inset-0 z-20"
-            onClick={() => setOpen(false)}
-          />
+          <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div className="absolute right-0 top-full z-30 mt-1 w-52 rounded-xl border bg-background py-1 shadow-xl">
             {actions.map(({ label, icon: Icon, href }) => (
               <Link
@@ -571,6 +594,29 @@ function ActionMenu({
                 {label}
               </Link>
             ))}
+            {/* Send renewal notification */}
+            <div className="my-1 border-t" />
+            <button
+              onClick={async () => {
+                setOpen(false);
+                setNotifPending(true);
+                try {
+                  const { sendRenewalNotificationAction } = await import("@/app/actions/member-management-actions");
+                  const res = await sendRenewalNotificationAction(row.member_id);
+                  if (res?.error) toast.error(res.error);
+                  else toast.success(`Renewal notification sent to ${row.full_name}`);
+                } catch {
+                  toast.error("Failed to send notification");
+                } finally {
+                  setNotifPending(false);
+                }
+              }}
+              disabled={notifPending}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+            >
+              <Bell className="size-4" />
+              {notifPending ? "Sending…" : "Send Renewal Notification"}
+            </button>
             {row.member_status === "active" && (
               <>
                 <div className="my-1 border-t" />
@@ -586,6 +632,166 @@ function ActionMenu({
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Share / Contact menu ────────────────────────────────────────────────────
+
+function ShareMenu({ row, onClose }: { row: MemberRegisterRow; onClose: () => void }) {
+  const phone = row.phone?.replace(/\D/g, "") ?? "";
+
+  // Determine membership expiry info for pre-filled messages
+  const name       = row.full_name;
+  const plan       = row.current_plan ?? "your membership";
+  const expiry     = row.subscription_end
+    ? (() => { try { return format(parseISO(row.subscription_end), "dd MMM yyyy"); } catch { return row.subscription_end; } })()
+    : null;
+  const daysLeft   = row.days_remaining;
+
+  // Pre-composed messages
+  const renewalMsg =
+    daysLeft !== null && daysLeft <= 0
+      ? `Hi ${name}, your ${plan} at SyncFyre Gym has expired. Renew now to continue your fitness journey! Call us or visit the gym. 💪`
+      : `Hi ${name}, your ${plan} at SyncFyre Gym is expiring on ${expiry ?? "soon"}. Renew before it expires to avoid interruption. 💪`;
+
+  const paymentMsg =
+    `Hi ${name}, this is a reminder from SyncFyre Gym about a pending payment for your ${plan}. Please clear the dues at your earliest convenience. Thank you!`;
+
+  const generalMsg =
+    `Hi ${name}, greetings from SyncFyre Gym! We'd love to see you. Keep up the great work! 💪🏋️`;
+
+  function smsLink(msg: string) {
+    if (!phone) return null;
+    return `sms:${phone}?body=${encodeURIComponent(msg)}`;
+  }
+
+  function waLink(msg: string) {
+    if (!phone) return null;
+    const num = phone.startsWith("91") ? phone : `91${phone}`;
+    return `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+  }
+
+  function callLink() {
+    if (!phone) return null;
+    return `tel:${phone}`;
+  }
+
+  const hasPhone = !!phone;
+
+  const items: { label: string; sublabel: string; icon: React.ElementType; iconColor: string; href: string | null }[] = [
+    {
+      label:     "Call",
+      sublabel:  hasPhone ? phone : "No phone",
+      icon:      Phone,
+      iconColor: "text-green-600",
+      href:      callLink(),
+    },
+    {
+      label:     "SMS — Renewal Reminder",
+      sublabel:  "Opens SMS app with message",
+      icon:      MessageSquare,
+      iconColor: "text-blue-600",
+      href:      smsLink(renewalMsg),
+    },
+    {
+      label:     "SMS — Payment Due",
+      sublabel:  "Opens SMS app with message",
+      icon:      MessageSquare,
+      iconColor: "text-amber-600",
+      href:      smsLink(paymentMsg),
+    },
+    {
+      label:     "WhatsApp — Renewal Reminder",
+      sublabel:  "Opens WhatsApp with message",
+      icon:      () => (
+        <svg viewBox="0 0 24 24" className="size-4 fill-green-500">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+      ),
+      iconColor: "text-green-500",
+      href:      waLink(renewalMsg),
+    },
+    {
+      label:     "WhatsApp — Payment Due",
+      sublabel:  "Opens WhatsApp with message",
+      icon:      () => (
+        <svg viewBox="0 0 24 24" className="size-4 fill-amber-500">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+      ),
+      iconColor: "text-amber-500",
+      href:      waLink(paymentMsg),
+    },
+    {
+      label:     "WhatsApp — General",
+      sublabel:  "Opens WhatsApp with message",
+      icon:      () => (
+        <svg viewBox="0 0 24 24" className="size-4 fill-green-400">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+        </svg>
+      ),
+      iconColor: "text-green-400",
+      href:      waLink(generalMsg),
+    },
+  ];
+
+  return (
+    <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-xl border bg-background py-1.5 shadow-xl">
+      {/* Header */}
+      <div className="flex items-center gap-2 border-b px-3.5 pb-2 pt-1">
+        <Share2 className="size-3.5 text-blue-600" />
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          Contact / Share
+        </span>
+      </div>
+
+      {!hasPhone && (
+        <p className="px-3.5 py-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/20">
+          ⚠ No phone number stored for this member.
+        </p>
+      )}
+
+      {items.map(({ label, sublabel, icon: Icon, href }) => {
+        const disabled = !href;
+        const content = (
+          <>
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted">
+              <Icon />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className={`text-xs font-medium leading-tight ${disabled ? "text-muted-foreground" : ""}`}>
+                {label}
+              </p>
+              <p className="text-[10px] text-muted-foreground truncate">{sublabel}</p>
+            </div>
+          </>
+        );
+
+        if (disabled) {
+          return (
+            <div
+              key={label}
+              className="flex cursor-not-allowed items-center gap-2.5 px-3 py-2 opacity-40"
+            >
+              {content}
+            </div>
+          );
+        }
+
+        return (
+          <a
+            key={label}
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            onClick={onClose}
+            className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted transition-colors"
+          >
+            {content}
+          </a>
+        );
+      })}
     </div>
   );
 }

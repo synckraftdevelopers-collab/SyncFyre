@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ExternalLink, Instagram, MessageCircle, MessageSquareText, Phone, Share2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type ShareActionsProps = {
   memberName: string;
@@ -28,6 +29,7 @@ export function ShareActions({ memberName, phone, message }: ShareActionsProps) 
   const encoded = encodeURIComponent(message);
   const normalizedPhone = normalizeIndianPhone(phone);
   const actionPhone = normalizedPhone ?? phone?.trim() ?? "";
+  const hasPhone = actionPhone.length > 0;
 
   async function copyMessage() {
     try {
@@ -41,36 +43,54 @@ export function ShareActions({ memberName, phone, message }: ShareActionsProps) 
     window.open(url, "_blank", "noopener,noreferrer");
   }
 
+  const enabledClassName = buttonVariants({ variant: "outline", size: "sm" });
+  const disabledClassName = cn(enabledClassName, "pointer-events-none opacity-50");
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Share</span>
-      <a
-        href={actionPhone ? `https://wa.me/${actionPhone}?text=${encoded}` : "#"}
-        target="_blank"
-        rel="noreferrer"
-        className={buttonVariants({ variant: "outline", size: "sm" })}
-      >
-        <MessageCircle className="size-3.5" />
-        WhatsApp
-      </a>
-      <a
-        href={actionPhone ? `sms:+${actionPhone}?body=${encoded}` : "#"}
-        className={buttonVariants({ variant: "outline", size: "sm" })}
-      >
-        <MessageSquareText className="size-3.5" />
-        SMS
-      </a>
-      <a
-        href={actionPhone ? `tel:+${actionPhone}` : "#"}
-        className={buttonVariants({ variant: "outline", size: "sm" })}
-      >
-        <Phone className="size-3.5" />
-        Call
-      </a>
+      {hasPhone ? (
+        <a
+          href={`https://wa.me/${actionPhone}?text=${encoded}`}
+          target="_blank"
+          rel="noreferrer"
+          className={enabledClassName}
+        >
+          <MessageCircle className="size-3.5" />
+          WhatsApp
+        </a>
+      ) : (
+        <button type="button" disabled aria-disabled="true" title="Phone number not available" className={disabledClassName}>
+          <MessageCircle className="size-3.5" />
+          WhatsApp
+        </button>
+      )}
+      {hasPhone ? (
+        <a href={`sms:+${actionPhone}?body=${encoded}`} className={enabledClassName}>
+          <MessageSquareText className="size-3.5" />
+          SMS
+        </a>
+      ) : (
+        <button type="button" disabled aria-disabled="true" title="Phone number not available" className={disabledClassName}>
+          <MessageSquareText className="size-3.5" />
+          SMS
+        </button>
+      )}
+      {hasPhone ? (
+        <a href={`tel:+${actionPhone}`} className={enabledClassName}>
+          <Phone className="size-3.5" />
+          Call
+        </a>
+      ) : (
+        <button type="button" disabled aria-disabled="true" title="Phone number not available" className={disabledClassName}>
+          <Phone className="size-3.5" />
+          Call
+        </button>
+      )}
       <button
         type="button"
         onClick={() => openLink(`https://www.facebook.com/sharer/sharer.php?quote=${encoded}`)}
-        className={buttonVariants({ variant: "outline", size: "sm" })}
+        className={enabledClassName}
       >
         <Share2 className="size-3.5" />
         Facebook
@@ -81,12 +101,12 @@ export function ShareActions({ memberName, phone, message }: ShareActionsProps) 
           await copyMessage();
           openLink("https://www.instagram.com/direct/inbox/");
         }}
-        className={buttonVariants({ variant: "outline", size: "sm" })}
+        className={enabledClassName}
       >
         <Instagram className="size-3.5" />
         Instagram
       </button>
-      <button type="button" onClick={copyMessage} className={buttonVariants({ variant: "outline", size: "sm" })}>
+      <button type="button" onClick={copyMessage} className={enabledClassName}>
         <ExternalLink className="size-3.5" />
         {copied ? "Copied" : `Copy msg for ${memberName.split(" ")[0] ?? "member"}`}
       </button>
