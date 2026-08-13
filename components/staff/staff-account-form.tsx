@@ -166,7 +166,7 @@ export function StaffAccountForm({
         <p className="font-medium text-foreground mb-1">What happens after creation:</p>
         <ul className="space-y-1 list-inside list-disc">
           <li>A login account is created with the email and temporary password above.</li>
-          <li>The staff member is assigned to the selected branch — they will only see that branch's data.</li>
+          <li>The staff member is assigned to the selected branch — they will only see that branch&apos;s data.</li>
           <li>Their role determines which portal they land on after login and what they can do.</li>
           <li>You can reassign their branch or deactivate their account from the Staff list.</li>
         </ul>
