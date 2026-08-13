@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import Link from "next/link";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -17,7 +17,6 @@ export function AuthForm({
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
 
-  // Handle server-side redirect instruction returned as data
   useEffect(() => {
     if (state.redirectTo) {
       router.push(state.redirectTo);
@@ -25,9 +24,9 @@ export function AuthForm({
   }, [state.redirectTo, router]);
 
   const content = {
-    login:  ["Welcome back",           "Sign in to manage your gym"],
-    forgot: ["Forgot password?",       "We'll email you a secure reset link"],
-    reset:  ["Create a new password",  "Choose a strong password for your account"],
+    login: ["Welcome back", "Sign in to manage your gym"],
+    forgot: ["Forgot password?", "We'll email you a secure reset link"],
+    reset: ["Create a new password", "Choose a strong password for your account"],
   }[mode];
 
   return (
@@ -58,7 +57,7 @@ export function AuthForm({
               type="password"
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               className="mt-2"
-              placeholder="••••••••"
+              placeholder="********"
               required
             />
           </label>
@@ -76,11 +75,10 @@ export function AuthForm({
           </p>
         )}
 
-        {/* Show a spinner while redirecting after successful login */}
         {state.redirectTo && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
             <LoaderCircle className="size-4 animate-spin" />
-            Redirecting…
+            Redirecting...
           </p>
         )}
 

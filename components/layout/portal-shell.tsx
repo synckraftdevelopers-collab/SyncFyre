@@ -20,8 +20,20 @@ const searchPlaceholderByPortal: Record<PortalKey, string> = {
   member: "Search your records...",
 };
 
+const profileHrefByPortal: Record<PortalKey, string> = {
+  admin: "/admin/settings?tab=profile",
+  reception: "/reception/settings",
+  trainer: "/trainer/settings",
+  member: "/member/profile",
+};
+
 export function PortalShell({
-  children, name, role, portal, settingsHref, notificationsHref,
+  children,
+  name,
+  role,
+  portal,
+  settingsHref,
+  notificationsHref,
 }: {
   children: React.ReactNode;
   name: string;
@@ -43,18 +55,14 @@ export function PortalShell({
 
   return (
     <div className="min-h-screen bg-background">
-      <PortalSidebar
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-        desktopExpanded={desktopExpanded}
-        portal={portal}
-      />
+      <PortalSidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} desktopExpanded={desktopExpanded} portal={portal} />
       <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
           name={name}
           role={role}
           onMenu={handleMenu}
-          settingsHref={settingsHref}
+          profileHref={profileHrefByPortal[portal]}
+          settingsHref={settingsHref ?? profileHrefByPortal[portal]}
           notificationsHref={notificationsHref}
           searchAction={searchActionByPortal[portal]}
           searchPlaceholder={searchPlaceholderByPortal[portal]}

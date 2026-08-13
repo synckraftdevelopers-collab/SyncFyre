@@ -731,3 +731,101 @@ export interface LedgerParams extends FinanceParams {
 export interface GstParams extends FinanceParams {
   txnType?: "sales" | "purchase" | "all";
 }
+export interface ReportsFilterState {
+  datePreset?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  branchId?: string | null;
+  paymentMode?: string;
+  membershipPlanId?: string;
+  trainerId?: string;
+  incomeCategoryId?: string;
+  expenseCategoryId?: string;
+  memberId?: string;
+  status?: string;
+}
+
+export interface ReportsFilterOption {
+  label: string;
+  value: string;
+}
+
+export interface ReportKpi {
+  label: string;
+  value: number;
+  detail?: string;
+}
+
+export interface ReportTrendPoint {
+  label: string;
+  revenue: number;
+  expenses: number;
+  profit: number;
+}
+
+export interface ReportPaymentModePoint {
+  mode: string;
+  amount: number;
+  count: number;
+}
+
+export interface ReportOutstandingBucket {
+  bucket: string;
+  amount: number;
+  count: number;
+}
+
+export interface ReportOverviewTableRow {
+  id: string;
+  date: string;
+  memberName: string | null;
+  branchName: string | null;
+  category: string;
+  type: "income" | "expense" | "receivable";
+  amount: number;
+  status: string;
+  reference: string | null;
+}
+
+export interface ReportsRealtimeStatus {
+  enabled: boolean;
+  status: "live" | "fallback";
+  subscribedTables: string[];
+}
+
+export interface ReportsOverviewResponse {
+  filters: {
+    applied: Required<Pick<ReportsFilterState, "datePreset" | "dateFrom" | "dateTo">> & ReportsFilterState;
+    options: {
+      branches: ReportsFilterOption[];
+      paymentModes: ReportsFilterOption[];
+      membershipPlans: ReportsFilterOption[];
+      trainers: ReportsFilterOption[];
+      incomeCategories: ReportsFilterOption[];
+      expenseCategories: ReportsFilterOption[];
+    };
+  };
+  generatedAt: string;
+  realtime: ReportsRealtimeStatus;
+  summary: {
+    totalRevenue: number;
+    totalExpenses: number;
+    netProfit: number;
+    outstanding: number;
+    todayCollection: number;
+    monthlyCollection: number;
+    activeMembers: number;
+    newMembers: number;
+    renewals: number;
+    attendance: number;
+    averageRevenuePerMember: number;
+    collectionEfficiency: number;
+    profitMargin: number;
+  };
+  chartData: {
+    monthlyTrend: ReportTrendPoint[];
+    paymentModes: ReportPaymentModePoint[];
+    outstandingAging: ReportOutstandingBucket[];
+  };
+  tableData: ReportOverviewTableRow[];
+}

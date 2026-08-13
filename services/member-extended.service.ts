@@ -410,6 +410,152 @@ export async function getMemberNotifications(memberId: string) {
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Lookup helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
+type AssignableRole = "trainer" | "dietician";
+
+type AssignableProfileRow = {
+  id: string;
+  user_id: string;
+  staff_id: string | null;
+  branch_id: string;
+  status: string;
+};
+
+type AssignableUserRow = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  status: string;
+  branch_id: string | null;
+  role: { slug: string | null }[] | null;
+};
+
+type AssignableStaffRow = {
+  id: string;
+  user_id: string;
+  branch_id: string;
+  designation: string | null;
+  employee_code: string;
+  status: string;
+};
+
+async function ensureAssignableProfiles(role: AssignableRole, branchId?: string | null) {
+  const supabase = await createClient();
+  let staffQuery = supabase
+    .from("staff")
+    .select("id, user_id, branch_id, designation, employee_code, status")
+    .eq("status", "active");
+  if (branchId) staffQuery = staffQuery.eq("branch_id", branchId);
+
+  const [{ data: staffRows, error: staffError }, { data: userRows, error: userError }, { data: profileRows, error: profileError }] = await Promise.all([
+    staffQuery,
+    supabase
+      .from("users")
+      .select("id, full_name, email, phone, status, branch_id, role:roles!inner(slug)")
+      .eq("roles.slug", role)
+      .eq("status", "active"),
+    (() => {
+      let query = supabase
+        .from("trainers")
+        .select("id, user_id, staff_id, branch_id, status")
+        .eq("status", "active");
+      if (branchId) query = query.eq("branch_id", branchId);
+      return query;
+    })(),
+  ]);
+
+  if (staffError) throw new Error(staffError.message);
+  if (userError) throw new Error(userError.message);
+  if (profileError) throw new Error(profileError.message);
+
+  const staff = (staffRows ?? []) as AssignableStaffRow[];
+  const users = (userRows ?? []) as unknown as AssignableUserRow[];
+  const profiles = (profileRows ?? []) as AssignableProfileRow[];
+  const userMap = new Map(users.map((row) => [row.id, row]));
+  const staffRowsForRole = staff.filter((row) => userMap.has(row.user_id));
+  const profileByUserId = new Map(profiles.map((row) => [row.user_id, row]));
+
+  const missingProfiles = staffRowsForRole.filter((row) => !profileByUserId.has(row.user_id));
+  if (missingProfiles.length && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const admin = createAdminClient();
+    const { data: inserted, error: insertError } = await admin
+      .from("trainers")
+      .insert(missingProfiles.map((row) => ({
+        user_id: row.user_id,
+        staff_id: row.id,
+        branch_id: row.branch_id,
+        status: "active",
+      })))
+      .select("id, user_id, staff_id, branch_id, status");
+    if (insertError) throw new Error(insertError.message);
+    for (const row of (inserted ?? []) as AssignableProfileRow[]) {
+      profileByUserId.set(row.user_id, row);
+    }
+  }
+
+  return staffRowsForRole
+    .map((staffRow) => {
+      const user = userMap.get(staffRow.user_id);
+      const profile = profileByUserId.get(staffRow.user_id);
+      if (!user || !profile) return null;
+      return {
+        id: profile.id,
+        name: user.full_name ?? staffRow.designation ?? (role === "trainer" ? "Trainer" : "Dietician"),
+      };
+    })
+    .filter((row): row is { id: string; name: string } => Boolean(row))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function validateAssignment(
+  memberId: string,
+  assigneeId: string | null,
+  role: AssignableRole,
+  performedBy: string,
+): Promise<{ branchId: string; previousAssignmentId: string | null }> {
+  const supabase = await createClient();
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, branch_id, assigned_trainer_id")
+    .eq("id", memberId)
+    .single();
+  if (memberError || !member) throw new Error(memberError?.message ?? "Member not found.");
+
+  if (!assigneeId) {
+    return {
+      branchId: member.branch_id,
+      previousAssignmentId: member.assigned_trainer_id ?? null,
+    };
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("trainers")
+    .select("id, user_id, branch_id, status")
+    .eq("id", assigneeId)
+    .eq("status", "active")
+    .single();
+  if (profileError || !profile) throw new Error('Selected ' + role + ' is not available.');
+  if (profile.branch_id !== member.branch_id) throw new Error('Selected ' + role + " does not belong to this member's branch.");
+
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("id, status, role:roles!inner(slug)")
+    .eq("id", profile.user_id)
+    .eq("status", "active")
+    .eq("roles.slug", role)
+    .single();
+  if (userError || !user) throw new Error('Selected ' + role + ' is not eligible for assignment.');
+
+  const { data: actor } = await supabase.from("users").select("id").eq("id", performedBy).single();
+  if (!actor) throw new Error("You are not authorized to change assignments.");
+
+  return {
+    branchId: member.branch_id,
+    previousAssignmentId: member.assigned_trainer_id ?? null,
+  };
+}
+
 export async function getBranchOptions() {
   const supabase = await createClient();
   const { data } = await supabase
@@ -432,36 +578,12 @@ export async function getPlanOptions(branchId?: string | null) {
 }
 
 export async function getTrainerOptions(branchId?: string | null) {
-  const supabase = await createClient();
-  let query = supabase
-    .from("trainers")
-    .select("id, branch_id, users(full_name)")
-    .eq("status", "active");
-  if (branchId) query = query.eq("branch_id", branchId);
-  const { data } = await query;
-  return (data ?? []).map((t) => ({
-    id: t.id,
-    name:
-      (t.users as unknown as { full_name: string } | null)?.full_name ?? "Trainer",
-  }));
+  return await ensureAssignableProfiles("trainer", branchId);
 }
 
 export async function getDieticianOptions(branchId?: string | null) {
-  const supabase = await createClient();
-  let query = supabase
-    .from("trainers")
-    .select("id, branch_id, users!inner(full_name, roles!inner(slug))")
-    .eq("status", "active")
-    .eq("users.roles.slug", "dietician");
-  if (branchId) query = query.eq("branch_id", branchId);
-  const { data } = await query;
-  return (data ?? []).map((dietician) => ({
-    id: dietician.id,
-    name: (dietician.users as unknown as { full_name: string } | null)?.full_name ?? "Dietician",
-  }));
+  return await ensureAssignableProfiles("dietician", branchId);
 }
-
-// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Soft-delete (deactivate) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export async function deactivateMember(id: string, performedBy: string): Promise<void> {
   const supabase = await createClient();
