@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const fieldClass = "space-y-1.5 text-sm font-medium";
 
 export function InvoiceForm({ members, plans }: { members: Member[]; plans: Plan[] }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
   const [memberId, setMemberId] = useState("");
@@ -116,7 +117,13 @@ export function InvoiceForm({ members, plans }: { members: Member[]; plans: Plan
         }
 
         toast.success("Invoice and payment recorded.");
-        router.push(`/invoices/${invoice.id}`);
+        
+        const basePath = pathname.startsWith("/reception") ? "/reception" : "/admin";
+        if (basePath === "/admin") {
+          router.push(`/admin/invoices/${invoice.id}`);
+        } else {
+          router.push(`/reception/payments`);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }

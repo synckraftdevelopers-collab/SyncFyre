@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { PrintButton } from "@/components/ui/print-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,8 +27,10 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
 
   const memberName = invoice.members?.full_name ?? "Unknown member";
   const memberCode = invoice.members?.member_code ?? "";
-  const payments = (invoice as unknown as { payments?: Payment[] }).payments ?? [];
-  const outstanding = invoice.total_amount - invoice.amount_paid;
+  const payments = Array.isArray((invoice as any).payments) ? (invoice as any).payments as Payment[] : [];
+  const outstanding = (invoice.total_amount || 0) - (invoice.amount_paid || 0);
+  const lineItems = Array.isArray(invoice.line_items) ? invoice.line_items : [];
+  const invoiceStatus = invoice.status || "unpaid";
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -36,9 +39,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
           <ArrowLeft className="size-4" />Payments
         </Link>
         <div className="ml-auto">
-          <button type="button" onClick={() => window.print()} className={buttonVariants({ variant: "outline", size: "sm" })}>
-            <Printer className="size-4" />Print receipt
-          </button>
+          <PrintButton />
         </div>
       </div>
 
@@ -51,8 +52,8 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
               Issued {new Date(invoice.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
             </p>
           </div>
-          <Badge variant={invoiceStatusVariant[invoice.status] ?? "outline"} className="text-sm px-3 py-1">
-            {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+          <Badge variant={invoiceStatusVariant[invoiceStatus] ?? "outline"} className="text-sm px-3 py-1">
+            {invoiceStatus.charAt(0).toUpperCase() + invoiceStatus.slice(1)}
           </Badge>
         </CardHeader>
 
@@ -63,7 +64,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
             <p className="text-sm text-muted-foreground">{memberCode}</p>
           </div>
 
-          {invoice.line_items.length > 0 && (
+          {lineItems.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Items</p>
               <div className="rounded-lg border overflow-hidden">
@@ -72,7 +73,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
                     <tr><th className="px-4 py-2 text-left font-medium">Description</th><th className="px-4 py-2 text-right font-medium">Amount</th></tr>
                   </thead>
                   <tbody className="divide-y">
-                    {invoice.line_items.map((item, i) => (
+                    {lineItems.map((item, i) => (
                       <tr key={i}>
                         <td className="px-4 py-2">{String((item as Record<string, unknown>).description ?? "Item")}</td>
                         <td className="px-4 py-2 text-right tabular-nums">{formatCurrency(Number((item as Record<string, unknown>).amount ?? 0))}</td>
