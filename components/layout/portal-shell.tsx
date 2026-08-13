@@ -49,7 +49,7 @@ export function PortalShell({
         desktopExpanded={desktopExpanded}
         portal={portal}
       />
-      <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px]" : "transition-[padding] duration-300 ease-in-out lg:pl-16"}>
+      <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
           name={name}
           role={role}
@@ -59,7 +59,7 @@ export function PortalShell({
           searchAction={searchActionByPortal[portal]}
           searchPlaceholder={searchPlaceholderByPortal[portal]}
         />
-        <main className="mx-auto max-w-[1600px] min-w-0 p-4 md:p-6">{children}</main>
+        <main className="mx-auto max-w-[1600px] min-w-0 p-4 md:p-6 print:p-0 print:max-w-none">{children}</main>
       </div>
     </div>
   );

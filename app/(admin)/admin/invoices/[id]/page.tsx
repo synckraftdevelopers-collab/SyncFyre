@@ -33,8 +33,8 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
   const invoiceStatus = invoice.status || "unpaid";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mx-auto max-w-3xl space-y-5 print:m-0 print:max-w-none print:w-full">
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Link href="/admin/payments" className={buttonVariants({ variant: "ghost" })}>
           <ArrowLeft className="size-4" />Payments
         </Link>
@@ -43,8 +43,8 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex-row items-start justify-between gap-4 border-b pb-5">
+      <Card className="print:border-0 print:shadow-none print:rounded-none">
+        <CardHeader className="flex-row items-start justify-between gap-4 border-b pb-5 print:border-black/20">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Invoice</p>
             <CardTitle className="mt-1 font-mono text-lg">#{id.split("-")[0].toUpperCase()}</CardTitle>
@@ -67,7 +67,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
           {lineItems.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Items</p>
-              <div className="rounded-lg border overflow-hidden">
+              <div className="rounded-lg border overflow-hidden print:border-black/20 print:rounded-none">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                     <tr><th className="px-4 py-2 text-left font-medium">Description</th><th className="px-4 py-2 text-right font-medium">Amount</th></tr>
@@ -85,7 +85,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
             </div>
           )}
 
-          <div className="rounded-lg border p-4 space-y-2 text-sm">
+          <div className="rounded-lg border p-4 space-y-2 text-sm print:border-black/20 print:rounded-none">
             <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums">{formatCurrency(invoice.subtotal)}</span></div>
             {invoice.discount_amount > 0 && <div className="flex justify-between text-emerald-600"><span>Discount</span><span className="tabular-nums">- {formatCurrency(invoice.discount_amount)}</span></div>}
             {invoice.gst_amount > 0 && <div className="flex justify-between text-muted-foreground"><span>GST</span><span className="tabular-nums">+ {formatCurrency(invoice.gst_amount)}</span></div>}
@@ -103,7 +103,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
           {payments.length > 0 && (
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Payment history</p>
-              <div className="divide-y rounded-lg border overflow-hidden">
+              <div className="divide-y rounded-lg border overflow-hidden print:border-black/20 print:divide-black/20 print:rounded-none">
                 {payments.map((p) => (
                   <div key={p.id} className="flex items-center gap-4 px-4 py-3 text-sm">
                     <div className="flex-1">

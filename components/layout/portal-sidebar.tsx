@@ -36,6 +36,7 @@ export function PortalSidebar({
 
       <aside
         className={cn(
+          "print:hidden",
           "fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden bg-[#071d38] text-white shadow-2xl",
           "transition-[width,transform] duration-300 ease-in-out",
           "w-[272px]",

@@ -31,7 +31,7 @@ export function PortalHeader({
   const triggerId = useId();
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
+    <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
       <Button
         variant="ghost"
         size="icon"
