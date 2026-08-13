@@ -1,4 +1,5 @@
 "use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -6,97 +7,146 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navByPortal, portalLabel, type PortalKey } from "@/lib/nav";
 
-export function PortalSidebar({
-  open,
-  onClose,
-  portal,
-}: {
-  open: boolean;
-  onClose: () => void;
+interface PortalSidebarProps {
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+  desktopExpanded: boolean;
   portal: PortalKey;
-}) {
+}
+
+export function PortalSidebar({
+  mobileOpen, onMobileClose, desktopExpanded, portal,
+}: PortalSidebarProps) {
   const pathname = usePathname();
   const navigation = navByPortal[portal];
   const label = portalLabel[portal];
 
   return (
     <>
-      {open && (
-        <button
-          aria-label="Close navigation"
+      {mobileOpen && (
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Close menu"
           className="fixed inset-0 z-40 bg-[#061a31]/70 backdrop-blur-sm lg:hidden"
-          onClick={onClose}
+          onClick={onMobileClose}
+          onKeyDown={(event) => event.key === "Enter" && onMobileClose()}
         />
       )}
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[#071d38] text-white shadow-2xl transition-transform lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full",
+          "fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden bg-[#071d38] text-white shadow-2xl",
+          "transition-[width,transform] duration-300 ease-in-out",
+          "w-[272px]",
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          desktopExpanded ? "lg:w-[272px]" : "lg:w-[88px]",
         )}
       >
-        {/* Logo */}
-        <div className="flex h-24 items-center border-b border-white/10 px-6">
-          <div className="rounded-xl bg-white px-3 py-1.5">
+        <div
+          className={cn(
+            "flex h-16 shrink-0 items-center border-b border-white/10",
+            desktopExpanded ? "gap-3 px-4" : "gap-3 px-4 lg:justify-center",
+          )}
+        >
+          <div
+            className={cn(
+              "shrink-0 rounded-lg bg-white px-2 py-1 transition-all duration-300",
+              desktopExpanded ? "lg:scale-100 lg:opacity-100" : "lg:w-0 lg:scale-75 lg:px-0 lg:py-0 lg:opacity-0",
+              "scale-100 opacity-100",
+            )}
+          >
             <Image
               src="/syncfyre-logo.png"
-              width={154}
-              height={74}
+              width={88}
+              height={42}
               alt="SyncFyre"
-              className="h-12 w-auto object-contain"
+              className="h-7 w-auto object-contain"
               priority
             />
           </div>
+          <div className="flex-1" />
           <button
-            onClick={onClose}
-            className="ml-auto rounded-lg p-2 text-white/70 hover:bg-white/10 lg:hidden"
-            aria-label="Close"
+            onClick={onMobileClose}
+            aria-label="Close menu"
+            className="rounded-lg p-2 text-white/70 hover:bg-white/10 lg:hidden"
           >
             <X className="size-5" />
           </button>
         </div>
 
-        {/* Portal label */}
-        <div className="px-6 pb-3 pt-6 text-[10px] font-semibold uppercase tracking-[.22em] text-[#52c7ea]">
-          {label}
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-300",
+            desktopExpanded ? "lg:max-h-12 lg:opacity-100" : "lg:max-h-0 lg:opacity-0",
+            "max-h-12 opacity-100",
+          )}
+        >
+          <p className="whitespace-nowrap px-4 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[.22em] text-[#52c7ea]">
+            {label}
+          </p>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
+        <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-2 py-3">
           {navigation.map(({ label: navLabel, href, icon: Icon }) => {
-            const active =
-              pathname === href ||
-              (href.split("/").length > 2 && pathname.startsWith(`${href}/`));
+            const active = pathname === href || (href.split("/").length > 2 && pathname.startsWith(`${href}/`));
             return (
               <Link
                 key={href}
                 href={href}
-                onClick={onClose}
+                onClick={onMobileClose}
+                title={navLabel}
+                aria-label={navLabel}
                 className={cn(
-                  "group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/62 transition-all hover:bg-white/7 hover:text-white",
-                  active &&
-                    "bg-primary text-white shadow-[0_8px_22px_rgba(255,48,36,.22)] hover:bg-primary",
+                  "group flex items-center gap-3 rounded-2xl text-sm font-medium transition-all duration-150",
+                  "min-h-[52px] text-white/70 hover:bg-white/8 hover:text-white",
+                  desktopExpanded ? "px-3 py-3" : "px-3 py-3 lg:justify-center lg:px-0",
+                  active && "bg-primary text-white shadow-[0_6px_18px_rgba(255,48,36,.2)] hover:bg-primary",
                 )}
               >
-                <Icon
+                <span
                   className={cn(
-                    "size-[18px] transition-colors group-hover:text-[#52c7ea]",
-                    active && "text-white group-hover:text-white",
+                    "grid shrink-0 place-items-center rounded-2xl transition-all",
+                    desktopExpanded ? "size-10" : "size-12 lg:size-12",
+                    active ? "bg-white/12" : "bg-white/5 group-hover:bg-white/10",
                   )}
-                />
-                {navLabel}
+                >
+                  <Icon
+                    className={cn(
+                      "shrink-0 transition-colors",
+                      desktopExpanded ? "size-5" : "size-7 lg:size-7",
+                      active ? "text-white" : "group-hover:text-[#52c7ea]",
+                    )}
+                  />
+                </span>
+                <span
+                  className={cn(
+                    "whitespace-nowrap leading-none transition-all duration-300",
+                    desktopExpanded ? "lg:block" : "lg:hidden",
+                    "block",
+                  )}
+                >
+                  {navLabel}
+                </span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="m-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs font-semibold text-white">One intelligent platform.</p>
-          <p className="mt-1 text-[11px] leading-relaxed text-white/45">
-            Every member. Every payment. Every moving part.
-          </p>
-          <div className="mt-3 h-1 w-10 rounded-full bg-primary" />
+        <div
+          className={cn(
+            "overflow-hidden transition-all duration-300",
+            desktopExpanded ? "lg:max-h-28 lg:opacity-100" : "lg:max-h-0 lg:opacity-0",
+            "max-h-28 opacity-100",
+          )}
+        >
+          <div className="mx-2 mb-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+            <p className="text-xs font-semibold text-white">One intelligent platform.</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-white/45">
+              Every member. Every payment. Every moving part.
+            </p>
+            <div className="mt-2 h-1 w-8 rounded-full bg-primary" />
+          </div>
         </div>
       </aside>
     </>

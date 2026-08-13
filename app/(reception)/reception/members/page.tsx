@@ -10,10 +10,9 @@ import {
   getTrainerOptions,
 } from "@/services/member-extended.service";
 import { createClient } from "@/lib/supabase/server";
-import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberFilters } from "@/components/members/member-filters";
-import { MemberTableToolbar } from "@/components/members/member-table-toolbar";
 import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
+import { MemberCardGrid } from "@/components/members/member-card-grid";
 
 export const metadata = { title: "Members" };
 
@@ -22,28 +21,29 @@ export default async function ReceptionMembersPage({
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
-  const sp      = await searchParams;
+  const sp = await searchParams;
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id ?? null;
+  const role = profile?.role?.slug ?? null;
 
-  const page     = Math.max(1, Number(sp.page ?? 1));
-  const pageSize = Math.max(1, Math.min(100, Number(sp.pageSize ?? 50)));
+  const page = Math.max(1, Number(sp.page ?? 1));
+  const pageSize = Math.max(1, Math.min(60, Number(sp.pageSize ?? 24)));
 
   const [result, branches, plans, trainers] = await Promise.all([
     listMembersRich({
       page,
       pageSize,
-      search:             sp.q || undefined,
-      branchId:           sp.branch || branchId || undefined,
-      status:             sp.status || undefined,
-      planId:             sp.plan || undefined,
-      trainerId:          sp.trainer || undefined,
-      gender:             sp.gender || undefined,
+      search: sp.q || undefined,
+      branchId: sp.branch || branchId || undefined,
+      status: sp.status || undefined,
+      planId: sp.plan || undefined,
+      trainerId: sp.trainer || undefined,
+      gender: sp.gender || undefined,
       subscriptionStatus: sp.sub_status || undefined,
-      joinDateFrom:       sp.join_from || undefined,
-      joinDateTo:         sp.join_to || undefined,
-      expiryDateFrom:     sp.exp_from || undefined,
-      expiryDateTo:       sp.exp_to || undefined,
+      joinDateFrom: sp.join_from || undefined,
+      joinDateTo: sp.join_to || undefined,
+      expiryDateFrom: sp.exp_from || undefined,
+      expiryDateTo: sp.exp_to || undefined,
     }),
     getBranchOptions(),
     getPlanOptions(branchId),
@@ -52,8 +52,7 @@ export default async function ReceptionMembersPage({
 
   const today = new Date().toISOString().slice(0, 10);
   const supabase = await createClient();
-  const memberIds = result.data.map((m) => m.member_id);
-
+  const memberIds = result.data.map((member) => member.member_id);
   const [attendanceRes, lastVisitRes] = await Promise.all([
     memberIds.length
       ? supabase.from("attendance").select("member_id").in("member_id", memberIds).eq("attendance_date", today)
@@ -64,74 +63,57 @@ export default async function ReceptionMembersPage({
   ]);
 
   const attendanceMap: Record<string, boolean> = {};
-  for (const r of attendanceRes.data ?? []) attendanceMap[r.member_id] = true;
+  for (const row of attendanceRes.data ?? []) attendanceMap[row.member_id] = true;
 
   const lastVisitMap: Record<string, string> = {};
-  for (const r of lastVisitRes.data ?? []) {
-    if (!lastVisitMap[r.member_id]) lastVisitMap[r.member_id] = r.attendance_date;
+  for (const row of lastVisitRes.data ?? []) {
+    if (!lastVisitMap[row.member_id]) lastVisitMap[row.member_id] = row.attendance_date;
   }
 
-  function pageUrl(p: number) {
+  function pageUrl(nextPage: number) {
     const params = new URLSearchParams(sp as Record<string, string>);
-    params.set("page", String(p));
+    params.set("page", String(nextPage));
     return `/reception/members?${params.toString()}`;
   }
 
-  const totalPages = Math.max(1, result.totalPages);
-
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">Members</h1>
-          <p className="text-sm text-muted-foreground">
-            Full view of all members â€” plans, payments, attendance, and more.
-          </p>
+          <p className="text-sm text-muted-foreground">Fast member operations for front desk teams with real attendance, dues, and membership data.</p>
         </div>
-        <div className="ml-auto flex flex-shrink-0 flex-wrap items-center gap-2">
-          <MemberExcelImportDialog
-            branches={branches.filter((branch) => branch.id === branchId).map((branch) => ({ id: branch.id, name: branch.name }))}
-            defaultBranchId={branchId}
-          />
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <MemberExcelImportDialog branches={branches.filter((branch) => branch.id === branchId).map((branch) => ({ id: branch.id, name: branch.name }))} defaultBranchId={branchId} />
           <Link href="/reception/members/new" className={buttonVariants({ size: "sm" })}>
-            <Plus className="size-4" />Add Member
+            <Plus className="size-4" />
+            Add Member
           </Link>
         </div>
       </div>
 
-      {/* Stats strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatPill label="Total"         value={result.total}                                                                   color="blue" />
-        <StatPill label="Active"        value={result.data.filter((m) => m.member_status === "active").length}                 color="green" note={`of ${result.data.length} shown`} />
-        <StatPill label="Present Today" value={Object.keys(attendanceMap).length}                                              color="emerald" />
-        <StatPill label="Expiring â‰¤30d" value={result.data.filter((m) => m.days_remaining !== null && m.days_remaining >= 0 && m.days_remaining <= 30).length} color="amber" />
-      </div>
-
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden rounded-3xl">
         <MemberFilters
-          branches={branches.map((b) => ({ id: b.id, name: b.name }))}
-          plans={plans.map((p) => ({ id: p.id, name: p.name }))}
-          trainers={trainers.map((t) => ({ id: t.id, name: t.name }))}
+          branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))}
+          plans={plans.map((plan) => ({ id: plan.id, name: plan.name }))}
+          trainers={trainers.map((trainer) => ({ id: trainer.id, name: trainer.name }))}
           basePath="/reception/members"
         />
-        <div className="flex items-center justify-between px-4 pt-3 pb-1">
-          <MemberTableToolbar data={result.data} total={result.total} />
+        <div className="p-4 md:p-5">
+          <MemberCardGrid
+            data={result.data}
+            basePath="/reception/members"
+            role={role}
+            attendanceMap={attendanceMap}
+            lastVisitMap={lastVisitMap}
+          />
         </div>
-        <MembersRegisterTable
-          data={result.data}
-          basePath="/reception/members"
-          attendanceMap={attendanceMap}
-          lastVisitMap={lastVisitMap}
-          pageOffset={(page - 1) * pageSize}
-        />
-        <div className="flex items-center justify-between border-t px-4 py-3 text-sm">
-          <span className="text-muted-foreground">
-            Showing {(page - 1) * pageSize + 1}â€“{Math.min(page * pageSize, result.total)} of {result.total.toLocaleString()} members
-          </span>
-          <div className="flex items-center gap-1.5">
-            <PaginationLink href={pageUrl(page - 1)} disabled={page <= 1}     label="â† Prev" />
-            <span className="px-2 text-xs text-muted-foreground">{page} / {totalPages}</span>
-            <PaginationLink href={pageUrl(page + 1)} disabled={page >= totalPages} label="Next â†’" />
+        <div className="flex flex-col gap-3 border-t px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between md:px-5">
+          <span className="text-muted-foreground">Showing {Math.min((page - 1) * pageSize + 1, result.total)}-{Math.min(page * pageSize, result.total)} of {result.total.toLocaleString()} members</span>
+          <div className="flex items-center gap-2">
+            <PaginationLink href={pageUrl(page - 1)} disabled={page <= 1} label="Prev" />
+            <span className="px-2 text-xs text-muted-foreground">{page} / {Math.max(1, result.totalPages)}</span>
+            <PaginationLink href={pageUrl(page + 1)} disabled={page >= result.totalPages} label="Next" />
           </div>
         </div>
       </Card>
@@ -139,18 +121,7 @@ export default async function ReceptionMembersPage({
   );
 }
 
-function StatPill({ label, value, note, color }: { label: string; value: number; note?: string; color: "blue"|"green"|"emerald"|"amber" }) {
-  const colors = { blue: "bg-blue-500/8 text-blue-700", green: "bg-emerald-500/8 text-emerald-700", emerald: "bg-emerald-500/8 text-emerald-700", amber: "bg-amber-500/8 text-amber-700" };
-  return (
-    <div className={`rounded-xl px-4 py-3 ${colors[color]}`}>
-      <p className="text-xs font-medium opacity-70">{label}</p>
-      <p className="mt-0.5 text-xl font-bold tabular-nums">{value.toLocaleString()}</p>
-      {note && <p className="text-[10px] opacity-60 mt-0.5">{note}</p>}
-    </div>
-  );
-}
-
 function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
-  if (disabled) return <span className="cursor-not-allowed rounded-lg border px-3 py-1.5 text-xs opacity-40">{label}</span>;
-  return <Link href={href} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted transition-colors">{label}</Link>;
+  if (disabled) return <span className="cursor-not-allowed rounded-xl border px-3 py-2 text-xs opacity-40">{label}</span>;
+  return <Link href={href} className="rounded-xl border px-3 py-2 text-xs transition-colors hover:bg-muted">{label}</Link>;
 }

@@ -16,6 +16,8 @@ export function PortalHeader({
   unreadCount = 0,
   settingsHref = "/admin/settings",
   notificationsHref = "/admin/notifications",
+  searchAction = "/admin/members",
+  searchPlaceholder = "Search members...",
 }: {
   name: string;
   role: string;
@@ -23,34 +25,40 @@ export function PortalHeader({
   unreadCount?: number;
   settingsHref?: string;
   notificationsHref?: string;
+  searchAction?: string;
+  searchPlaceholder?: string;
 }) {
   const triggerId = useId();
+
   return (
-    <header className="sticky top-0 z-30 flex h-20 items-center gap-3 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:px-8">
+    <header className="sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
       <Button
         variant="ghost"
         size="icon"
         onClick={onMenu}
-        className="lg:hidden"
-        aria-label="Open navigation"
+        aria-label="Toggle navigation"
+        className="shrink-0"
       >
         <Menu className="size-5" />
       </Button>
 
-      {/* Search — scoped to members by default, portals can pass different href */}
-      <form action="/admin/members" className="relative hidden max-w-lg flex-1 md:block">
+      <span className="truncate font-bold text-base tracking-tight lg:hidden">SyncFyre</span>
+
+      <form action={searchAction} className="relative hidden min-w-0 max-w-lg flex-1 md:block">
         <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           name="q"
           className="h-11 rounded-xl border-0 bg-muted/75 pl-11 shadow-none focus-visible:ring-1"
-          placeholder="Search members…"
+          placeholder={searchPlaceholder}
         />
       </form>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        <Button variant="ghost" size="icon" aria-label="Search" className="md:hidden">
+          <Search className="size-5" />
+        </Button>
         <ThemeToggle />
 
-        {/* Quick sign-out button — visible at all times for easy role switching */}
         <form action={logoutAction}>
           <button
             type="submit"
@@ -65,7 +73,6 @@ export function PortalHeader({
           </button>
         </form>
 
-        {/* Notification bell */}
         <Link
           href={notificationsHref}
           className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")}
@@ -77,7 +84,6 @@ export function PortalHeader({
           )}
         </Link>
 
-        {/* Profile dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
@@ -89,7 +95,7 @@ export function PortalHeader({
               <div className="grid size-9 place-items-center rounded-xl bg-[#071d38] text-sm font-bold text-white dark:bg-primary">
                 {initials(name)}
               </div>
-              <div className="hidden sm:block text-left">
+              <div className="hidden text-left sm:block">
                 <p className="max-w-36 truncate text-sm font-semibold leading-tight">{name}</p>
                 <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                   {role}
@@ -105,9 +111,9 @@ export function PortalHeader({
               sideOffset={8}
               className="z-50 min-w-52 overflow-hidden rounded-xl border border-border bg-background p-1.5 shadow-[0_16px_40px_rgba(7,29,56,.14)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
             >
-              <div className="px-3 py-2 border-b border-border mb-1">
-                <p className="text-sm font-semibold truncate">{name}</p>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">{role}</p>
+              <div className="mb-1 border-b border-border px-3 py-2">
+                <p className="truncate text-sm font-semibold">{name}</p>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">{role}</p>
               </div>
 
               <DropdownMenu.Item asChild>
