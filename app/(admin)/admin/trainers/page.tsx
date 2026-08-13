@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { ChevronLeft, ChevronRight, Plus, Search, UserRoundCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -22,37 +22,33 @@ export default async function AdminTrainersPage({
     status: "all",
   });
 
-  // Client-side filtering on the array (trainer_report_view already scopes to branch via RLS)
   const search = (sp.q ?? "").toLowerCase().trim();
   const statusFilter = sp.status ?? "all";
 
-  const filtered = allTrainers.filter((t) => {
+  const filtered = allTrainers.filter((trainer) => {
     const matchSearch =
       !search ||
-      t.trainer_name.toLowerCase().includes(search) ||
-      (t.email ?? "").toLowerCase().includes(search);
-    const matchStatus =
-      statusFilter === "all" || t.trainer_status === statusFilter;
+      trainer.trainer_name.toLowerCase().includes(search) ||
+      (trainer.email ?? "").toLowerCase().includes(search);
+    const matchStatus = statusFilter === "all" || trainer.trainer_status === statusFilter;
     return matchSearch && matchStatus;
   });
 
-  // Pagination
   const pageSize = 20;
   const currentPage = Math.max(1, Number(sp.page ?? 1));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  function pageUrl(p: number) {
+  function pageUrl(page: number) {
     const params = new URLSearchParams();
     if (sp.q) params.set("q", sp.q);
     if (sp.status && sp.status !== "all") params.set("status", sp.status);
-    params.set("page", String(p));
+    params.set("page", String(page));
     return `/admin/trainers?${params.toString()}`;
   }
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold">Trainers</h1>
@@ -66,28 +62,26 @@ export default async function AdminTrainersPage({
         </Link>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold">{allTrainers.length}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Total trainers</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Total trainers</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold text-emerald-600">
-            {allTrainers.filter((t) => t.trainer_status === "active").length}
+            {allTrainers.filter((trainer) => trainer.trainer_status === "active").length}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">Active</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Active</p>
         </div>
         <div className="rounded-xl border bg-card p-4 text-center">
           <p className="text-2xl font-bold">
-            {allTrainers.reduce((s, t) => s + t.active_assigned_members, 0)}
+            {allTrainers.reduce((sum, trainer) => sum + trainer.active_assigned_members, 0)}
           </p>
-          <p className="text-xs text-muted-foreground mt-0.5">Total assigned members</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Total assigned members</p>
         </div>
       </div>
 
       <Card>
-        {/* Filters */}
         <form className="flex flex-col gap-3 border-b p-4 sm:flex-row">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -113,7 +107,6 @@ export default async function AdminTrainersPage({
           </button>
         </form>
 
-        {/* Table */}
         {paginated.length === 0 ? (
           <CardContent className="grid min-h-64 place-items-center text-center">
             <div>
@@ -129,50 +122,49 @@ export default async function AdminTrainersPage({
             <table className="w-full min-w-[750px] text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  {["Name", "Specializations", "Experience", "Assigned", "Upcoming Apts", "Status", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 font-medium">{h}</th>
+                  {["Name", "Specializations", "Experience", "Assigned", "Upcoming Apts", "Status", ""].map((heading) => (
+                    <th key={heading} className="px-4 py-3 font-medium">
+                      {heading}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {paginated.map((t) => (
-                  <tr key={t.trainer_id} className="hover:bg-muted/30 transition-colors">
+                {paginated.map((trainer) => (
+                  <tr key={trainer.trainer_id} className="transition-colors hover:bg-muted/30">
                     <td className="px-4 py-3">
-                      <p className="font-semibold">{t.trainer_name}</p>
-                      <p className="text-xs text-muted-foreground">{t.email ?? t.phone ?? "—"}</p>
+                      <p className="font-semibold">{trainer.trainer_name}</p>
+                      <p className="text-xs text-muted-foreground">{trainer.email ?? trainer.phone ?? "-"}</p>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1">
-                        {t.specializations.length > 0
-                          ? t.specializations.slice(0, 3).map((s) => (
-                              <span
-                                key={s}
-                                className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
-                              >
-                                {s}
-                              </span>
-                            ))
-                          : <span className="text-muted-foreground">—</span>
-                        }
+                        {trainer.specializations.length > 0 ? (
+                          trainer.specializations.slice(0, 3).map((specialization) => (
+                            <span
+                              key={specialization}
+                              className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary"
+                            >
+                              {specialization}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 tabular-nums">
-                      {t.experience_years > 0 ? `${t.experience_years} yrs` : "—"}
+                      {trainer.experience_years > 0 ? `${trainer.experience_years} yrs` : "-"}
                     </td>
-                    <td className="px-4 py-3 tabular-nums font-medium">
-                      {t.active_assigned_members}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums">
-                      {t.upcoming_appointments}
-                    </td>
+                    <td className="px-4 py-3 font-medium tabular-nums">{trainer.active_assigned_members}</td>
+                    <td className="px-4 py-3 tabular-nums">{trainer.upcoming_appointments}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={t.trainer_status === "active" ? "success" : "outline"}>
-                        {t.trainer_status}
+                      <Badge variant={trainer.trainer_status === "active" ? "success" : "outline"}>
+                        {trainer.trainer_status}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
                       <Link
-                        href={`/admin/trainers/${t.trainer_id}`}
+                        href={`/admin/trainers/${trainer.trainer_id}`}
                         className={buttonVariants({ variant: "ghost", size: "sm" })}
                       >
                         View
@@ -185,7 +177,6 @@ export default async function AdminTrainersPage({
           </div>
         )}
 
-        {/* Pagination */}
         <div className="flex items-center justify-between border-t p-4 text-sm text-muted-foreground">
           <span>
             {filtered.length} trainer{filtered.length === 1 ? "" : "s"}
