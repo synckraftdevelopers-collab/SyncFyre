@@ -6,6 +6,7 @@ import {
   deactivateMember,
   renewMembership,
   assignTrainer,
+  assignDietician,
 } from "@/services/member-extended.service";
 import { updateMember } from "@/services/member.service";
 import { memberSchema } from "@/lib/validations/member";
@@ -86,6 +87,20 @@ export async function assignTrainerAction(
   return { success: "Trainer assigned." };
 }
 
+export async function assignDieticianAction(memberId: string, dieticianId: string | null): Promise<AssignTrainerState> {
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  try {
+    await assignDietician(memberId, dieticianId, profile.id);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Assignment failed." };
+  }
+  revalidatePath(`/admin/members/${memberId}`);
+  revalidatePath(`/reception/members/${memberId}`);
+  revalidatePath("/admin/members");
+  revalidatePath("/reception/members");
+  return { success: "Dietician assigned." };
+}
+
 export type UpdateState = { error?: string; fields?: Record<string, string[]> };
 
 export async function updateMemberFullAction(
@@ -153,7 +168,7 @@ export async function sendRenewalNotificationAction(
     .limit(1)
     .single();
 
-  const planName = (sub?.membership_plans as { name: string } | null)?.name ?? "membership";
+  const planName = (sub?.membership_plans as { name: string }[] | null)?.[0]?.name ?? "membership";
   const endDate  = sub?.end_date
     ? new Date(sub.end_date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
     : "soon";

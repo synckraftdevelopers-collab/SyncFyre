@@ -12,6 +12,7 @@ export function MemberEditForm({
   member,
   branches,
   trainers,
+  dieticians,
 }: {
   member: Member & {
     address?: string | null;
@@ -19,8 +20,10 @@ export function MemberEditForm({
     medical_conditions?: string | null;
     emergency_contact_name?: string | null;
     emergency_contact_phone?: string | null;
+    assigned_dietician_id?: string | null;
     assigned_trainer_id?: string | null;
   };
+  dieticians: { id: string; name: string }[];
   branches: { id: string; name: string }[];
   trainers: { id: string; name: string }[];
 }) {
@@ -141,6 +144,13 @@ export function MemberEditForm({
                   {t.name}
                 </option>
               ))}
+            </select>
+          </label>
+          <label className={fieldClass}>
+            Assigned dietician
+            <select name="assigned_dietician_id" defaultValue={member.assigned_dietician_id ?? ""} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3">
+              <option value="">Not assigned</option>
+              {dieticians.map((dietician) => <option key={dietician.id} value={dietician.id}>{dietician.name}</option>)}
             </select>
           </label>
           <label className={fieldClass}>

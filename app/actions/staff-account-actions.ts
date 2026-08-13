@@ -52,18 +52,35 @@ export async function createStaffAccountAction(
   }
 
   const employeeCode = `STF-${Date.now().toString().slice(-8)}`;
-  const { error: staffError } = await admin.from("staff").insert({
-    user_id: userId,
-    branch_id: branchId,
-    employee_code: employeeCode,
-    designation,
-    status: "active",
-  });
-  if (staffError) {
+  const { data: staffRecord, error: staffError } = await admin
+    .from("staff")
+    .insert({
+      user_id: userId,
+      branch_id: branchId,
+      employee_code: employeeCode,
+      designation,
+      status: "active",
+    })
+    .select("id")
+    .single();
+  if (staffError || !staffRecord) {
     await admin.auth.admin.deleteUser(userId);
-    return { error: `Staff setup failed: ${staffError.message}` };
+    return { error: `Staff setup failed: ${staffError?.message ?? "Unable to create staff profile."}` };
   }
 
+  if (role === "trainer" || role === "dietician") {
+    const { error: trainerError } = await admin.from("trainers").insert({
+      user_id: userId,
+      staff_id: staffRecord.id,
+      branch_id: branchId,
+      status: "active",
+    });
+    if (trainerError) {
+      await admin.from("staff").delete().eq("id", staffRecord.id);
+      await admin.auth.admin.deleteUser(userId);
+      return { error: `Staff setup failed: ${trainerError.message}` };
+    }
+  }
   revalidatePath("/admin/staff");
   return { success: `${fullName} can now log in as ${role}.` };
 }

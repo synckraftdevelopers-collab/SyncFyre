@@ -29,6 +29,7 @@ export const memberSchema = z.object({
   screening_valid_until: z.string().date().optional().or(z.literal("")).nullable(),
   fitness_goal: z.string().max(500).optional().or(z.literal("")).nullable(),
   assigned_trainer_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  assigned_dietician_id: z.string().uuid().optional().or(z.literal("")).nullable(),
   branch_id: z.string().uuid("Choose a branch."),
   status: z.enum(["active", "inactive"]).default("active"),
   profile_photo_url: z.string().url().optional().or(z.literal("")).nullable(),

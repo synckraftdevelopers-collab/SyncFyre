@@ -33,6 +33,7 @@ import {
   getMemberNotifications,
   getPlanOptions,
   getTrainerOptions,
+  getDieticianOptions,
 } from "@/services/member-extended.service";
 import {
   PersonalTab,
@@ -58,7 +59,7 @@ export default async function AdminMemberDetailPage({
 
   // ── Parallel data fetches ────────────────────────────────────────────────
   const [member, subscriptions, payments, attendance, attendanceRecords,
-         progress, workouts, dietPlans, notifications, plans, trainers] =
+         progress, workouts, dietPlans, notifications, plans, trainers, dieticians] =
     await Promise.all([
       getMemberById(id),
       getMemberSubscriptions(id),
@@ -71,6 +72,7 @@ export default async function AdminMemberDetailPage({
       getMemberNotifications(id),
       getPlanOptions(profile.branch_id),
       getTrainerOptions(profile.branch_id),
+      getDieticianOptions(profile.branch_id),
     ]);
 
   if (!member) notFound();
@@ -186,7 +188,7 @@ export default async function AdminMemberDetailPage({
           {/* Personal */}
           {defaultTab === "profile" && (
             edit === "1" ? (
-              <EditMemberSection id={id} branches={[]} trainers={trainers} member={member} />
+              <EditMemberSection id={id} branches={[]} trainers={trainers} dieticians={dieticians} member={member} />
             ) : (
               <PersonalTab member={member} age={age} bmi={bmi} />
             )
@@ -231,13 +233,14 @@ function QuickStat({ label, value, children }: {
 
 // ─── Edit section (lazy) ──────────────────────────────────────────────────────
 async function EditMemberSection({
-  id, branches, trainers, member,
+  id, branches, trainers, dieticians, member,
 }: {
   id: string;
   branches: { id: string; name: string }[];
   trainers: { id: string; name: string }[];
+  dieticians: { id: string; name: string }[];
     member: any;
 }) {
   const { MemberEditForm } = await import("@/components/members/member-edit-form");
-  return <MemberEditForm member={member} branches={branches} trainers={trainers} />;
+  return <MemberEditForm member={member} branches={branches} trainers={trainers} dieticians={dieticians} />;
 }

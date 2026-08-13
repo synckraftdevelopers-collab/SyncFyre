@@ -212,6 +212,7 @@ export interface FullMember {
   screening_valid_until: string | null;
   fitness_goal: string | null;
   assigned_trainer_id: string | null;
+  assigned_dietician_id: string | null;
   status: "active" | "inactive";
   created_at: string;
   updated_at: string;
@@ -445,6 +446,21 @@ export async function getTrainerOptions(branchId?: string | null) {
   }));
 }
 
+export async function getDieticianOptions(branchId?: string | null) {
+  const supabase = await createClient();
+  let query = supabase
+    .from("trainers")
+    .select("id, branch_id, users!inner(full_name, roles!inner(slug))")
+    .eq("status", "active")
+    .eq("users.roles.slug", "dietician");
+  if (branchId) query = query.eq("branch_id", branchId);
+  const { data } = await query;
+  return (data ?? []).map((dietician) => ({
+    id: dietician.id,
+    name: (dietician.users as unknown as { full_name: string } | null)?.full_name ?? "Dietician",
+  }));
+}
+
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Soft-delete (deactivate) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 export async function deactivateMember(id: string, performedBy: string): Promise<void> {
@@ -524,4 +540,11 @@ export async function assignTrainer(
     description: "Trainer assignment updated",
     metadata: { trainer_id: trainerId },
   });
+}
+
+export async function assignDietician(memberId: string, dieticianId: string | null, performedBy: string): Promise<void> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("members").update({ assigned_dietician_id: dieticianId }).eq("id", memberId).select("id, branch_id").single();
+  if (error) throw new Error(error.message);
+  await logActivity({ performedBy, branchId: data.branch_id, action: "dietician_assigned", entityType: "member", entityId: memberId, description: "Dietician assignment updated", metadata: { dietician_id: dieticianId } });
 }

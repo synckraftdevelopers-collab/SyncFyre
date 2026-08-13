@@ -28,6 +28,8 @@ export interface Member {
   weight_kg: number | null;
   status: RecordStatus;
   branch_id: string;
+  assigned_trainer_id?: string | null;
+  assigned_dietician_id?: string | null;
   balance_amount?: number;
   is_pt?: boolean;
   pt_details?: string | null;
