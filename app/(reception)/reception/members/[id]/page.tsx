@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { Member360 } from "@/components/members/member-360";
+import { MemberEditForm } from "@/components/members/member-edit-form";
+import { Card, CardContent } from "@/components/ui/card";
 import {
+  getBranchOptions,
   getDieticianOptions,
   getMemberAttendanceRecords,
   getMemberAttendanceSummary,
@@ -22,10 +25,10 @@ export default async function ReceptionMemberDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string }>;
 }) {
   const { id } = await params;
-  const { tab } = await searchParams;
+  const { tab, edit } = await searchParams;
   const profile = await requireUser(["reception", "admin", "manager"]);
   const supabase = await createClient();
 
@@ -40,6 +43,7 @@ export default async function ReceptionMemberDetailPage({
     dietPlans,
     notifications,
     plans,
+    branches,
     trainers,
     dieticians,
     receivablesRes,
@@ -55,6 +59,7 @@ export default async function ReceptionMemberDetailPage({
     getMemberDietPlans(id),
     getMemberNotifications(id),
     getPlanOptions(profile.branch_id),
+    getBranchOptions(),
     getTrainerOptions(profile.branch_id),
     getDieticianOptions(profile.branch_id),
     supabase
@@ -73,6 +78,17 @@ export default async function ReceptionMemberDetailPage({
 
   if (!member) notFound();
 
+  if (edit === "1") {
+    return (
+      <div className="mx-auto max-w-4xl space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold">Edit member</h1>
+          <p className="text-sm text-muted-foreground">Update {member.full_name}&apos;s profile and assignment details.</p>
+        </div>
+        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} branches={branches} trainers={trainers} dieticians={dieticians} /></CardContent></Card>
+      </div>
+    );
+  }
   return (
     <Member360
       basePath="/reception/members"

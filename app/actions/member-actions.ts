@@ -146,6 +146,7 @@ export async function updateMemberAction(
     date_of_birth: rest.date_of_birth || null,
     email: rest.email || null,
     assigned_trainer_id: rest.assigned_trainer_id || null,
+    assigned_dietician_id: rest.assigned_dietician_id || null,
     blood_group: rest.blood_group || null,
   });
   if (!parsed.success)
