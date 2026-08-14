@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
-import { MemberCardGrid } from "@/components/members/member-card-grid";
+import { MemberViewToggle } from "@/components/members/member-view-toggle";
 
 export const metadata = { title: "Members" };
 
@@ -29,7 +29,7 @@ export default async function ReceptionMembersPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const pageSize = Math.max(1, Math.min(60, Number(sp.pageSize ?? 24)));
 
-  const [result, branches, plans, trainers] = await Promise.all([
+  const [result, branches, plans, trainers, subscriptionCounts] = await Promise.all([
     listMembersRich({
       page,
       pageSize,
@@ -48,7 +48,17 @@ export default async function ReceptionMembersPage({
     getBranchOptions(),
     getPlanOptions(branchId),
     getTrainerOptions(branchId),
-  ]);
+    (async () => {
+      const sb = await createClient();
+      const effectiveBranch = sp.branch || branchId || null;
+      const bindBranch = (query: any) => effectiveBranch ? query.eq("branch_id", effectiveBranch) : query;
+      const [active, expired, pending, paused, cancelled] = await Promise.all(
+        ["active", "expired", "pending", "paused", "cancelled"].map((status) =>
+          bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", status)),
+        ),
+      );
+      return { active: active.count ?? 0, expired: expired.count ?? 0, pending: pending.count ?? 0, paused: paused.count ?? 0, cancelled: cancelled.count ?? 0 };
+    })(),  ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const supabase = await createClient();
@@ -97,10 +107,11 @@ export default async function ReceptionMembersPage({
           branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))}
           plans={plans.map((plan) => ({ id: plan.id, name: plan.name }))}
           trainers={trainers.map((trainer) => ({ id: trainer.id, name: trainer.name }))}
+          subscriptionCounts={subscriptionCounts}
           basePath="/reception/members"
         />
         <div className="p-4 md:p-5">
-          <MemberCardGrid
+          <MemberViewToggle
             data={result.data}
             basePath="/reception/members"
             role={role}

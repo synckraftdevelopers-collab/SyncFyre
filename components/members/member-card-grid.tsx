@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, formatDistanceToNowStrict, isValid, parseISO } from "date-fns";
-import { ArrowRight, CreditCard, Dumbbell, MessageCircle, Phone, RefreshCcw, ScanLine } from "lucide-react";
+import { ArrowRight, CreditCard, Dumbbell, Phone, RefreshCcw, ScanLine } from "lucide-react";
 import type { MemberRegisterRow, UserRole } from "@/types";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { AttendanceTodayBadge, MemberStatusBadge, SubscriptionStatusBadge } from "@/components/members/member-badges";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
+import { MemberCommunicationMenu } from "@/components/members/member-communication-menu";
 
 const actionPermissions: Record<string, UserRole[]> = {
   call: ["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner"],
@@ -48,14 +49,6 @@ function lastVisitLabel(value: string | undefined) {
 function normalizePhone(phone: string | null | undefined) {
   const cleaned = (phone ?? "").replace(/\D/g, "");
   return cleaned || null;
-}
-
-function getWhatsAppLink(phone: string | null | undefined, member: MemberRegisterRow) {
-  const cleaned = normalizePhone(phone);
-  if (!cleaned) return null;
-  const number = cleaned.startsWith("91") ? cleaned : `91${cleaned}`;
-  const text = `Hi ${member.full_name}, this is SyncFyre regarding your ${member.current_plan ?? "membership"}.`;
-  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }
 
 function actionHref(basePath: string, memberId: string, action: "payments" | "membership") {
@@ -101,7 +94,6 @@ export function MemberCardGrid({
             (lastVisit ? 75 : 40) * 0.15)
           ),
         ));
-        const whatsapp = getWhatsAppLink(member.phone, member);
         const phone = normalizePhone(member.phone);
 
         return (
@@ -152,7 +144,7 @@ export function MemberCardGrid({
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
                   {canUse("call", role) && phone ? <a href={`tel:${phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a> : null}
-                  {canUse("whatsapp", role) && whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
+                  {canUse("whatsapp", role) ? <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName="SyncFyre Gym" planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={dueAmount} daysRemaining={member.days_remaining} variant="full" /> : null}
                   {canUse("renew", role) ? <Link href={actionHref(basePath, member.member_id, "membership")} className={buttonVariants({ size: "sm" })}><RefreshCcw className="size-4" />Renew</Link> : null}
                   {canUse("collect_payment", role) ? <Link href={actionHref(basePath, member.member_id, "payments")} className={buttonVariants({ variant: "outline", size: "sm" })}><CreditCard className="size-4" />Collect</Link> : null}
                   {canUse("punch_in", role) ? <Link href="/reception/attendance" className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}

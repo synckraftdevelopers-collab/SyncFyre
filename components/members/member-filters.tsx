@@ -6,6 +6,7 @@ import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { MembershipFilterPopover, type SubStatusCounts } from "@/components/members/membership-filter-popover";
 
 interface FilterOption {
   id: string;
@@ -16,6 +17,7 @@ interface MemberFiltersProps {
   branches: FilterOption[];
   plans: FilterOption[];
   trainers: FilterOption[];
+  subscriptionCounts: SubStatusCounts;
   basePath?: string;
 }
 
@@ -47,6 +49,7 @@ export function MemberFilters({
   branches,
   plans,
   trainers,
+  subscriptionCounts,
   basePath = "/admin/members",
 }: MemberFiltersProps) {
   const router = useRouter();
@@ -118,12 +121,7 @@ export function MemberFilters({
           placeholder="Member Status"
           options={MEMBER_STATUS_OPTIONS}
         />
-        <FilterSelect
-          value={sp.get("sub_status") ?? "all"}
-          onChange={(v) => update("sub_status", v)}
-          placeholder="Membership"
-          options={MEMBERSHIP_STATUS_OPTIONS}
-        />
+        <MembershipFilterPopover counts={subscriptionCounts} basePath={basePath} />
         <FilterSelect
           value={sp.get("branch") ?? "all"}
           onChange={(v) => update("branch", v)}

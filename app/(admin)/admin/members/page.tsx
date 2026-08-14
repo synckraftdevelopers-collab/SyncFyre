@@ -12,7 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
-import { MemberCardGrid } from "@/components/members/member-card-grid";
+import { MemberViewToggle } from "@/components/members/member-view-toggle";
 
 export const metadata = { title: "Members Register" };
 
@@ -53,12 +53,15 @@ export default async function AdminMembersPage({
       const sb = await cc();
       const effectiveBranch = sp.branch || branchId || null;
       const bindBranch = (query: any) => (effectiveBranch ? query.eq("branch_id", effectiveBranch) : query);
-      const [totalMembers, activeMembers, inactiveMembers, activeSubs, expiredSubs] = await Promise.all([
+      const [totalMembers, activeMembers, inactiveMembers, activeSubs, expiredSubs, pendingSubs, pausedSubs, cancelledSubs] = await Promise.all([
         bindBranch(sb.from("members").select("id", { count: "exact", head: true })),
         bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "active")),
         bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "inactive")),
         bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active")),
         bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "expired")),
+        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "pending")),
+        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "paused")),
+        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "cancelled")),
       ]);
       return {
         totalMembers: totalMembers.count ?? 0,
@@ -66,6 +69,9 @@ export default async function AdminMembersPage({
         inactiveMembers: inactiveMembers.count ?? 0,
         activeSubs: activeSubs.count ?? 0,
         expiredSubs: expiredSubs.count ?? 0,
+        pendingSubs: pendingSubs.count ?? 0,
+        pausedSubs: pausedSubs.count ?? 0,
+        cancelledSubs: cancelledSubs.count ?? 0,
       };
     })(),
   ]);
@@ -125,10 +131,11 @@ export default async function AdminMembersPage({
           branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))}
           plans={plans.map((plan) => ({ id: plan.id, name: plan.name }))}
           trainers={trainers.map((trainer) => ({ id: trainer.id, name: trainer.name }))}
+          subscriptionCounts={{ active: statusCounts.activeSubs, expired: statusCounts.expiredSubs, pending: statusCounts.pendingSubs, paused: statusCounts.pausedSubs, cancelled: statusCounts.cancelledSubs }}
           basePath="/admin/members"
         />
         <div className="p-4 md:p-5">
-          <MemberCardGrid
+          <MemberViewToggle
             data={result.data}
             basePath="/admin/members"
             role={role}
