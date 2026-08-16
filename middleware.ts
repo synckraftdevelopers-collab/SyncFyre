@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
 
 /** Maps a role slug to the correct dashboard URL */
 const PORTAL_DASHBOARD: Record<string, string> = {
+  super_admin: "/superadmin/dashboard",
   admin:      "/admin/dashboard",
   manager:    "/admin/dashboard",
   reception:  "/reception/dashboard",
@@ -26,6 +27,7 @@ const PORTAL_DASHBOARD: Record<string, string> = {
 
 /** Maps a portal prefix to the roles permitted inside it */
 const PORTAL_ROLES: Record<string, string[]> = {
+  "/superadmin": ["super_admin"],
   "/admin":     ["admin", "manager"],
   "/reception": ["reception"],
   "/trainer":   ["trainer", "dietician", "diet-planner", "diet_planner"],

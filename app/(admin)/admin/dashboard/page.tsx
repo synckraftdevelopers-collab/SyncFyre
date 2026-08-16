@@ -90,9 +90,9 @@ export default async function AdminDashboardPage() {
         <p className="mt-2 max-w-xl text-sm text-white/55">
           Everything happening across your gym, in one intelligent workspace.
         </p>
-        <Link href="/admin/staff/new" className={buttonVariants({ variant: "outline", size: "sm", className: "relative mt-5 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" })}>
+        <Link href="/admin/members/new" className={buttonVariants({ variant: "outline", size: "sm", className: "relative mt-5 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" })}>
           <UserPlus className="size-4" />
-          Add Staff
+          Add Member
         </Link>
       </div>
 

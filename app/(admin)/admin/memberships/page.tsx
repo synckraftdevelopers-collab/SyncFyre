@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Edit, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Edit, Plus, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MembershipPlanDeleteButton } from "@/components/memberships/membership-plan-delete-button";
 import { requireUser } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
@@ -262,6 +263,7 @@ export default async function MembershipsPage({
                       planId={plan.id}
                       currentStatus={plan.status}
                     />
+                    <MembershipPlanDeleteButton planId={plan.id} planName={plan.name} />
                   </div>
                 </CardContent>
               </Card>

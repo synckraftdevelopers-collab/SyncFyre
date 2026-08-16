@@ -275,12 +275,14 @@ export function MemberViewToggle({
   role,
   attendanceMap,
   lastVisitMap,
+  trainers,
 }: {
   data: MemberRegisterRow[];
   basePath: string;
   role: UserRole | null | undefined;
   attendanceMap: Record<string, boolean>;
   lastVisitMap: Record<string, string>;
+  trainers: { id: string; name: string }[];
 }) {
   const [view, setView] = useState<"cards" | "rows">("cards");
 
@@ -329,6 +331,7 @@ export function MemberViewToggle({
           role={role}
           attendanceMap={attendanceMap}
           lastVisitMap={lastVisitMap}
+          trainers={trainers}
         />
       ) : (
         <MemberRowView

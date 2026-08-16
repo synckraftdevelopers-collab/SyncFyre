@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, formatDistanceToNowStrict, isValid, parseISO } from "date-fns";
-import { ArrowRight, CreditCard, Dumbbell, Phone, RefreshCcw, ScanLine } from "lucide-react";
+import { ArrowRight, CreditCard, Pencil, Phone, RefreshCcw } from "lucide-react";
 import type { MemberRegisterRow, UserRole } from "@/types";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { AttendanceTodayBadge, MemberStatusBadge, SubscriptionStatusBadge } from "@/components/members/member-badges";
@@ -9,6 +9,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import { MemberCommunicationMenu } from "@/components/members/member-communication-menu";
+import { AssignTrainerDialog } from "@/components/members/assign-trainer-dialog";
+import { CheckInMemberButton } from "@/components/members/check-in-member-button";
 
 const actionPermissions: Record<string, UserRole[]> = {
   call: ["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner"],
@@ -61,12 +63,14 @@ export function MemberCardGrid({
   role,
   attendanceMap,
   lastVisitMap,
+  trainers,
 }: {
   data: MemberRegisterRow[];
   basePath: string;
   role: UserRole | null | undefined;
   attendanceMap: Record<string, boolean>;
   lastVisitMap: Record<string, string>;
+  trainers: { id: string; name: string }[];
 }) {
   if (!data.length) {
     return (
@@ -147,8 +151,9 @@ export function MemberCardGrid({
                   {canUse("whatsapp", role) ? <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName="SyncFyre Gym" planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={dueAmount} daysRemaining={member.days_remaining} variant="full" /> : null}
                   {canUse("renew", role) ? <Link href={actionHref(basePath, member.member_id, "membership")} className={buttonVariants({ size: "sm" })}><RefreshCcw className="size-4" />Renew</Link> : null}
                   {canUse("collect_payment", role) ? <Link href={actionHref(basePath, member.member_id, "payments")} className={buttonVariants({ variant: "outline", size: "sm" })}><CreditCard className="size-4" />Collect</Link> : null}
-                  {canUse("punch_in", role) ? <Link href="/reception/attendance" className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}
-                  {canUse("assign_trainer", role) ? <Link href={`${basePath}/${member.member_id}?tab=workouts`} className={buttonVariants({ variant: "outline", size: "sm" })}><Dumbbell className="size-4" />Trainer</Link> : null}
+                  <Link href={`${basePath}/${member.member_id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="size-4" />Edit</Link>
+                  {canUse("punch_in", role) ? <CheckInMemberButton memberId={member.member_id} checkedIn={!!attendanceMap[member.member_id]} /> : null}
+                  {canUse("assign_trainer", role) ? <AssignTrainerDialog memberId={member.member_id} currentTrainerId={member.trainer_id} trainers={trainers} /> : null}
                 </div>
               </div>
             </CardContent>

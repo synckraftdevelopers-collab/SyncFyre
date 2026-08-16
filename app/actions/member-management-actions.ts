@@ -205,3 +205,35 @@ export async function sendRenewalNotificationAction(
   revalidatePath("/admin/notifications");
   return {};
 }
+
+export async function checkInMemberAction(memberId: string): Promise<{ error?: string; success?: string }> {
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  const supabase = await (await import("@/lib/supabase/server")).createClient();
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, branch_id")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (memberError || !member) return { error: "Member not found." };
+  if (profile.branch_id && member.branch_id !== profile.branch_id) return { error: "This member belongs to another branch." };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { error } = await supabase.from("attendance").insert({
+    member_id: member.id,
+    branch_id: member.branch_id,
+    device_id: "manual-dashboard",
+    machine_user_id: profile.id,
+    attendance_date: today,
+    entry_time: new Date().toISOString(),
+    source: "manual_dashboard",
+  });
+
+  if (error?.code === "23505") return { error: "This member is already checked in today." };
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/members");
+  revalidatePath(`/admin/members/${memberId}`);
+  revalidatePath("/reception/members");
+  return { success: "Member checked in." };
+}

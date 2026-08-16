@@ -141,6 +141,7 @@ export default async function AdminMembersPage({
             role={role}
             attendanceMap={attendanceMap}
             lastVisitMap={lastVisitMap}
+            trainers={trainers.map((trainer) => ({ id: trainer.id, name: trainer.name }))}
           />
         </div>
         <div className="flex flex-col gap-3 border-t px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between md:px-5">

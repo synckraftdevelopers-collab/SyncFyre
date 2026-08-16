@@ -19,6 +19,13 @@ import {
   getPlanOptions,
   getTrainerOptions,
 } from "@/services/member-extended.service";
+async function optionalData<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await promise;
+  } catch {
+    return fallback;
+  }
+}
 
 export default async function ReceptionMemberDetailPage({
   params,
@@ -50,18 +57,18 @@ export default async function ReceptionMemberDetailPage({
     activityRes,
   ] = await Promise.all([
     getMemberById(id),
-    getMemberSubscriptions(id),
-    getMemberPayments(id),
-    getMemberAttendanceSummary(id),
-    getMemberAttendanceRecords(id),
-    getMemberProgress(id),
-    getMemberWorkouts(id),
-    getMemberDietPlans(id),
-    getMemberNotifications(id),
-    getPlanOptions(profile.branch_id),
-    getBranchOptions(),
-    getTrainerOptions(profile.branch_id),
-    getDieticianOptions(profile.branch_id),
+    optionalData(getMemberSubscriptions(id), []),
+    optionalData(getMemberPayments(id), []),
+    optionalData(getMemberAttendanceSummary(id), { todayPresent: false, lastVisitDate: null, totalVisits: 0, currentMonthVisits: 0 }),
+    optionalData(getMemberAttendanceRecords(id), { data: [], total: 0 }),
+    optionalData(getMemberProgress(id), []),
+    optionalData(getMemberWorkouts(id), []),
+    optionalData(getMemberDietPlans(id), []),
+    optionalData(getMemberNotifications(id), []),
+    optionalData(getPlanOptions(profile.branch_id), []),
+    optionalData(getBranchOptions(), []),
+    optionalData(getTrainerOptions(profile.branch_id), []),
+    optionalData(getDieticianOptions(profile.branch_id), []),
     supabase
       .from("receivables")
       .select("id, invoice_id, original_amount, paid_amount, balance_amount, due_date, status, receivable_type")
