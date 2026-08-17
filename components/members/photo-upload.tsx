@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Camera, LoaderCircle, UserRound } from "lucide-react";
 import Image from "next/image";
 import { uploadMemberPhotoAction } from "@/app/actions/member-actions";
@@ -16,21 +16,26 @@ export function PhotoUpload({
 }) {
   const [state, action, pending] = useActionState(uploadMemberPhotoAction, {});
   const inputRef = useRef<HTMLInputElement>(null);
+  const [imageFailed, setImageFailed] = useState(false);
 
   const displayUrl = state.url ?? currentPhotoUrl;
+
+  useEffect(() => setImageFailed(false), [displayUrl]);
 
   return (
     <div className="flex flex-col items-center gap-3">
       {/* Avatar */}
       <div className="relative">
         <div className="grid size-24 place-items-center overflow-hidden rounded-full bg-primary/10 ring-4 ring-background">
-          {displayUrl ? (
+          {displayUrl && !imageFailed ? (
             <Image
               src={displayUrl}
               alt={memberName}
               width={96}
               height={96}
               className="size-full object-cover"
+              unoptimized
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <UserRound className="size-10 text-primary/60" />

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, formatDistanceToNowStrict, isValid, parseISO } from "date-fns";
-import { ArrowRight, CreditCard, Pencil, Phone, RefreshCcw } from "lucide-react";
+import { ArrowRight, Pencil, Phone, RefreshCcw } from "lucide-react";
 import type { MemberRegisterRow, UserRole } from "@/types";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { AttendanceTodayBadge, MemberStatusBadge, SubscriptionStatusBadge } from "@/components/members/member-badges";
@@ -15,7 +15,6 @@ import { CheckInMemberButton } from "@/components/members/check-in-member-button
 const actionPermissions: Record<string, UserRole[]> = {
   call: ["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner"],
   whatsapp: ["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner"],
-  collect_payment: ["admin", "manager", "reception"],
   renew: ["admin", "manager", "reception"],
   punch_in: ["admin", "manager", "reception"],
   assign_trainer: ["admin", "manager", "reception"],
@@ -150,7 +149,6 @@ export function MemberCardGrid({
                   {canUse("call", role) && phone ? <a href={`tel:${phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a> : null}
                   {canUse("whatsapp", role) ? <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName="SyncFyre Gym" planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={dueAmount} daysRemaining={member.days_remaining} variant="full" /> : null}
                   {canUse("renew", role) ? <Link href={actionHref(basePath, member.member_id, "membership")} className={buttonVariants({ size: "sm" })}><RefreshCcw className="size-4" />Renew</Link> : null}
-                  {canUse("collect_payment", role) ? <Link href={actionHref(basePath, member.member_id, "payments")} className={buttonVariants({ variant: "outline", size: "sm" })}><CreditCard className="size-4" />Collect</Link> : null}
                   <Link href={`${basePath}/${member.member_id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="size-4" />Edit</Link>
                   {canUse("punch_in", role) ? <CheckInMemberButton memberId={member.member_id} checkedIn={!!attendanceMap[member.member_id]} /> : null}
                   {canUse("assign_trainer", role) ? <AssignTrainerDialog memberId={member.member_id} currentTrainerId={member.trainer_id} trainers={trainers} /> : null}

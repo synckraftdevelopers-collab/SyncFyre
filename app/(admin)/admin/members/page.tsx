@@ -119,11 +119,11 @@ export default async function AdminMembersPage({
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <StatCard label="Total Members" value={statusCounts.totalMembers} />
-        <StatCard label="Active" value={statusCounts.activeMembers} />
-        <StatCard label="Inactive" value={statusCounts.inactiveMembers} />
-        <StatCard label="Active Plans" value={statusCounts.activeSubs} />
-        <StatCard label="Expired Plans" value={statusCounts.expiredSubs} />
+        <StatCard label="Total Members" value={statusCounts.totalMembers} href="/admin/members" />
+        <StatCard label="Active" value={statusCounts.activeMembers} href="/admin/members?status=active" />
+        <StatCard label="Inactive" value={statusCounts.inactiveMembers} href="/admin/members?status=inactive" />
+        <StatCard label="Active Plans" value={statusCounts.activeSubs} href="/admin/members?sub_status=active" />
+        <StatCard label="Expired Plans" value={statusCounts.expiredSubs} href="/admin/members?sub_status=expired" />
       </div>
 
       <Card className="overflow-hidden rounded-3xl">
@@ -157,12 +157,17 @@ export default async function AdminMembersPage({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, href }: { label: string; value: number; href: string }) {
   return (
-    <div className="rounded-3xl border border-border/70 bg-background px-4 py-3">
+    <Link
+      href={href}
+      aria-label={`View ${label.toLowerCase()}`}
+      className="group rounded-3xl border border-border/70 bg-background px-4 py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value.toLocaleString()}</p>
-    </div>
+      <p className="mt-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">View members →</p>
+    </Link>
   );
 }
 

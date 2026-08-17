@@ -6,7 +6,7 @@ import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { MembershipFilterPopover, type SubStatusCounts } from "@/components/members/membership-filter-popover";
+import type { SubStatusCounts } from "@/components/members/membership-filter-popover";
 
 interface FilterOption {
   id: string;
@@ -34,6 +34,14 @@ const MEMBERSHIP_STATUS_OPTIONS = [
   { id: "paused", name: "Paused" },
   { id: "cancelled", name: "Cancelled" },
 ];
+
+const SUBSCRIPTION_STATUS_OPTIONS = [
+  { id: "active", name: "Active" },
+  { id: "expired", name: "Expired" },
+  { id: "pending", name: "Pending" },
+  { id: "paused", name: "Paused" },
+  { id: "cancelled", name: "Cancelled" },
+] as const;
 
 const MEMBER_STATUS_OPTIONS = [
   { id: "active", name: "Active" },
@@ -93,7 +101,7 @@ export function MemberFilters({
             name="q"
             defaultValue={sp.get("q") ?? ""}
             className="pl-9"
-            placeholder="Search name, member code, phone…"
+            placeholder="Search name, member code, phoneÃ¢â‚¬Â¦"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 const v = (e.target as HTMLInputElement).value.trim();
@@ -121,7 +129,11 @@ export function MemberFilters({
           placeholder="Member Status"
           options={MEMBER_STATUS_OPTIONS}
         />
-        <MembershipFilterPopover counts={subscriptionCounts} basePath={basePath} />
+        <SubscriptionStatusFilters
+          counts={subscriptionCounts}
+          selected={sp.get("sub_status") ?? ""}
+          onSelect={(status) => update("sub_status", status)}
+        />
         <FilterSelect
           value={sp.get("branch") ?? "all"}
           onChange={(v) => update("branch", v)}
@@ -222,7 +234,39 @@ export function MemberFilters({
   );
 }
 
-// ─── Inline select ────────────────────────────────────────────────────────────
+function SubscriptionStatusFilters({
+  counts,
+  selected,
+  onSelect,
+}: {
+  counts: SubStatusCounts;
+  selected: string;
+  onSelect: (status: string) => void;
+}) {
+  return (
+    <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-background p-1" aria-label="Filter by membership status">
+      {SUBSCRIPTION_STATUS_OPTIONS.map((status) => {
+        const isSelected = selected === status.id;
+        return (
+          <button
+            key={status.id}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onSelect(isSelected ? "" : status.id)}
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              isSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <span>{status.name}</span>
+            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] tabular-nums", isSelected ? "bg-white/20" : "bg-muted")}>{counts[status.id]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Inline select Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function FilterSelect({
   value,

@@ -1,5 +1,7 @@
+"use client";
+
 import Image from "next/image";
-import { UserRound } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { initials } from "@/lib/utils";
 
@@ -19,6 +21,8 @@ const sizeMap = {
 
 export function MemberAvatar({ name, photoUrl, size = "md", className }: MemberAvatarProps) {
   const s = sizeMap[size];
+  const [hasImageError, setHasImageError] = useState(false);
+  const showPhoto = Boolean(photoUrl) && !hasImageError;
   return (
     <div
       className={cn(
@@ -27,13 +31,15 @@ export function MemberAvatar({ name, photoUrl, size = "md", className }: MemberA
         className,
       )}
     >
-      {photoUrl ? (
+      {showPhoto ? (
         <Image
-          src={photoUrl}
+          src={photoUrl!}
           alt={name}
           width={s.imgSize}
           height={s.imgSize}
           className="size-full object-cover"
+          unoptimized
+          onError={() => setHasImageError(true)}
         />
       ) : (
         <span className={cn("font-semibold text-primary/70", s.text)}>
