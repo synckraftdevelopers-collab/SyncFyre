@@ -28,6 +28,7 @@ export default async function AdminMembersPage({
 
   const page = Math.max(1, Number(sp.page ?? 1));
   const pageSize = Math.max(1, Math.min(60, Number(sp.pageSize ?? 24)));
+  const financialYearDates = getFinancialYearDates(sp.financial_year);
 
   const [result, branches, plans, trainers, statusCounts] = await Promise.all([
     listMembersRich({
@@ -44,6 +45,8 @@ export default async function AdminMembersPage({
       joinDateTo: sp.join_to || undefined,
       expiryDateFrom: sp.exp_from || undefined,
       expiryDateTo: sp.exp_to || undefined,
+      subscriptionStartFrom: financialYearDates?.from,
+      subscriptionStartTo: financialYearDates?.to,
     }),
     getBranchOptions(),
     getPlanOptions(branchId),
@@ -53,15 +56,18 @@ export default async function AdminMembersPage({
       const sb = await cc();
       const effectiveBranch = sp.branch || branchId || null;
       const bindBranch = (query: any) => (effectiveBranch ? query.eq("branch_id", effectiveBranch) : query);
+      const bindFinancialYear = (query: any) => financialYearDates
+        ? query.gte("start_date", financialYearDates.from).lte("start_date", financialYearDates.to)
+        : query;
       const [totalMembers, activeMembers, inactiveMembers, activeSubs, expiredSubs, pendingSubs, pausedSubs, cancelledSubs] = await Promise.all([
         bindBranch(sb.from("members").select("id", { count: "exact", head: true })),
         bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "active")),
         bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "inactive")),
-        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active")),
-        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "expired")),
-        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "pending")),
-        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "paused")),
-        bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "cancelled")),
+        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"))),
+        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "expired"))),
+        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "pending"))),
+        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "paused"))),
+        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "cancelled"))),
       ]);
       return {
         totalMembers: totalMembers.count ?? 0,
@@ -166,11 +172,16 @@ function StatCard({ label, value, href }: { label: string; value: number; href: 
     >
       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value.toLocaleString()}</p>
-      <p className="mt-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">View members →</p>
+      <p className="mt-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">View members &rarr;</p>
     </Link>
   );
 }
 
+function getFinancialYearDates(financialYear?: string) {
+  if (financialYear === "2025-2026") return { from: "2025-04-01", to: "2026-03-31" };
+  if (financialYear === "2026-2027") return { from: "2026-04-01", to: "2027-03-31" };
+  return undefined;
+}
 function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
   if (disabled) return <span className="cursor-not-allowed rounded-xl border px-3 py-2 text-xs opacity-40">{label}</span>;
   return <Link href={href} className="rounded-xl border px-3 py-2 text-xs transition-colors hover:bg-muted">{label}</Link>;

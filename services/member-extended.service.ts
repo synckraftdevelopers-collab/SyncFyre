@@ -27,6 +27,8 @@ export interface MemberListFilters {
   joinDateTo?: string;
   expiryDateFrom?: string;
   expiryDateTo?: string;
+  subscriptionStartFrom?: string;
+  subscriptionStartTo?: string;
   attendanceToday?: boolean; // filter to members present today
 }
 
@@ -55,6 +57,8 @@ export async function listMembersRich(
     joinDateTo,
     expiryDateFrom,
     expiryDateTo,
+    subscriptionStartFrom,
+    subscriptionStartTo,
   } = filters;
 
   const supabase = await createClient();
@@ -78,6 +82,8 @@ export async function listMembersRich(
     if (joinDateTo)     query = query.lte("joined_date", joinDateTo);
     if (expiryDateFrom) query = query.gte("subscription_end", expiryDateFrom);
     if (expiryDateTo)   query = query.lte("subscription_end", expiryDateTo);
+    if (subscriptionStartFrom) query = query.gte("subscription_start", subscriptionStartFrom);
+    if (subscriptionStartTo)   query = query.lte("subscription_start", subscriptionStartTo);
     if (search) {
       const s = search.replace(/[%_]/g, "");
       query = query.or(

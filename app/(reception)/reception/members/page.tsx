@@ -28,6 +28,7 @@ export default async function ReceptionMembersPage({
 
   const page = Math.max(1, Number(sp.page ?? 1));
   const pageSize = Math.max(1, Math.min(60, Number(sp.pageSize ?? 24)));
+  const financialYearDates = getFinancialYearDates(sp.financial_year);
 
   const [result, branches, plans, trainers, subscriptionCounts] = await Promise.all([
     listMembersRich({
@@ -44,6 +45,8 @@ export default async function ReceptionMembersPage({
       joinDateTo: sp.join_to || undefined,
       expiryDateFrom: sp.exp_from || undefined,
       expiryDateTo: sp.exp_to || undefined,
+      subscriptionStartFrom: financialYearDates?.from,
+      subscriptionStartTo: financialYearDates?.to,
     }),
     getBranchOptions(),
     getPlanOptions(branchId),
@@ -52,9 +55,12 @@ export default async function ReceptionMembersPage({
       const sb = await createClient();
       const effectiveBranch = sp.branch || branchId || null;
       const bindBranch = (query: any) => effectiveBranch ? query.eq("branch_id", effectiveBranch) : query;
+      const bindFinancialYear = (query: any) => financialYearDates
+        ? query.gte("start_date", financialYearDates.from).lte("start_date", financialYearDates.to)
+        : query;
       const [active, expired, pending, paused, cancelled] = await Promise.all(
         ["active", "expired", "pending", "paused", "cancelled"].map((status) =>
-          bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", status)),
+          bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", status))),
         ),
       );
       return { active: active.count ?? 0, expired: expired.count ?? 0, pending: pending.count ?? 0, paused: paused.count ?? 0, cancelled: cancelled.count ?? 0 };
@@ -133,6 +139,11 @@ export default async function ReceptionMembersPage({
   );
 }
 
+function getFinancialYearDates(financialYear?: string) {
+  if (financialYear === "2025-2026") return { from: "2025-04-01", to: "2026-03-31" };
+  if (financialYear === "2026-2027") return { from: "2026-04-01", to: "2027-03-31" };
+  return undefined;
+}
 function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
   if (disabled) return <span className="cursor-not-allowed rounded-xl border px-3 py-2 text-xs opacity-40">{label}</span>;
   return <Link href={href} className="rounded-xl border px-3 py-2 text-xs transition-colors hover:bg-muted">{label}</Link>;

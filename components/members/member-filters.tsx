@@ -53,6 +53,11 @@ const ATTENDANCE_OPTIONS = [
   { id: "absent", name: "Absent Today" },
 ];
 
+const FINANCIAL_YEARS = [
+  { id: "2025-2026", label: "2025-2026" },
+  { id: "2026-2027", label: "2026-2027" },
+] as const;
+
 export function MemberFilters({
   branches,
   plans,
@@ -128,6 +133,10 @@ export function MemberFilters({
           onChange={(v) => update("status", v)}
           placeholder="Member Status"
           options={MEMBER_STATUS_OPTIONS}
+        />
+        <FinancialYearFilters
+          selected={sp.get("financial_year") ?? ""}
+          onSelect={(year) => update("financial_year", year)}
         />
         <SubscriptionStatusFilters
           counts={subscriptionCounts}
@@ -234,6 +243,35 @@ export function MemberFilters({
   );
 }
 
+function FinancialYearFilters({
+  selected,
+  onSelect,
+}: {
+  selected: string;
+  onSelect: (year: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg border bg-background p-1" aria-label="Filter members by financial year">
+      {FINANCIAL_YEARS.map((year) => {
+        const isSelected = selected === year.id;
+        return (
+          <button
+            key={year.id}
+            type="button"
+            aria-pressed={isSelected}
+            onClick={() => onSelect(isSelected ? "" : year.id)}
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              isSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {year.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 function SubscriptionStatusFilters({
   counts,
   selected,
