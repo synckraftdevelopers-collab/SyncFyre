@@ -285,6 +285,67 @@ export function ReportsOverviewClient({ initialData }: Props) {
           </div>
 
           <Card>
+          <section className="grid gap-4 xl:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Financial Snapshot</CardTitle>
+                <p className="text-sm text-muted-foreground">Revenue, costs, and profit at a glance.</p>
+              </CardHeader>
+              <CardContent className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[{ label: "Revenue", amount: data.summary.totalRevenue }, { label: "Expenses", amount: data.summary.totalExpenses }, { label: "Profit", amount: data.summary.netProfit }]}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} width={60} tickFormatter={fmtCompact} />
+                    <Tooltip formatter={(value: any) => formatCurrency(Number(value ?? 0))} />
+                    <Bar dataKey="amount" fill="#52c7ea" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Collection Efficiency</CardTitle>
+                <p className="text-sm text-muted-foreground">Collected revenue versus outstanding balance.</p>
+              </CardHeader>
+              <CardContent className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={[{ name: "Collected", value: data.summary.collectionEfficiency }, { name: "Outstanding", value: Math.max(0, 100 - data.summary.collectionEfficiency) }]} dataKey="value" innerRadius={58} outerRadius={84} startAngle={90} endAngle={-270} paddingAngle={2}>
+                      <Cell fill="#22b978" />
+                      <Cell fill="#e5e7eb" />
+                    </Pie>
+                    <Tooltip formatter={(value: any) => `${Number(value ?? 0).toFixed(1)}%`} />
+                    <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="fill-foreground text-xl font-bold">{data.summary.collectionEfficiency.toFixed(1)}%</text>
+                    <text x="50%" y="62%" textAnchor="middle" dominantBaseline="middle" className="fill-muted-foreground text-xs">Collected</text>
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Member Activity</CardTitle>
+                <p className="text-sm text-muted-foreground">Membership movement in the selected period.</p>
+              </CardHeader>
+              <CardContent className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[{ label: "Members", active: data.summary.activeMembers, new: data.summary.newMembers, renewals: data.summary.renewals, attendance: data.summary.attendance }]}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} width={48} />
+                    <Tooltip />
+                    <Bar dataKey="active" name="Active" fill="#52c7ea" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="new" name="New" fill="#22b978" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="renewals" name="Renewals" fill="#f4b844" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="attendance" name="Attendance" fill="#1d4ed8" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </section>
+
             <CardHeader>
               <CardTitle>Drill-down Transactions</CardTitle>
               <p className="text-sm text-muted-foreground">Recent income, expense, and outstanding records behind the overview numbers.</p>

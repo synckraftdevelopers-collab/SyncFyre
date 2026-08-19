@@ -231,7 +231,7 @@ function MemberRowView({
                   </Link>
                   <p className="text-xs text-muted-foreground">{member.member_code} · {member.phone ?? "—"}</p>
                 </div>
-                <Link href={`${basePath}/${member.member_id}`}
+                <Link href={`${basePath}/${member.member_id}?edit=1`}
                   className={buttonVariants({ variant: "ghost", size: "icon" })}>
                   <Pencil className="size-4" />
                 </Link>

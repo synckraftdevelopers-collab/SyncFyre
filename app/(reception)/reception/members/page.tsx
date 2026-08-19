@@ -13,6 +13,8 @@ import { createClient } from "@/lib/supabase/server";
 import { MemberFilters } from "@/components/members/member-filters";
 import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
 import { MemberViewToggle } from "@/components/members/member-view-toggle";
+import { ExpiringPlansCard } from "@/components/members/expiring-plans-card";
+import { EXPIRY_QUICK_FILTERS } from "@/lib/member-expiry";
 
 export const metadata = { title: "Members" };
 
@@ -29,6 +31,8 @@ export default async function ReceptionMembersPage({
   const page = Math.max(1, Number(sp.page ?? 1));
   const pageSize = Math.max(1, Math.min(60, Number(sp.pageSize ?? 24)));
   const financialYearDates = getFinancialYearDates(sp.financial_year);
+  const selectedExpiringWithin = getExpiringWithinDays(sp.expiring_within);
+  const expiringDateRange = selectedExpiringWithin === undefined ? undefined : getExpiringDateRange(selectedExpiringWithin);
 
   const [result, branches, plans, trainers, subscriptionCounts] = await Promise.all([
     listMembersRich({
@@ -43,8 +47,8 @@ export default async function ReceptionMembersPage({
       subscriptionStatus: sp.sub_status || undefined,
       joinDateFrom: sp.join_from || undefined,
       joinDateTo: sp.join_to || undefined,
-      expiryDateFrom: sp.exp_from || undefined,
-      expiryDateTo: sp.exp_to || undefined,
+      expiryDateFrom: expiringDateRange?.from ?? (sp.exp_from || undefined),
+      expiryDateTo: expiringDateRange?.to ?? (sp.exp_to || undefined),
       subscriptionStartFrom: financialYearDates?.from,
       subscriptionStartTo: financialYearDates?.to,
     }),
@@ -58,12 +62,32 @@ export default async function ReceptionMembersPage({
       const bindFinancialYear = (query: any) => financialYearDates
         ? query.gte("start_date", financialYearDates.from).lte("start_date", financialYearDates.to)
         : query;
+      const today = new Date().toISOString().slice(0, 10);
       const [active, expired, pending, paused, cancelled] = await Promise.all(
         ["active", "expired", "pending", "paused", "cancelled"].map((status) =>
           bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", status))),
         ),
       );
-      return { active: active.count ?? 0, expired: expired.count ?? 0, pending: pending.count ?? 0, paused: paused.count ?? 0, cancelled: cancelled.count ?? 0 };
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + Math.max(...EXPIRY_QUICK_FILTERS.map(({ days }) => days)));
+      const expiringThrough = expiryDate.toISOString().slice(0, 10);
+      const { data: expiringMembers } = await bindBranch(
+        sb.from("subscriptions").select("member_id, end_date").eq("status", "active").gte("end_date", today).lte("end_date", expiringThrough),
+      );
+      return {
+        active: active.count ?? 0, expired: expired.count ?? 0, pending: pending.count ?? 0, paused: paused.count ?? 0, cancelled: cancelled.count ?? 0,
+        expiringMemberCounts: EXPIRY_QUICK_FILTERS.reduce<Record<number, number>>((counts, { days }) => {
+          const through = new Date();
+          through.setDate(through.getDate() + days);
+          const throughDate = through.toISOString().slice(0, 10);
+          counts[days] = new Set(
+            (expiringMembers ?? [])
+              .filter((subscription: { member_id: string; end_date: string }) => subscription.end_date <= throughDate)
+              .map((subscription: { member_id: string }) => subscription.member_id),
+          ).size;
+          return counts;
+        }, {}),
+      };
     })(),  ]);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -108,6 +132,12 @@ export default async function ReceptionMembersPage({
         </div>
       </div>
 
+      <ExpiringPlansCard
+        counts={subscriptionCounts.expiringMemberCounts}
+        selectedDays={selectedExpiringWithin}
+        basePath="/reception/members"
+      />
+
       <Card className="overflow-hidden rounded-3xl">
         <MemberFilters
           branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))}
@@ -144,6 +174,27 @@ function getFinancialYearDates(financialYear?: string) {
   if (financialYear === "2026-2027") return { from: "2026-04-01", to: "2027-03-31" };
   return undefined;
 }
+function getExpiringWithinDays(value?: string) {
+  if (value === undefined) return undefined;
+  const days = Number(value);
+  return Number.isInteger(days) && days >= 0 && days <= 3650 ? days : undefined;
+}
+
+function getExpiringDateRange(days: number) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const through = new Date(today);
+  through.setDate(through.getDate() + days);
+  return { from: formatDateParam(today), to: formatDateParam(through) };
+}
+
+function formatDateParam(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
   if (disabled) return <span className="cursor-not-allowed rounded-xl border px-3 py-2 text-xs opacity-40">{label}</span>;
   return <Link href={href} className="rounded-xl border px-3 py-2 text-xs transition-colors hover:bg-muted">{label}</Link>;

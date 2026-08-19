@@ -92,6 +92,7 @@ export default async function AdminMembersPage({
         bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "cancelled"))),
         bindBranch(sb.from("subscriptions").select("member_id").eq("status", "active").gte("end_date", today).lte("end_date", expiringThrough)),
       ]);
+      const expiryCountDays = Array.from(new Set([...EXPIRY_QUICK_FILTERS.map(({ days }) => days), ...(selectedExpiringWithin === undefined ? [] : [selectedExpiringWithin])]));
       return {
         totalMembers: totalMembers.count ?? 0,
         activeMembers: activeMembers.count ?? 0,
@@ -101,7 +102,7 @@ export default async function AdminMembersPage({
         pendingSubs: pendingSubs.count ?? 0,
         pausedSubs: pausedSubs.count ?? 0,
         cancelledSubs: cancelledSubs.count ?? 0,
-        expiringMemberCounts: EXPIRY_QUICK_FILTERS.reduce<Record<number, number>>((counts, { days }) => {
+        expiringMemberCounts: expiryCountDays.reduce<Record<number, number>>((counts, days) => {
           const through = new Date();
           through.setDate(through.getDate() + days);
           const throughDate = through.toISOString().slice(0, 10);
@@ -166,7 +167,7 @@ export default async function AdminMembersPage({
 
       </div>
 
-      <ExpiringPlansCard counts={statusCounts.expiringMemberCounts} selectedDays={selectedExpiringWithin} />
+      <ExpiringPlansCard counts={statusCounts.expiringMemberCounts} selectedDays={selectedExpiringWithin} editableDays />
 
       <Card className="overflow-hidden rounded-3xl">
         <MemberFilters
