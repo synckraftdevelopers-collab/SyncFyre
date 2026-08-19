@@ -71,7 +71,7 @@ export function BiometricSettingsCard({
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {[device.manufacturer, device.model].filter(Boolean).join(" · ") || "Unspecified model"}
+                    {[device.manufacturer, device.model].filter(Boolean).join(" Â· ") || "Unspecified model"}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Device ID: {device.device_id}
