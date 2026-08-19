@@ -6,7 +6,7 @@ import { logActivity } from "@/services/workflow.service";
 export async function listMembers(params: { page?: number; pageSize?: number; search?: string; status?: string; branchId?: string | null } = {}): Promise<PaginatedResult<Member>> {
   const { page = 1, pageSize = 10, search, status = "active", branchId } = params;
   const supabase = await createClient();
-  let query = supabase.from("members").select("id, member_code, full_name, gender, date_of_birth, phone, email, profile_photo_url, fitness_goal, height_cm, weight_kg, status, branch_id, created_at", { count: "exact" });
+  let query = supabase.from("members").select("id, member_code, machine_user_id, full_name, gender, date_of_birth, phone, email, profile_photo_url, fitness_goal, height_cm, weight_kg, status, branch_id, created_at", { count: "exact" });
   if (search) query = query.or(`full_name.ilike.%${search.replace(/[%_,]/g, "")}%,member_code.ilike.%${search.replace(/[%_,]/g, "")}%,phone.ilike.%${search.replace(/[%_,]/g, "")}%`);
   if (status && status !== "all") query = query.eq("status", status);
   if (branchId) query = query.eq("branch_id", branchId);
@@ -19,8 +19,21 @@ export async function listMembers(params: { page?: number; pageSize?: number; se
 
 export async function createMember(input: MemberInput, performedBy?: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("members").insert(input).select().single();
+  const { data: inserted, error } = await supabase.from("members").insert(input).select().single();
   if (error) throw new Error(error.message);
+
+  let data = inserted;
+  if (!data.machine_user_id) {
+    const { data: patched, error: patchError } = await supabase
+      .from("members")
+      .update({ machine_user_id: data.member_code })
+      .eq("id", data.id)
+      .select()
+      .single();
+    if (patchError) throw new Error(patchError.message);
+    data = patched;
+  }
+
   await logActivity({
     performedBy: performedBy ?? null,
     branchId: data.branch_id,
@@ -28,7 +41,7 @@ export async function createMember(input: MemberInput, performedBy?: string) {
     entityType: "member",
     entityId: data.id,
     description: "Member created",
-    metadata: { member_code: data.member_code, status: data.status },
+    metadata: { member_code: data.member_code, biometric_user_id: data.machine_user_id, status: data.status },
   });
   return data;
 }

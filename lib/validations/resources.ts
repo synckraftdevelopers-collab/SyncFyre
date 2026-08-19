@@ -17,7 +17,23 @@ export const resourceSchemas = {
   notifications: z.object({ user_id: uuid.optional().nullable(), member_id: uuid.optional().nullable(), branch_id: uuid.optional().nullable(), type: z.string().min(2).max(80), title: z.string().min(2).max(160), message: z.string().min(2).max(2000), channels: z.array(z.enum(["dashboard","email","sms","whatsapp"])).default(["dashboard"]), scheduled_for: z.string().datetime().optional().nullable(), metadata: z.record(z.unknown()).default({}) }),
   equipment: z.object({ branch_id: uuid, machine_name: z.string().min(2).max(160), category: z.string().min(2).max(120), serial_number: optionalText, purchase_date: z.string().date().optional().nullable(), warranty_until: z.string().date().optional().nullable(), next_maintenance_date: z.string().date().optional().nullable(), status: z.enum(["operational","maintenance_due","under_maintenance","out_of_service","retired","inactive"]).optional(), notes: optionalText }),
   staff: z.object({ user_id: uuid, branch_id: uuid, employee_code: z.string().min(2).max(50), designation: z.string().min(2).max(120), joining_date: z.string().date(), salary: z.coerce.number().nonnegative(), leave_balance: z.coerce.number().nonnegative().optional(), status }),
-  "face-machines": z.object({ branch_id: uuid, machine_name: z.string().min(2).max(160), machine_ip: z.string().optional().nullable(), machine_api_url: z.string().url().optional().nullable(), api_key_encrypted: z.string().max(500).optional().nullable(), device_id: z.string().min(1).max(100), status, settings: z.record(z.unknown()).optional() }),
+  "face-machines": z.object({
+    branch_id: uuid,
+    machine_name: z.string().min(2).max(160),
+    provider: z.enum(["generic", "essl"]).optional(),
+    manufacturer: z.string().max(120).optional().nullable(),
+    model: z.string().max(120).optional().nullable(),
+    serial_number: z.string().max(120).optional().nullable(),
+    device_identifier: z.string().max(120).optional().nullable(),
+    connection_mode: z.enum(["push", "pull", "adms", "unknown"]).optional(),
+    machine_ip: z.string().optional().nullable(),
+    allowed_ip: z.string().optional().nullable(),
+    machine_api_url: z.string().url().optional().nullable(),
+    api_key_encrypted: z.string().max(500).optional().nullable(),
+    device_id: z.string().min(1).max(100),
+    status,
+    settings: z.record(z.unknown()).optional()
+  }),
 } as const;
 
 export type ResourceName = keyof typeof resourceSchemas;

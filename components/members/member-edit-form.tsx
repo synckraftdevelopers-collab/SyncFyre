@@ -20,6 +20,7 @@ export function MemberEditForm({
     medical_conditions?: string | null;
     emergency_contact_name?: string | null;
     emergency_contact_phone?: string | null;
+    machine_user_id?: string | null;
     assigned_dietician_id?: string | null;
     assigned_trainer_id?: string | null;
   };
@@ -31,7 +32,6 @@ export function MemberEditForm({
 
   return (
     <form action={action} className="space-y-7">
-      {/* hidden ID so the action knows which record to update */}
       <input type="hidden" name="id" value={member.id} />
 
       <section>
@@ -105,7 +105,7 @@ export function MemberEditForm({
       </section>
 
       <section>
-        <h2 className="mb-4 font-semibold">Status &amp; assignment</h2>
+        <h2 className="mb-4 font-semibold">Status, biometric &amp; assignment</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <label className={fieldClass}>
             Emergency contact
@@ -130,6 +130,14 @@ export function MemberEditForm({
                 </option>
               ))}
             </select>
+          </label>
+          <label className={fieldClass}>
+            Biometric user ID
+            <Input
+              name="machine_user_id"
+              defaultValue={member.machine_user_id ?? ""}
+              placeholder="Used by face/fingerprint devices"
+            />
           </label>
           <label className={fieldClass}>
             Assigned trainer

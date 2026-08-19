@@ -35,6 +35,7 @@ export async function createMemberAction(
     weight_kg: raw.weight_kg || null,
     date_of_birth: raw.date_of_birth || null,
     email: raw.email || null,
+    machine_user_id: raw.machine_user_id || null,
     assigned_trainer_id: raw.assigned_trainer_id || null,
     blood_group: raw.blood_group || null,
   });
@@ -145,6 +146,7 @@ export async function updateMemberAction(
     weight_kg: rest.weight_kg || null,
     date_of_birth: rest.date_of_birth || null,
     email: rest.email || null,
+    machine_user_id: rest.machine_user_id || null,
     assigned_trainer_id: rest.assigned_trainer_id || null,
     assigned_dietician_id: rest.assigned_dietician_id || null,
     blood_group: rest.blood_group || null,

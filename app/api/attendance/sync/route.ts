@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { attendanceBatchSchema } from "@/lib/validations/attendance";
+import { processBiometricPayload } from "@/services/biometric.service";
 
 function validSecret(provided: string | null) {
   const expected = process.env.ATTENDANCE_SYNC_SECRET;
@@ -12,39 +12,52 @@ function validSecret(provided: string | null) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!validSecret(request.headers.get("x-sync-secret"))) return NextResponse.json({ error: "Unauthorized machine" }, { status: 401 });
-  const parsed = attendanceBatchSchema.safeParse(await request.json());
-  if (!parsed.success) return NextResponse.json({ error: "Invalid payload", issues: parsed.error.flatten() }, { status: 422 });
-
-  const supabase = createAdminClient();
-  const results: { external_event_id: string; status: string; error?: string; attendance_id?: string }[] = [];
-
-  for (const event of parsed.data.events) {
-    const { data, error } = await supabase.rpc("process_attendance_event", {
-      p_device_id: event.device_id,
-      p_machine_user_id: event.machine_user_id,
-      p_event_at: event.event_at,
-      p_event_type: event.event_type,
-      p_external_event_id: event.external_event_id,
-      p_raw: event,
-    });
-    const result = error ? { status: "error", error: error.message } : data as { status: string; attendance_id?: string };
-    results.push({ external_event_id: event.external_event_id, ...result });
+  if (!validSecret(request.headers.get("x-sync-secret"))) {
+    return NextResponse.json({ error: "Unauthorized machine" }, { status: 401 });
   }
 
-  const failed = results.filter((r) => r.status === "error").length;
-  await supabase.from("activity_logs").insert({
-    action: "attendance_synced",
-    entity_type: "attendance_sync",
-    entity_id: new Date().toISOString(),
-    description: `Processed ${results.length} attendance events`,
-    changes: {
-      processed: results.length - failed,
-      failed,
-      duplicate: results.filter((r) => r.status === "duplicate").length,
-      unmatched: results.filter((r) => r.status === "unmatched").length,
+  const body = await request.json();
+  const parsed = attendanceBatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid payload", issues: parsed.error.flatten() }, { status: 422 });
+  }
+
+  const legacyPayload = {
+    events: parsed.data.events.map((event) => ({
+      device_id: event.device_id,
+      machine_user_id: event.machine_user_id,
+      event_at: event.event_at,
+      event_type: event.event_type === "entry" ? "check_in" : "check_out",
+      verificationMethod: "unknown",
+      external_event_id: event.external_event_id,
+      userId: event.machine_user_id,
+      timestamp: event.event_at,
+    })),
+  };
+
+  const outcome = await processBiometricPayload({
+    payload: legacyPayload,
+    metadata: {
+      provider: "essl",
+      receivedAt: new Date(),
+      contentType: request.headers.get("content-type"),
+      method: request.method,
+      path: request.nextUrl.pathname,
+      url: request.url,
+      query: Object.fromEntries(request.nextUrl.searchParams.entries()),
+      ipAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      headers: { "x-sync-secret": "[redacted]" },
+      rawBody: JSON.stringify(body),
     },
   });
 
-  return NextResponse.json({ processed: results.length - failed, failed, results }, { status: failed === results.length ? 502 : 200 });
+  const failed = outcome.results.filter((result) => result.status === "PROCESSING_ERROR").length;
+  return NextResponse.json(
+    {
+      processed: outcome.results.length - failed,
+      failed,
+      results: outcome.results,
+    },
+    { status: failed === outcome.results.length ? 502 : 200 },
+  );
 }
