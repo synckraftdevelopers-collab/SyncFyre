@@ -39,7 +39,10 @@ export default async function AdminPaymentsPage({
           <h1 className="text-2xl font-bold">Payments</h1>
           <p className="text-sm text-muted-foreground">Track all payment transactions across your gym.</p>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Link href="/admin/payments/pending" className={buttonVariants({ variant: "outline" })}>
+            <CircleDollarSign className="size-4" />Pending Payments
+          </Link>
           <Link href="/api/reports?resource=payments" className={buttonVariants({ variant: "outline" })}>
             <Download className="size-4" />Export CSV
           </Link>

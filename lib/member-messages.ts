@@ -14,6 +14,14 @@ export type MemberMessageInput = {
   daysRemaining?: number | null;
 };
 
+export type PaymentReminderInput = {
+  memberName: string;
+  gymName: string;
+  totalAmount: number;
+  paymentCompleted: number;
+  pendingAmount: number;
+};
+
 /** Format a date string to readable "DD MMM YYYY" */
 function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
@@ -154,6 +162,23 @@ Thank you,
 ${gym}`;
 }
 
+/** A factual payment reminder used wherever an outstanding invoice is shown. */
+export function generatePaymentReminderMessage(input: PaymentReminderInput): string {
+  const gym = input.gymName || "SyncFyre Gym";
+  return `Hello ${input.memberName},
+
+This is a payment reminder from ${gym}.
+
+Your membership payment details are:
+Total Amount: \u20B9${fmtAmt(input.totalAmount)}
+Payment Completed: \u20B9${fmtAmt(input.paymentCompleted)}
+Pending Amount: \u20B9${fmtAmt(input.pendingAmount)}
+
+Please complete the pending payment at your earliest convenience.
+
+Thank you,
+${gym}`;
+}
 /** Build WhatsApp URL with pre-filled number + message */
 export function buildWhatsAppUrl(phone: string | null | undefined, message: string): string | null {
   const cleaned = (phone ?? "").replace(/\D/g, "");

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { format, formatDistanceToNowStrict, isValid, parseISO } from "date-fns";
 import type { MemberRegisterRow, UserRole } from "@/types";
 import { MemberCardGrid } from "@/components/members/member-card-grid";
+import { MembersRegisterTable } from "@/components/members/members-register-table";
 import { MemberAvatar } from "@/components/members/member-avatar";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -284,7 +285,7 @@ export function MemberViewToggle({
   lastVisitMap: Record<string, string>;
   trainers: { id: string; name: string }[];
 }) {
-  const [view, setView] = useState<"cards" | "rows">("cards");
+  const [view, setView] = useState<"cards" | "rows">("rows");
 
   // Persist to localStorage
   useEffect(() => {
@@ -315,8 +316,8 @@ export function MemberViewToggle({
         </button>
         <button
           onClick={() => toggle("rows")}
-          title="Row view"
-          aria-label="Switch to row view"
+          title="Full register view"
+          aria-label="Switch to full member register view"
           aria-pressed={view === "rows"}
           className={`rounded-lg p-2 transition-colors ${view === "rows" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
         >
@@ -334,12 +335,7 @@ export function MemberViewToggle({
           trainers={trainers}
         />
       ) : (
-        <MemberRowView
-          data={data}
-          basePath={basePath}
-          attendanceMap={attendanceMap}
-          lastVisitMap={lastVisitMap}
-        />
+        <MembersRegisterTable data={data} basePath={basePath} attendanceMap={attendanceMap} lastVisitMap={lastVisitMap} />
       )}
     </div>
   );

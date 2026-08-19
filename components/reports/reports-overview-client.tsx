@@ -88,6 +88,16 @@ export function ReportsOverviewClient({ initialData }: Props) {
     }
   }
 
+  async function applyFilters() {
+    if (filters.datePreset === "custom" && (!filters.dateFrom || !filters.dateTo)) {
+      setError("Choose both a start date and an end date before applying a custom range.");
+      return;
+    }
+
+    // Pass a snapshot so the request always reflects the values shown when Apply was clicked.
+    await load({ ...filters });
+  }
+
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -163,7 +173,9 @@ export function ReportsOverviewClient({ initialData }: Props) {
           <Select value={filters.expenseCategoryId ?? "all"} onChange={(event) => setFilters((current) => ({ ...current, expenseCategoryId: event.target.value }))}>
             {data.filters.options.expenseCategories.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </Select>
-          <Button onClick={() => void load(filters)} disabled={loading}>{loading ? "Applying..." : "Apply"}</Button>
+          <Button type="button" onClick={() => void applyFilters()} disabled={loading}>
+            {loading ? "Applying..." : "Apply"}
+          </Button>
           {filters.datePreset === "custom" && (
             <>
               <Input type="date" value={filters.dateFrom ?? ""} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} />

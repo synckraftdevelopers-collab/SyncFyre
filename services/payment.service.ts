@@ -123,3 +123,65 @@ export async function getInvoiceById(id: string): Promise<Invoice | null> {
     .single();
   return data as (Invoice & { payments?: Payment[] }) | null;
 }
+
+export type PendingPaymentRow = {
+  invoice_id: string;
+  member_id: string;
+  member_name: string;
+  member_code: string | null;
+  phone: string | null;
+  plan_name: string | null;
+  total_amount: number;
+  amount_paid: number;
+  pending_amount: number;
+  payment_status: string;
+  due_date: string | null;
+  membership_expiry: string | null;
+  branch_id: string;
+  branch_name: string | null;
+  created_at: string;
+};
+
+/** Outstanding invoices are the single source of truth for pending payments. */
+export async function listPendingPayments(params: {
+  branchId?: string | null;
+  planId?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+} = {}): Promise<PendingPaymentRow[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("invoices")
+    .select("id, member_id, branch_id, total_amount, amount_paid, balance_amount, payment_status, due_date, created_at, members(full_name, member_code, phone), branches(name), subscriptions(end_date, membership_plans(name))")
+    .gt("balance_amount", 0)
+    .neq("status", "void");
+
+  if (params.branchId) query = query.eq("branch_id", params.branchId);
+  if (params.dateFrom) query = query.gte("created_at", `${params.dateFrom}T00:00:00.000Z`);
+  if (params.dateTo) query = query.lte("created_at", `${params.dateTo}T23:59:59.999Z`);
+
+  const { data, error } = await query.order("balance_amount", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((invoice: any) => {
+    const subscription = Array.isArray(invoice.subscriptions) ? invoice.subscriptions[0] : invoice.subscriptions;
+    const plan = Array.isArray(subscription?.membership_plans) ? subscription.membership_plans[0] : subscription?.membership_plans;
+    return {
+      invoice_id: invoice.id,
+      member_id: invoice.member_id,
+      member_name: invoice.members?.full_name ?? "Unknown member",
+      member_code: invoice.members?.member_code ?? null,
+      phone: invoice.members?.phone ?? null,
+      plan_name: plan?.name ?? null,
+      total_amount: Number(invoice.total_amount ?? 0),
+      amount_paid: Number(invoice.amount_paid ?? 0),
+      pending_amount: Number(invoice.balance_amount ?? 0),
+      payment_status: invoice.payment_status === "partial" ? "Partially Paid" : "Pending",
+      due_date: invoice.due_date ?? null,
+      membership_expiry: subscription?.end_date ?? null,
+      branch_id: invoice.branch_id,
+      branch_name: invoice.branches?.name ?? null,
+      created_at: invoice.created_at,
+    } satisfies PendingPaymentRow;
+  }).filter((row) => !params.planId || row.plan_name === params.planId);
+}

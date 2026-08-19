@@ -6,7 +6,6 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { memberSchema } from "@/lib/validations/member";
 import { createMember, updateMember } from "@/services/member.service";
-import { createIncome } from "@/services/finance.service";
 import { createSubscriptionWithHistory } from "@/services/workflow.service";
 import { deactivateMember } from "@/services/member-extended.service";
 
@@ -52,7 +51,7 @@ export async function createMemberAction(
 
   if (!planId) return { error: "Package is required." };
   if (!startDate) return { error: "Start date is required." };
-  if (!paymentAmountText || Number.isNaN(paymentAmount) || paymentAmount < 0) return { error: "Payment amount is required." };
+  if (!paymentAmountText || Number.isNaN(paymentAmount) || paymentAmount < 0) return { error: "Payment completed is required." };
 
   const parsedDate = parseISO(startDate);
   if (Number.isNaN(parsedDate.getTime())) return { error: "Enter a valid start date." };
@@ -81,44 +80,31 @@ export async function createMemberAction(
   const gst = Math.round(taxable * Number(plan.gst_percent ?? 0) * 100) / 10000;
   const total = taxable + gst;
   const endDate = format(addMonths(parsedDate, Number(plan.duration_months ?? 0)), "yyyy-MM-dd");
+  if (paymentAmount > total) return { error: "Payment completed cannot be greater than total amount." };
 
   try {
-    await createSubscriptionWithHistory({
-      memberId: createdMember.id,
-      planId: plan.id,
-      branchId: parsed.data.branch_id,
-      startDate,
-      endDate,
-      status: "active",
-      price,
-      discountAmount: discount,
-      gstAmount: gst,
-      totalAmount: total,
-      performedBy: profile.id,
-      action: "created",
+    const subscription = await createSubscriptionWithHistory({
+      memberId: createdMember.id, planId: plan.id, branchId: parsed.data.branch_id, startDate, endDate, status: "active",
+      price, discountAmount: discount, gstAmount: gst, totalAmount: total, performedBy: profile.id, action: "created",
       remarks: `Collected on registration: ${paymentAmount.toFixed(2)}`,
     });
 
-    await createIncome({
-      branch_id: parsed.data.branch_id,
-      category_id: null,
-      payment_id: null,
-      invoice_id: null,
-      member_id: createdMember.id,
-      amount: paymentAmount,
-      gst_amount: 0,
-      total_amount: paymentAmount,
-      payment_method: paymentMethod as "cash" | "upi" | "card" | "online",
-      transaction_ref: transactionRef,
-      income_date: startDate,
-      description: `Membership payment for ${createdMember.full_name}`,
-      notes: plan.name ? `Package: ${plan.name}` : null,
-      status: "posted",
-      is_membership_income: true,
-      hsn_sac: null,
-      created_by: profile.id,
-      updated_by: profile.id,
-    });
+    const { data: invoice, error: invoiceError } = await supabase.from("invoices").insert({
+      member_id: createdMember.id, subscription_id: (subscription as { id?: string } | null)?.id ?? null,
+      branch_id: parsed.data.branch_id, subtotal: taxable, discount_amount: discount, gst_amount: gst,
+      total_amount: total, amount_paid: 0, balance_amount: total, payment_status: "pending", status: "unpaid",
+      due_date: endDate, line_items: [{ description: plan.name, amount: total }], created_by: profile.id,
+    }).select("id").single();
+    if (invoiceError || !invoice) throw new Error(invoiceError?.message ?? "Unable to create invoice.");
+
+    if (paymentAmount > 0) {
+      const { error: paymentError } = await supabase.from("payments").insert({
+        invoice_id: invoice.id, member_id: createdMember.id, subscription_id: (subscription as { id?: string } | null)?.id ?? null,
+        branch_id: parsed.data.branch_id, amount: paymentAmount, method: paymentMethod, status: "completed",
+        transaction_reference: transactionRef, paid_at: new Date().toISOString(), collected_by: profile.id,
+      });
+      if (paymentError) throw new Error(paymentError.message);
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Member created, but package/payment could not be saved." };
   }
