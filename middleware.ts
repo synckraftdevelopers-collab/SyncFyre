@@ -10,6 +10,10 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/api/attendance/sync",
   "/api/cron/reminders",
+
+  // Biometric machine communication
+  "/api/biometric",
+  "/iclock",
 ];
 
 /** Maps a role slug to the correct dashboard URL */
