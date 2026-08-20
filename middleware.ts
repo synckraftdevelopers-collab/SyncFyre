@@ -17,7 +17,8 @@ const PUBLIC_PATHS = [
 ];
 
 const MACHINE_HOSTNAME = "machine.syncfyre.com";
-const MACHINE_PATHS = ["/machine", "/login", "/forgot-password", "/reset-password", "/api/machine", "/api/attendance/sync", "/api/biometric", "/iclock"];
+const MACHINE_PATHS = ["/machine", "/api/machine", "/api/attendance/sync", "/api/biometric", "/iclock"];
+const MACHINE_SESSION_COOKIE = "syncfyre_machine_session";
 
 function isMachineHost(request: NextRequest) {
   const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim().split(":")[0].toLowerCase();
@@ -44,7 +45,6 @@ const PORTAL_ROLES: Record<string, string[]> = {
   "/reception": ["reception"],
   "/trainer":   ["trainer", "dietician", "diet-planner", "diet_planner"],
   "/member":    ["member"],
-  "/machine":   ["admin", "manager", "reception"],
 };
 
 const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
@@ -65,6 +65,20 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // Machine terminals have a distinct, host-only device session. Do this before
+  // Supabase auth so a terminal is never sent to the Gym Admin login page.
+  const isMachineRoute = pathname === "/machine" || pathname.startsWith("/machine/") || pathname === "/api/machine/attendance";
+  const isMachineConnectRoute = pathname === "/machine/connect" || pathname === "/api/machine/session";
+  if (isMachineRoute && !isMachineConnectRoute) {
+    // The route/page independently verifies the signed cookie. This inexpensive
+    // check only selects the correct authentication flow at the Edge.
+    if (!request.cookies.get(MACHINE_SESSION_COOKIE)?.value) {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Machine authentication required." }, { status: 401 });
+      return NextResponse.redirect(new URL("/machine/connect", request.url));
+    }
+    return NextResponse.next({ request });
+  }
+  if (isMachineConnectRoute) return NextResponse.next({ request });
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { MachineDeviceSummary, MachineMemberMapping } from "@/lib/machine/types";
 
 /** Shared read model for the admin machine-management surfaces. */
@@ -32,4 +33,17 @@ export async function getMachineManagementData(branchId: string | null, memberSe
 export async function getMachineTerminalDevices(branchId: string | null) {
   const { devices } = await getMachineManagementData(branchId);
   return devices.filter((device) => device.status === "active").map(({ id, machine_name, device_id, connection_status, last_seen_at }) => ({ id, machine_name, device_id, connection_status, last_seen_at }));
+}
+
+/** The device session determines exactly one terminal; it may never select another branch's device. */
+export async function getMachineTerminalDevice(machineId: string, branchId: string) {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("face_machine_settings")
+    .select("id,machine_name,device_id,connection_status,last_seen_at")
+    .eq("id", machineId)
+    .eq("branch_id", branchId)
+    .eq("status", "active")
+    .maybeSingle();
+  return data;
 }

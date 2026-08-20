@@ -4,6 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MockBiometricButton } from "@/components/settings/mock-biometric-button";
 import { SyncMachineButton } from "@/components/settings/sync-machine-button";
+import { MachineCredentialsButton } from "@/components/settings/machine-credentials-button";
 
 type DeviceRow = {
   id: string;
@@ -91,7 +92,7 @@ export function BiometricSettingsCard({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <SyncMachineButton id={device.id} configured={Boolean(device.machine_api_url)} />
+                  <div className="flex gap-2"><MachineCredentialsButton id={device.id} active={device.status === "active"} /><SyncMachineButton id={device.id} configured={Boolean(device.machine_api_url)} /></div>
                   <MockBiometricButton id={device.id} enabled={mockEnabled} />
                 </div>
               </div>
