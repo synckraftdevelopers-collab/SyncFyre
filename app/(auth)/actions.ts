@@ -31,11 +31,15 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
       const roleValue = profile?.role as unknown as { slug?: UserRole } | { slug?: UserRole }[] | null;
       const slug = Array.isArray(roleValue) ? roleValue[0]?.slug : roleValue?.slug;
       const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
-      return { redirectTo: dest };
+      redirect(dest);
     }
 
     return { redirectTo: "/admin/dashboard" };
   } catch (err) {
+    if (err && typeof err === "object" && "digest" in err && String((err as { digest?: string }).digest).startsWith("NEXT_REDIRECT")) {
+      throw err;
+    }
+
     console.error("[loginAction]", err);
     return { error: "Something went wrong. Please try again." };
   }

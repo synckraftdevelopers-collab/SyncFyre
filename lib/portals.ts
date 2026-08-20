@@ -11,6 +11,7 @@
 import type { UserRole } from "@/types";
 
 export const PORTAL_BASE: Record<UserRole, string> = {
+  super_admin: "/superadmin",
   admin: "/admin",
   manager: "/admin",       // manager shares the admin portal
   reception: "/reception",
@@ -22,6 +23,7 @@ export const PORTAL_BASE: Record<UserRole, string> = {
 };
 
 export const PORTAL_DASHBOARD: Record<UserRole, string> = {
+  super_admin: "/superadmin/dashboard",
   admin: "/admin/dashboard",
   manager: "/admin/dashboard",
   reception: "/reception/dashboard",
@@ -33,10 +35,11 @@ export const PORTAL_DASHBOARD: Record<UserRole, string> = {
 };
 
 /** All authenticated portal prefixes â€” used in middleware to guard routes */
-export const PROTECTED_PREFIXES = ["/admin", "/reception", "/trainer", "/member"];
+export const PROTECTED_PREFIXES = ["/superadmin", "/admin", "/reception", "/trainer", "/member"];
 
 /** Roles allowed in each portal */
 export const PORTAL_ROLES: Record<string, UserRole[]> = {
+  "/superadmin": ["super_admin"],
   "/admin": ["admin", "manager"],
   "/reception": ["reception"],
   "/trainer": ["trainer", "dietician", "diet-planner", "diet_planner"],

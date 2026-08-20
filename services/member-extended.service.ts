@@ -470,9 +470,18 @@ async function ensureAssignableProfiles(role: AssignableRole, branchId?: string 
     })(),
   ]);
 
-  if (staffError) throw new Error(staffError.message);
-  if (userError) throw new Error(userError.message);
-  if (profileError) throw new Error(profileError.message);
+  if (staffError) {
+    console.error("[member-extended.service] ensureAssignableProfiles staff error:", staffError.message);
+    return [];
+  }
+  if (userError) {
+    console.error("[member-extended.service] ensureAssignableProfiles user error:", userError.message);
+    return [];
+  }
+  if (profileError) {
+    console.error("[member-extended.service] ensureAssignableProfiles profile error:", profileError.message);
+    return [];
+  }
 
   const staff = (staffRows ?? []) as AssignableStaffRow[];
   const users = (userRows ?? []) as unknown as AssignableUserRow[];

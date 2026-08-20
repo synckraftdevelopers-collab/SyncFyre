@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "manager" | "reception" | "trainer" | "dietician" | "diet-planner" | "diet_planner" | "member";
+export type UserRole = "super_admin" | "admin" | "manager" | "reception" | "trainer" | "dietician" | "diet-planner" | "diet_planner" | "member";
 export type RecordStatus = "active" | "inactive";
 export type SubscriptionStatus = "pending" | "active" | "expired" | "cancelled" | "paused";
 export type AppointmentStatus = "pending" | "approved" | "completed" | "cancelled";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -250,19 +250,31 @@ function FinancialYearFilters({
   selected: string;
   onSelect: (year: string) => void;
 }) {
+  const [optimistic, setOptimistic] = useState(selected);
+
+  useEffect(() => { setOptimistic(selected); }, [selected]);
+
+  function handleSelect(id: string) {
+    const next = optimistic === id ? "" : id;
+    setOptimistic(next);
+    onSelect(next);
+  }
+
   return (
     <div className="flex items-center gap-1 rounded-lg border bg-background p-1" aria-label="Filter members by financial year">
       {FINANCIAL_YEARS.map((year) => {
-        const isSelected = selected === year.id;
+        const isSelected = optimistic === year.id;
         return (
           <button
             key={year.id}
             type="button"
             aria-pressed={isSelected}
-            onClick={() => onSelect(isSelected ? "" : year.id)}
+            onClick={() => handleSelect(year.id)}
             className={cn(
-              "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              isSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              "rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              isSelected
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
             {year.label}
@@ -281,23 +293,60 @@ function SubscriptionStatusFilters({
   selected: string;
   onSelect: (status: string) => void;
 }) {
+  // Local optimistic state — updates instantly on click before URL param settles
+  const [optimistic, setOptimistic] = useState<string>(selected);
+
+  // Keep in sync when URL param changes (navigation)
+  useEffect(() => {
+    setOptimistic(selected);
+  }, [selected]);
+
+  function handleSelect(id: string) {
+    const next = optimistic === id ? "" : id;
+    setOptimistic(next);
+    onSelect(next);
+  }
+
+  const STATUS_STYLE: Record<string, { active: string; dot: string }> = {
+    active:    { active: "bg-emerald-600 text-white border-emerald-600", dot: "bg-emerald-500" },
+    expired:   { active: "bg-red-600    text-white border-red-600",    dot: "bg-red-500"     },
+    pending:   { active: "bg-amber-500  text-white border-amber-500",  dot: "bg-amber-500"   },
+    paused:    { active: "bg-blue-600   text-white border-blue-600",   dot: "bg-blue-500"    },
+    cancelled: { active: "bg-gray-600   text-white border-gray-600",   dot: "bg-gray-400"    },
+  };
+
   return (
-    <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-background p-1" aria-label="Filter by membership status">
+    <div
+      className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border bg-background p-1"
+      aria-label="Filter by membership status"
+    >
       {SUBSCRIPTION_STATUS_OPTIONS.map((status) => {
-        const isSelected = selected === status.id;
+        const isSelected = optimistic === status.id;
+        const style = STATUS_STYLE[status.id];
         return (
           <button
             key={status.id}
             type="button"
             aria-pressed={isSelected}
-            onClick={() => onSelect(isSelected ? "" : status.id)}
+            onClick={() => handleSelect(status.id)}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-              isSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              "flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              isSelected
+                ? style.active
+                : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
+            {/* colour dot */}
+            <span className={cn("size-1.5 rounded-full flex-shrink-0", isSelected ? "bg-white" : style.dot)} />
             <span>{status.name}</span>
-            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] tabular-nums", isSelected ? "bg-white/20" : "bg-muted")}>{counts[status.id]}</span>
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
+                isSelected ? "bg-white/20" : "bg-muted",
+              )}
+            >
+              {counts[status.id]}
+            </span>
           </button>
         );
       })}

@@ -16,6 +16,14 @@ const PUBLIC_PATHS = [
   "/iclock",
 ];
 
+const MACHINE_HOSTNAME = "machine.syncfyre.com";
+const MACHINE_PATHS = ["/machine", "/login", "/forgot-password", "/reset-password", "/api/machine", "/api/attendance/sync", "/api/biometric", "/iclock"];
+
+function isMachineHost(request: NextRequest) {
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "").split(",")[0].trim().split(":")[0].toLowerCase();
+  return host === MACHINE_HOSTNAME;
+}
+
 /** Maps a role slug to the correct dashboard URL */
 const PORTAL_DASHBOARD: Record<string, string> = {
   super_admin: "/superadmin/dashboard",
@@ -36,6 +44,7 @@ const PORTAL_ROLES: Record<string, string[]> = {
   "/reception": ["reception"],
   "/trainer":   ["trainer", "dietician", "diet-planner", "diet_planner"],
   "/member":    ["member"],
+  "/machine":   ["admin", "manager", "reception"],
 };
 
 const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
@@ -44,6 +53,17 @@ const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const pathname = request.nextUrl.pathname;
+
+  // The machine subdomain is terminal-only. It cannot serve management UI or APIs.
+  if (isMachineHost(request)) {
+    if (pathname === "/") return NextResponse.redirect(new URL("/machine", request.url));
+    const allowed = MACHINE_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+    if (!allowed) {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.redirect(new URL("/machine", request.url));
+    }
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,8 +81,6 @@ export async function middleware(request: NextRequest) {
       },
     },
   );
-
-  const pathname = request.nextUrl.pathname;
 
   // `getUser()` validates a session with Supabase. It can throw when a browser
   // has an old or corrupt auth cookie. Do not let that turn the public login
