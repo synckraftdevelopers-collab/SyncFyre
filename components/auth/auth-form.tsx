@@ -1,10 +1,11 @@
-﻿"use client";
+"use client";
 import Link from "next/link";
 import { useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InstallSyncTyre } from "@/components/pwa/install-syncfyre";
 import type { AuthState } from "@/app/(auth)/actions";
 
 export function AuthForm({
@@ -15,7 +16,9 @@ export function AuthForm({
   mode: "login" | "forgot" | "reset";
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [state, formAction, pending] = useActionState(action, {});
+  const accountConfigurationError = searchParams.get("error") === "account_not_configured";
 
   useEffect(() => {
     if (state.redirectTo) {
@@ -63,9 +66,9 @@ export function AuthForm({
           </label>
         )}
 
-        {state.error && (
+        {(state.error || accountConfigurationError) && (
           <p role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600">
-            {state.error}
+            {state.error ?? "This account has not been assigned an active portal role. Please contact an administrator."}
           </p>
         )}
 
@@ -86,6 +89,8 @@ export function AuthForm({
           {(pending || state.redirectTo) && <LoaderCircle className="size-4 animate-spin" />}
           {mode === "login" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Update password"}
         </Button>
+
+        {mode === "login" && <InstallSyncTyre />}
 
         <div className="text-center text-sm">
           {mode === "login" ? (

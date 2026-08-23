@@ -30,8 +30,11 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
       const { data: profile } = await supabase.from("users").select("role:roles(slug)").eq("id", user.id).single();
       const roleValue = profile?.role as unknown as { slug?: UserRole } | { slug?: UserRole }[] | null;
       const slug = Array.isArray(roleValue) ? roleValue[0]?.slug : roleValue?.slug;
-      const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
-      redirect(dest);
+      const dest = slug ? PORTAL_DASHBOARD[slug] : undefined;
+      if (dest) redirect(dest);
+
+      await supabase.auth.signOut();
+      return { error: "This account has not been assigned an active portal role. Please contact an administrator." };
     }
 
     return { redirectTo: "/admin/dashboard" };
@@ -97,8 +100,11 @@ export async function resetPasswordAction(_: AuthState, formData: FormData): Pro
       const { data: profile } = await supabase.from("users").select("role:roles(slug)").eq("id", user.id).single();
       const roleValue = profile?.role as unknown as { slug?: UserRole } | { slug?: UserRole }[] | null;
       const slug = Array.isArray(roleValue) ? roleValue[0]?.slug : roleValue?.slug;
-      const dest = slug ? (PORTAL_DASHBOARD[slug] ?? "/admin/dashboard") : "/admin/dashboard";
-      redirect(dest);
+      const dest = slug ? PORTAL_DASHBOARD[slug] : undefined;
+      if (dest) redirect(dest);
+
+      await supabase.auth.signOut();
+      return { error: "This account has not been assigned an active portal role. Please contact an administrator." };
     }
 
     redirect("/admin/dashboard");

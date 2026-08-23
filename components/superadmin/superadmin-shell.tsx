@@ -4,18 +4,23 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Building2, LayoutDashboard, Calendar, Users, Settings,
+  Building2, LayoutDashboard, Calendar, Users, Settings, CreditCard, ReceiptText, Cpu, ScrollText, BarChart3,
   LogOut, Menu, X, ChevronRight,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logoutAction } from "@/app/(auth)/actions";
 
 const nav = [
-  { label: "Dashboard",    href: "/superadmin/dashboard",  icon: LayoutDashboard },
-  { label: "Tenants",      href: "/superadmin/tenants",    icon: Building2       },
-  { label: "Demo Bookings",href: "/superadmin/demos",      icon: Calendar        },
-  { label: "All Users",    href: "/superadmin/users",      icon: Users           },
-  { label: "Settings",     href: "/superadmin/settings",   icon: Settings        },
+  { label: "Dashboard", href: "/superadmin/dashboard", icon: LayoutDashboard },
+  { label: "Organizations", href: "/superadmin/tenants", icon: Building2 },
+  { label: "Demo Requests", href: "/superadmin/demos", icon: Calendar },
+  { label: "Subscriptions", href: "/superadmin/subscriptions", icon: CreditCard },
+  { label: "Billing", href: "/superadmin/billing", icon: ReceiptText },
+  { label: "All Users", href: "/superadmin/users", icon: Users },
+  { label: "Device Integration", href: "/superadmin/devices", icon: Cpu },
+  { label: "Reports", href: "/superadmin/reports", icon: BarChart3 },
+  { label: "Audit Logs", href: "/superadmin/audit-logs", icon: ScrollText },
+  { label: "Settings", href: "/superadmin/settings", icon: Settings },
 ];
 
 export function SuperAdminShell({
@@ -127,10 +132,17 @@ export function SuperAdminShell({
           <p className="text-sm font-semibold">SyncFyre Super Admin</p>
         </header>
 
-        <main className="mx-auto max-w-[1400px] p-4 md:p-8">
+        <main className="mx-auto max-w-[1400px] p-4 pb-24 md:p-8 lg:pb-8">
           {children}
         </main>
       </div>
+      <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/95 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-8px_24px_rgba(7,29,56,.08)] backdrop-blur lg:hidden">
+        {nav.slice(0, 4).map(({ label, href, icon: Icon }) => {
+          const active = pathname === href || pathname.startsWith(`${href}/`);
+          return <Link key={href} href={href} className={cn("flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium", active ? "text-primary" : "text-muted-foreground")}><Icon className="size-5" /><span className="max-w-[68px] truncate">{label}</span></Link>;
+        })}
+        <button type="button" onClick={() => setOpen(true)} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium text-muted-foreground"><Menu className="size-5" /><span>More</span></button>
+      </nav>
     </div>
   );
 }

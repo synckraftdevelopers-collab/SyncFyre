@@ -5,6 +5,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const PUBLIC_PATHS = [
   "/",
+  "/sw.js",
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/icons",
+  "/syncfyre-logo.png",
   "/login",
   "/forgot-password",
   "/reset-password",
@@ -124,25 +129,31 @@ export async function middleware(request: NextRequest) {
   // For the rest we need the user's role ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â fetch it from the DB.
   // Only do this when the user is authenticated and hits a meaningful route.
   if (user) {
-    const { data: profile } = await supabase
-      .from("users")
-      .select("role:roles(slug)")
-      .eq("id", user.id)
-      .single();
+    let profile: { role?: unknown } | null = null;
+    try {
+      const { data } = await supabase
+        .from("users")
+        .select("role:roles(slug)")
+        .eq("id", user.id)
+        .single();
+      profile = data;
+    } catch (error) {
+      console.error("[middleware] Unable to load user profile", error);
+    }
 
     const roleSlug: string =
       ((Array.isArray(profile?.role) ? (profile?.role as unknown as { slug?: string }[])[0] : profile?.role) as unknown as { slug?: string } | null)?.slug ?? "";
 
     // 2. Authenticated user on login ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ redirect to their portal dashboard
-    if (pathname === "/login") {
-      const dest = PORTAL_DASHBOARD[roleSlug] ?? "/admin/dashboard";
-      return NextResponse.redirect(new URL(dest, request.url));
+    if (pathname === "/login" && roleSlug) {
+      const dest = PORTAL_DASHBOARD[roleSlug];
+      if (dest) return NextResponse.redirect(new URL(dest, request.url));
     }
 
     // 3. Root / and old /dashboard ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ redirect to portal
-    if (pathname === "/" || pathname === "/dashboard") {
-      const dest = PORTAL_DASHBOARD[roleSlug] ?? "/admin/dashboard";
-      return NextResponse.redirect(new URL(dest, request.url));
+    if ((pathname === "/" || pathname === "/dashboard") && roleSlug) {
+      const dest = PORTAL_DASHBOARD[roleSlug];
+      if (dest) return NextResponse.redirect(new URL(dest, request.url));
     }
 
     // 4. Portal route accessed by wrong role ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ redirect to own portal
@@ -152,8 +163,11 @@ export async function middleware(request: NextRequest) {
     if (matchedPortal) {
       const allowed = PORTAL_ROLES[matchedPortal] ?? [];
       if (!allowed.includes(roleSlug)) {
-        const dest = PORTAL_DASHBOARD[roleSlug] ?? "/admin/dashboard";
-        return NextResponse.redirect(new URL(dest, request.url));
+        const dest = PORTAL_DASHBOARD[roleSlug];
+        const url = request.nextUrl.clone();
+        url.pathname = dest ?? "/login";
+        if (!dest) url.searchParams.set("error", "account_not_configured");
+        return NextResponse.redirect(url);
       }
     }
   }

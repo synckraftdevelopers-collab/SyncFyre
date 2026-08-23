@@ -2,6 +2,7 @@
 import { useState, useCallback } from "react";
 import { PortalHeader } from "@/components/layout/portal-header";
 import { PortalSidebar } from "@/components/layout/portal-sidebar";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import type { PortalKey } from "@/lib/nav";
 
 export type { PortalKey };
@@ -67,7 +68,8 @@ export function PortalShell({
           searchAction={searchActionByPortal[portal]}
           searchPlaceholder={searchPlaceholderByPortal[portal]}
         />
-        <main className="mx-auto max-w-[1600px] min-w-0 p-4 md:p-6 print:p-0 print:max-w-none">{children}</main>
+        <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
+        <MobileBottomNav portal={portal} onMore={handleMenu} />
       </div>
     </div>
   );

@@ -120,7 +120,7 @@ alter table public.cash_book         add column if not exists tenant_id uuid ref
 -- Create the first tenant from the existing branch
 insert into public.tenants (id, name, slug, owner_email, status)
 select
-  'tttttttt-0001-0000-0000-000000000001'::uuid,
+  '11111111-0001-0000-0000-000000000001'::uuid,
   coalesce(b.name, 'Talwalkar Main Gym'),
   'talwalkar',
   u.email::text,
@@ -132,12 +132,12 @@ on conflict (id) do nothing;
 
 -- If no branch exists yet, insert a default tenant
 insert into public.tenants (id, name, slug, status)
-values ('tttttttt-0001-0000-0000-000000000001', 'My Gym', 'default', 'active')
+values ('11111111-0001-0000-0000-000000000001', 'My Gym', 'default', 'active')
 on conflict (id) do nothing;
 
 -- Backfill tenant_id on all existing rows
 do $$
-declare v_tenant_id uuid := 'tttttttt-0001-0000-0000-000000000001';
+declare v_tenant_id uuid := '11111111-0001-0000-0000-000000000001';
 begin
   update public.branches          set tenant_id = v_tenant_id where tenant_id is null;
   update public.users             set tenant_id = v_tenant_id where tenant_id is null;
