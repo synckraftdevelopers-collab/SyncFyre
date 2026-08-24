@@ -302,7 +302,7 @@ function SubscriptionStatusFilters({
   }, [selected]);
 
   function handleSelect(id: string) {
-    const next = optimistic === id ? "" : id;
+    const next = id;
     setOptimistic(next);
     onSelect(next);
   }
