@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Image from "next/image";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -9,6 +10,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="relative my-auto max-w-lg"><p className="mb-4 text-sm font-semibold uppercase tracking-[.25em] text-[#52c7ea]">Move better. Manage smarter.</p><h1 className="text-5xl font-bold leading-tight">Your entire gym operation, perfectly in sync.</h1><p className="mt-6 text-lg text-white/60">Members, subscriptions, attendance, trainers, payments, and insights in one secure workspace.</p></div>
       <p className="relative text-sm text-white/35">© 2026 SyncFyre · One intelligent platform.</p>
     </section>
-    <section className="grid place-items-center p-5 sm:p-10">{children}</section>
+    <section className="grid place-items-center p-5 sm:p-10"><Suspense>{children}</Suspense></section>
   </main>;
 }

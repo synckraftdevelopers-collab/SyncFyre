@@ -12,7 +12,7 @@ export default async function SuperAdminDashboardPage() {
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString();
   const [{ count: tenants }, { count: demos }, { count: members }, { data: payments, error: paymentsError }] = await Promise.all([
     admin.from("tenants").select("id", { count: "exact", head: true }),
-    admin.from("book_demo").select("id", { count: "exact", head: true }).gte("created_at", monthAgo),
+    admin.from("demo_bookings").select("id", { count: "exact", head: true }).gte("created_at", monthAgo),
     admin.from("members").select("id", { count: "exact", head: true }),
     admin.from("payments").select("amount").eq("status", "completed").gte("paid_at", monthAgo).limit(1000),
   ]);

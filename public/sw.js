@@ -1,4 +1,4 @@
-const CACHE = "sync-tyre-static-v1";
+const CACHE = "sync-tyre-static-v3";
 const STATIC_ASSETS = ["/offline", "/syncfyre-logo.png", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
