@@ -168,7 +168,7 @@ export default async function AdminDashboardPage() {
           />
           <MetricCard
             label="Outstanding Payments"
-            value={formatCurrency(metrics.pendingPayments)}
+            value={formatCurrency(metrics.outstandingPayments)}
             icon={CircleDollarSign}
             href="/admin/finance/outstanding"
           />

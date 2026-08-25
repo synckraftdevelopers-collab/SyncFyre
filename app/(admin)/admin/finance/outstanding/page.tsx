@@ -2,7 +2,7 @@ import { CircleAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentProfile } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
-import { listReceivables } from "@/services/finance.service";
+import { getOutstandingReceivablesSummary, listReceivables } from "@/services/finance.service";
 
 export const metadata = { title: "Outstanding Dues" };
 
@@ -18,15 +18,10 @@ export default async function OutstandingPage() {
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
 
-  const [{ data: all }, { data: overdue }, { data: pending }] = await Promise.all([
+  const [{ data: all }, summary] = await Promise.all([
     listReceivables({ branchId, page: 1, pageSize: 100 }),
-    listReceivables({ branchId, status: "overdue", pageSize: 500 }),
-    listReceivables({ branchId, status: "pending", pageSize: 500 }),
+    getOutstandingReceivablesSummary(branchId),
   ]);
-
-  const totalOutstanding = [...overdue, ...pending].reduce(
-    (s, r) => s + Number(r.balance_amount), 0
-  );
 
   return (
     <div className="space-y-6">
@@ -44,9 +39,9 @@ export default async function OutstandingPage() {
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Overdue</p>
-              <p className="text-xl font-bold text-red-600">{overdue.length}</p>
+              <p className="text-xl font-bold text-red-600">{summary.overdueCount}</p>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(overdue.reduce((s, r) => s + Number(r.balance_amount), 0))}
+                {formatCurrency(summary.overdueAmount)}
               </p>
             </div>
           </CardContent>
@@ -58,9 +53,9 @@ export default async function OutstandingPage() {
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pending</p>
-              <p className="text-xl font-bold">{pending.length}</p>
+              <p className="text-xl font-bold">{summary.pendingCount}</p>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(pending.reduce((s, r) => s + Number(r.balance_amount), 0))}
+                {formatCurrency(summary.pendingAmount)}
               </p>
             </div>
           </CardContent>
@@ -72,7 +67,7 @@ export default async function OutstandingPage() {
             </div>
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Outstanding</p>
-              <p className="text-xl font-bold">{formatCurrency(totalOutstanding)}</p>
+              <p className="text-xl font-bold">{formatCurrency(summary.totalOutstanding)}</p>
             </div>
           </CardContent>
         </Card>

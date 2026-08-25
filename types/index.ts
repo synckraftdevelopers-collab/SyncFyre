@@ -72,6 +72,7 @@ export interface DashboardMetrics {
   expiredMemberships: number;
   revenue: number;
   pendingPayments: number;
+  outstandingPayments: number;
   appointments: number;
   trainers: number;
   machines: number;
@@ -693,6 +694,14 @@ export interface FinanceDashboardMetrics {
   membershipsRenewingDue: number;
   collectionEfficiency: number;
   avgRevenuePerMember: number;
+}
+
+export interface OutstandingReceivablesSummary {
+  overdueCount: number;
+  overdueAmount: number;
+  pendingCount: number;
+  pendingAmount: number;
+  totalOutstanding: number;
 }
 
 export interface FinanceRevenuePoint { date: string; income: number; expense: number; profit: number; }

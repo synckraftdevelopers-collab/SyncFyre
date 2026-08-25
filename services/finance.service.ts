@@ -26,6 +26,7 @@ import type {
   FinanceRevenuePoint,
   FinancePaymentModePoint,
   FinanceReceivableAgingPoint,
+  OutstandingReceivablesSummary,
   FinanceParams,
   ExpenseParams,
   IncomeParams,
@@ -44,6 +45,47 @@ function assertNoError(
 function pageRange(page: number, size: number): [number, number] {
   const from = (page - 1) * size;
   return [from, from + size - 1];
+}
+
+export async function getOutstandingReceivablesSummary(
+  branchId?: string | null
+): Promise<OutstandingReceivablesSummary> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("receivables")
+    .select("status, balance_amount")
+    .gt("balance_amount", 0)
+    .in("status", ["pending", "partial", "overdue"]);
+
+  if (branchId) query = query.eq("branch_id", branchId);
+
+  const { data, error } = await query;
+  assertNoError(error, "getOutstandingReceivablesSummary");
+
+  return (data ?? []).reduce<OutstandingReceivablesSummary>(
+    (summary, row) => {
+      const balance = Number(row.balance_amount ?? 0);
+      if (balance <= 0) return summary;
+
+      summary.totalOutstanding += balance;
+      if (row.status === "overdue") {
+        summary.overdueCount += 1;
+        summary.overdueAmount += balance;
+      } else {
+        summary.pendingCount += 1;
+        summary.pendingAmount += balance;
+      }
+
+      return summary;
+    },
+    {
+      overdueCount: 0,
+      overdueAmount: 0,
+      pendingCount: 0,
+      pendingAmount: 0,
+      totalOutstanding: 0,
+    }
+  );
 }
 
 // ─── Finance Dashboard ────────────────────────────────────────────────────────
@@ -73,7 +115,7 @@ export async function getFinanceDashboardMetrics(
     totalExpenses,
     cashBalance,
     bankRows,
-    pendingReceivables,
+    outstandingSummary,
     activeMembers,
     renewalsDue,
   ] = await Promise.all([
@@ -115,12 +157,7 @@ export async function getFinanceDashboardMetrics(
         .select("current_balance")
         .eq("status", "active")
     ),
-    applyBranch(
-      supabase
-        .from("receivables")
-        .select("balance_amount")
-        .in("status", ["pending", "partial", "overdue"])
-    ),
+    getOutstandingReceivablesSummary(branchId),
     applyBranch(
       supabase
         .from("members")
@@ -154,11 +191,7 @@ export async function getFinanceDashboardMetrics(
       acc + Number(r.current_balance),
     0
   );
-  const outstanding = (pendingReceivables.data ?? []).reduce(
-    (acc: number, r: { balance_amount: number }) =>
-      acc + Number(r.balance_amount),
-    0
-  );
+  const outstanding = outstandingSummary.totalOutstanding;
   const active = (activeMembers as { count?: number | null }).count ?? 0;
   const efficiency =
     monthCol + outstanding > 0
