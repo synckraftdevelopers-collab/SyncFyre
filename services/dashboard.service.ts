@@ -122,6 +122,36 @@ export async function getLatestRenewals(branchId?: string | null, limit = 5) {
   }>;
 }
 
+export async function getExpiringMemberships(branchId?: string | null) {
+  const supabase = await createClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  
+  let q = supabase
+    .from("subscriptions")
+    .select("id, start_date, end_date, status, total_amount, member_id, members(full_name, member_code, phone), membership_plans(name)")
+    .eq("status", "active")
+    .gte("end_date", today)
+    .lte("end_date", inThirtyDays)
+    .order("end_date", { ascending: true });
+    
+  if (branchId) q = q.eq("branch_id", branchId);
+  
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  
+  return (data ?? []) as unknown as Array<{
+    id: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+    total_amount: number;
+    member_id: string;
+    members: { full_name: string; member_code: string; phone: string | null } | null;
+    membership_plans: { name: string } | null;
+  }>;
+}
+
 // ─── Chart data ────────────────────────────────────────────────────────────
 
 export interface RevenuePoint { m: string; v: number }

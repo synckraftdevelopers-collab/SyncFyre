@@ -137,7 +137,7 @@ export default async function AdminDashboardPage() {
             label="Renewals Due (30 days)"
             value={metrics.expiringMemberships}
             icon={ShieldAlert}
-            href="/admin/memberships?status=active"
+            href="/admin/renewals"
           />
           <MetricCard
             label="Expired Memberships"
