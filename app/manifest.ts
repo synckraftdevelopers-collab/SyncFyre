@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "SyncTyre Gym Management",
-    short_name: "SyncTyre",
+    name: "SyncFyre Gym Management",
+    short_name: "SyncFyre",
     description: "Gym operations, member management, attendance, and finance.",
     start_url: "/",
     display: "standalone",

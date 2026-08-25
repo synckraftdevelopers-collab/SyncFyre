@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 type DeferredInstallPrompt = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 
-export function InstallSyncTyre({ className }: { className?: string }) {
+export function InstallSyncFyre({ className }: { className?: string }) {
   const [prompt, setPrompt] = useState<DeferredInstallPrompt | null>(null);
   const [installed, setInstalled] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -27,5 +27,5 @@ export function InstallSyncTyre({ className }: { className?: string }) {
     await prompt.userChoice;
     setPrompt(null);
   };
-  return <div className={cn("space-y-2", className)}><Button type="button" variant="outline" className="min-h-11 w-full gap-2" onClick={install}><Download className="size-4" />Install SyncTyre</Button>{showHelp && <p className="rounded-xl bg-muted p-3 text-left text-xs leading-5 text-muted-foreground">{isIos ? <><Share className="mr-1 inline size-3.5" />In Safari, tap Share, then choose <strong>Add to Home Screen</strong>.</> : <>Use your browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>. The native install prompt appears after the browser has verified this site.</>}</p>}</div>;
+  return <div className={cn("space-y-2", className)}><Button type="button" variant="outline" className="min-h-11 w-full gap-2" onClick={install}><Download className="size-4" />Install SyncFyre</Button>{showHelp && <p className="rounded-xl bg-muted p-3 text-left text-xs leading-5 text-muted-foreground">{isIos ? <><Share className="mr-1 inline size-3.5" />In Safari, tap Share, then choose <strong>Add to Home Screen</strong>.</> : <>Use your browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>. The native install prompt appears after the browser has verified this site.</>}</p>}</div>;
 }

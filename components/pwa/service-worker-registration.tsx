@@ -19,7 +19,7 @@ export function ServiceWorkerRegistration() {
       return;
     }
     navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error) => {
-      console.warn("SyncTyre service worker registration failed", error);
+      console.warn("SyncFyre service worker registration failed", error);
     });
   }, []);
   return null;

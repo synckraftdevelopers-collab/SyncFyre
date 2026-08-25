@@ -46,6 +46,6 @@
 
 ## Step F. Finalize the Adapter
 
-- Update only [lib/biometric/essl.ts](/C:/Users/Hp/OneDrive/Desktop/SyncTyre/lib/biometric/essl.ts:1)
-- Update [services/biometric.service.ts](/C:/Users/Hp/OneDrive/Desktop/SyncTyre/services/biometric.service.ts:1) only if the surrounding orchestration must change
+- Update only [lib/biometric/essl.ts](/C:/Users/Hp/OneDrive/Desktop/SyncFyre/lib/biometric/essl.ts:1)
+- Update [services/biometric.service.ts](/C:/Users/Hp/OneDrive/Desktop/SyncFyre/services/biometric.service.ts:1) only if the surrounding orchestration must change
 - Do not spread protocol handling into unrelated routes, pages, or member logic
