@@ -1,6 +1,7 @@
 import { Building2 } from "lucide-react";
 import Link from "next/link";
 import { BiometricSettingsCard } from "@/components/settings/biometric-settings-card";
+import { AccountSecurityCard } from "@/components/settings/account-security-card";
 import { PersonalSettingsForm } from "@/components/settings/personal-settings-form";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -24,7 +25,7 @@ export default async function AdminSettingsPage({
 }) {
   const { tab = "profile", memberSearch = "" } = await searchParams;
   const activeTab = ["application", "biometric"].includes(tab) ? tab : "profile";
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
   const sb = await createClient();
 
   let memberMappingsQuery = sb
@@ -122,12 +123,15 @@ export default async function AdminSettingsPage({
       </div>
 
       {activeTab === "profile" && (
-        <PersonalSettingsForm
-          title="Profile Settings"
-          description="Update your personal contact details for the current signed-in account."
-          fullName={profile.full_name}
-          phone={profile.phone}
-        />
+        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+          <PersonalSettingsForm
+            title="Profile Settings"
+            description="Update your personal contact details for the current signed-in account."
+            fullName={profile.full_name}
+            phone={profile.phone}
+          />
+          <AccountSecurityCard email={profile.email} />
+        </div>
       )}
 
       {activeTab === "application" && (

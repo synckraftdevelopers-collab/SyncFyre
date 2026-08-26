@@ -20,7 +20,7 @@ export async function markNotificationReadAction(id: string) {
 }
 
 export async function updateOwnProfileAction(formData: FormData) {
-  const profile = await requireUser(["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"]);
+  const profile = await requireUser(["owner", "admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"]);
   const supabase = await createClient();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
