@@ -1,4 +1,4 @@
-export type UserRole = "super_admin" | "admin" | "manager" | "reception" | "trainer" | "dietician" | "diet-planner" | "diet_planner" | "member";
+export type UserRole = "super_admin" | "owner" | "admin" | "manager" | "reception" | "trainer" | "dietician" | "diet-planner" | "diet_planner" | "member";
 export type RecordStatus = "active" | "inactive";
 export type SubscriptionStatus = "pending" | "active" | "expired" | "cancelled" | "paused";
 export type AppointmentStatus = "pending" | "approved" | "completed" | "cancelled";
@@ -11,6 +11,7 @@ export interface UserProfile {
   avatar_url: string | null;
   role: { name: string; slug: UserRole } | null;
   branch_id: string | null;
+  tenant_id: string | null;
   status: RecordStatus;
 }
 
@@ -80,7 +81,7 @@ export interface DashboardMetrics {
   branches: number;
 }
 
-// â”€â”€â”€ Report view row types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Report view row types --------------------------------------------------
 
 export interface MemberRegisterRow {
   member_id: string;
@@ -310,7 +311,6 @@ export interface MonthlyJoiningRow {
   created_at: string;
 }
 
-// Aggregated monthly joining summary (computed client-side)
 export interface MonthlyJoiningSummary {
   join_month: string;
   join_month_label: string;
@@ -323,7 +323,6 @@ export interface MonthlyJoiningSummary {
   other_count: number;
 }
 
-// Aggregated revenue summary (computed client-side)
 export interface MonthlyRevenueSummary {
   revenue_month: string;
   revenue_month_label: string;
@@ -338,11 +337,12 @@ export interface ReportParams {
   branchId?: string | null;
   page?: number;
   pageSize?: number;
+  total?: number;
 }
 
 export interface AttendanceReportParams extends ReportParams {
-  dateFrom?: string; // YYYY-MM-DD
-  dateTo?: string;   // YYYY-MM-DD
+  dateFrom?: string;
+  dateTo?: string;
   memberId?: string;
 }
 
@@ -354,8 +354,8 @@ export interface PaymentReportParams extends ReportParams {
 }
 
 export interface RevenueReportParams extends ReportParams {
-  monthFrom?: string; // YYYY-MM
-  monthTo?: string;   // YYYY-MM
+  monthFrom?: string;
+  monthTo?: string;
 }
 
 export interface MembershipReportParams extends ReportParams {
@@ -367,12 +367,9 @@ export interface PendingPaymentParams extends ReportParams {
 }
 
 export interface MonthlyJoiningParams extends ReportParams {
-  monthFrom?: string; // YYYY-MM
-  monthTo?: string;   // YYYY-MM
+  monthFrom?: string;
+  monthTo?: string;
 }
-
-
-// â”€â”€â”€ Finance Module Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type FinEntryType = "debit" | "credit";
 export type FinTxnStatus = "draft" | "pending" | "posted" | "voided" | "reversed";
@@ -382,459 +379,38 @@ export type BankTxnType = "deposit" | "withdrawal" | "transfer" | "adjustment";
 export type ReceivableStatus = "pending" | "partial" | "paid" | "overdue" | "written_off";
 export type ReceivableType = "membership" | "pt" | "merchandise" | "other";
 
-export interface IncomeCategory {
-  id: string;
-  branch_id: string | null;
-  name: string;
-  code: string | null;
-  description: string | null;
-  is_system: boolean;
-  status: RecordStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ExpenseCategory {
-  id: string;
-  branch_id: string | null;
-  name: string;
-  code: string | null;
-  description: string | null;
-  is_system: boolean;
-  status: RecordStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Vendor {
-  id: string;
-  branch_id: string;
-  name: string;
-  contact_name: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  gstin: string | null;
-  pan: string | null;
-  bank_name: string | null;
-  bank_account_no: string | null;
-  bank_ifsc: string | null;
-  status: RecordStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ChartOfAccount {
-  id: string;
-  branch_id: string | null;
-  parent_id: string | null;
-  account_code: string;
-  account_name: string;
-  account_type: AccountType;
-  is_system: boolean;
-  is_leaf: boolean;
-  opening_balance: number;
-  description: string | null;
-  status: RecordStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Income {
-  id: string;
-  income_number: string;
-  branch_id: string;
-  category_id: string | null;
-  payment_id: string | null;
-  invoice_id: string | null;
-  member_id: string | null;
-  amount: number;
-  gst_amount: number;
-  total_amount: number;
-  payment_method: "cash" | "upi" | "card" | "online";
-  transaction_ref: string | null;
-  income_date: string;
-  description: string | null;
-  notes: string | null;
-  status: FinTxnStatus;
-  is_membership_income: boolean;
-  hsn_sac: string | null;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // joined
-  income_categories?: Pick<IncomeCategory, "id" | "name" | "code"> | null;
-  members?: { full_name: string; member_code: string } | null;
-}
-
-export interface Expense {
-  id: string;
-  expense_number: string;
-  branch_id: string;
-  category_id: string | null;
-  vendor_id: string | null;
-  amount: number;
-  gst_amount: number;
-  total_amount: number;
-  payment_method: "cash" | "upi" | "card" | "online";
-  bill_number: string | null;
-  expense_date: string;
-  description: string;
-  notes: string | null;
-  approval_status: ExpenseApprovalStatus;
-  approved_by: string | null;
-  approved_at: string | null;
-  rejection_reason: string | null;
-  is_recurring: boolean;
-  recurring_interval: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | null;
-  next_due_date: string | null;
-  status: FinTxnStatus;
-  hsn_sac: string | null;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // joined
-  expense_categories?: Pick<ExpenseCategory, "id" | "name" | "code"> | null;
-  vendors?: Pick<Vendor, "id" | "name"> | null;
-}
-
-export interface BankAccount {
-  id: string;
-  branch_id: string;
-  account_name: string;
-  bank_name: string;
-  account_number: string;
-  ifsc_code: string | null;
-  account_type: "savings" | "current" | "overdraft" | "cash";
-  opening_balance: number;
-  current_balance: number;
-  is_default: boolean;
-  status: RecordStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BankTransaction {
-  id: string;
-  branch_id: string;
-  bank_account_id: string;
-  txn_type: BankTxnType;
-  amount: number;
-  balance_after: number;
-  reference_no: string | null;
-  txn_date: string;
-  description: string;
-  linked_expense_id: string | null;
-  linked_income_id: string | null;
-  linked_payment_id: string | null;
-  is_reconciled: boolean;
-  reconciled_at: string | null;
-  reconciled_by: string | null;
-  status: FinTxnStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // joined
-  bank_accounts?: Pick<BankAccount, "id" | "account_name" | "bank_name"> | null;
-}
-
-export interface CashBookEntry {
-  id: string;
-  branch_id: string;
-  entry_date: string;
-  entry_type: FinEntryType;
-  amount: number;
-  balance_after: number;
-  description: string;
-  linked_expense_id: string | null;
-  linked_income_id: string | null;
-  linked_payment_id: string | null;
-  status: FinTxnStatus;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface JournalEntry {
-  id: string;
-  journal_number: string;
-  branch_id: string;
-  entry_date: string;
-  narration: string;
-  reference_type: string | null;
-  reference_id: string | null;
-  is_reversal: boolean;
-  reversed_entry_id: string | null;
-  status: FinTxnStatus;
-  total_debit: number;
-  total_credit: number;
-  created_by: string | null;
-  updated_by: string | null;
-  posted_by: string | null;
-  posted_at: string | null;
-  created_at: string;
-  updated_at: string;
-  // joined
-  journal_lines?: JournalLine[];
-}
-
-export interface JournalLine {
-  id: string;
-  journal_entry_id: string;
-  account_id: string;
-  entry_type: FinEntryType;
-  amount: number;
-  narration: string | null;
-  created_at: string;
-  // joined
-  chart_of_accounts?: Pick<ChartOfAccount, "id" | "account_code" | "account_name" | "account_type"> | null;
-}
-
-export interface LedgerEntry {
-  id: string;
-  branch_id: string;
-  account_id: string;
-  journal_entry_id: string | null;
-  journal_line_id: string | null;
-  entry_date: string;
-  entry_type: FinEntryType;
-  amount: number;
-  balance: number;
-  narration: string | null;
-  created_at: string;
-}
-
-export interface GstTransaction {
-  id: string;
-  branch_id: string;
-  txn_type: "sales" | "purchase";
-  reference_type: "income" | "expense" | "payment";
-  reference_id: string;
-  invoice_number: string | null;
-  party_name: string | null;
-  party_gstin: string | null;
-  taxable_amount: number;
-  cgst_rate: number;
-  sgst_rate: number;
-  igst_rate: number;
-  cgst_amount: number;
-  sgst_amount: number;
-  igst_amount: number;
-  total_tax: number;
-  hsn_sac: string | null;
-  txn_date: string;
-  status: FinTxnStatus;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Receivable {
-  id: string;
-  branch_id: string;
-  member_id: string | null;
-  invoice_id: string | null;
-  subscription_id: string | null;
-  receivable_type: ReceivableType;
-  original_amount: number;
-  paid_amount: number;
-  balance_amount: number;
-  due_date: string | null;
-  status: ReceivableStatus;
-  reminder_count: number;
-  last_reminder_at: string | null;
-  notes: string | null;
-  created_by: string | null;
-  updated_by: string | null;
-  created_at: string;
-  updated_at: string;
-  // joined
-  members?: { full_name: string; member_code: string; phone: string } | null;
-}
-
-export interface FinAttachment {
-  id: string;
-  branch_id: string;
-  entity_type: "expense" | "income" | "journal_entry" | "bank_transaction";
-  entity_id: string;
-  file_name: string;
-  file_url: string;
-  file_size: number | null;
-  mime_type: string | null;
-  uploaded_by: string | null;
-  created_at: string;
-}
-
-// â”€â”€â”€ Finance Dashboard KPIs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-export interface FinanceDashboardMetrics {
-  todayCollection: number;
-  monthlyCollection: number;
-  totalRevenue: number;
-  totalExpenses: number;
-  netProfit: number;
-  cashInHand: number;
-  bankBalance: number;
-  outstandingReceivables: number;
-  activeMembers: number;
-  membershipsRenewingDue: number;
-  collectionEfficiency: number;
-  avgRevenuePerMember: number;
-}
-
-export interface OutstandingReceivablesSummary {
-  overdueCount: number;
-  overdueAmount: number;
-  pendingCount: number;
-  pendingAmount: number;
-  totalOutstanding: number;
-}
-
+export interface IncomeCategory { id: string; branch_id: string | null; name: string; code: string | null; description: string | null; is_system: boolean; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
+export interface ExpenseCategory { id: string; branch_id: string | null; name: string; code: string | null; description: string | null; is_system: boolean; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
+export interface Vendor { id: string; branch_id: string; name: string; contact_name: string | null; phone: string | null; email: string | null; address: string | null; gstin: string | null; pan: string | null; bank_name: string | null; bank_account_no: string | null; bank_ifsc: string | null; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
+export interface ChartOfAccount { id: string; branch_id: string | null; parent_id: string | null; account_code: string; account_name: string; account_type: AccountType; is_system: boolean; is_leaf: boolean; opening_balance: number; description: string | null; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
+export interface Income { id: string; income_number: string; branch_id: string; category_id: string | null; payment_id: string | null; invoice_id: string | null; member_id: string | null; amount: number; gst_amount: number; total_amount: number; payment_method: "cash" | "upi" | "card" | "online"; transaction_ref: string | null; income_date: string; description: string | null; notes: string | null; status: FinTxnStatus; is_membership_income: boolean; hsn_sac: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; income_categories?: Pick<IncomeCategory, "id" | "name" | "code"> | null; members?: { full_name: string; member_code: string } | null; }
+export interface Expense { id: string; expense_number: string; branch_id: string; category_id: string | null; vendor_id: string | null; amount: number; gst_amount: number; total_amount: number; payment_method: "cash" | "upi" | "card" | "online"; bill_number: string | null; expense_date: string; description: string; notes: string | null; approval_status: ExpenseApprovalStatus; approved_by: string | null; approved_at: string | null; rejection_reason: string | null; is_recurring: boolean; recurring_interval: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | null; next_due_date: string | null; status: FinTxnStatus; hsn_sac: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; expense_categories?: Pick<ExpenseCategory, "id" | "name"> | null; vendors?: Pick<Vendor, "id" | "name"> | null; }
+export interface BankAccount { id: string; branch_id: string; account_name: string; bank_name: string; account_number: string; ifsc_code: string | null; account_type: "savings" | "current" | "overdraft" | "cash"; opening_balance: number; current_balance: number; is_default: boolean; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
+export interface BankTransaction { id: string; branch_id: string; bank_account_id: string; txn_type: BankTxnType; amount: number; balance_after: number; reference_no: string | null; txn_date: string; description: string; linked_expense_id: string | null; linked_income_id: string | null; linked_payment_id: string | null; is_reconciled: boolean; reconciled_at: string | null; reconciled_by: string | null; status: FinTxnStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; bank_accounts?: Pick<BankAccount, "id" | "account_name" | "bank_name"> | null; }
+export interface CashBookEntry { id: string; branch_id: string; entry_date: string; entry_type: FinEntryType; amount: number; balance_after: number; description: string; linked_expense_id: string | null; linked_income_id: string | null; linked_payment_id: string | null; status: FinTxnStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
+export interface JournalEntry { id: string; journal_number: string; branch_id: string; entry_date: string; narration: string; reference_type: string | null; reference_id: string | null; is_reversal: boolean; reversed_entry_id: string | null; status: FinTxnStatus; total_debit: number; total_credit: number; created_by: string | null; updated_by: string | null; posted_by: string | null; posted_at: string | null; created_at: string; updated_at: string; journal_lines?: JournalLine[]; }
+export interface JournalLine { id: string; journal_entry_id: string; account_id: string; entry_type: FinEntryType; amount: number; narration: string | null; created_at: string; chart_of_accounts?: Pick<ChartOfAccount, "id" | "account_code" | "account_name" | "account_type"> | null; }
+export interface LedgerEntry { id: string; branch_id: string; account_id: string; journal_entry_id: string | null; journal_line_id: string | null; entry_date: string; entry_type: FinEntryType; amount: number; balance: number; narration: string | null; created_at: string; }
+export interface GstTransaction { id: string; branch_id: string; txn_type: "sales" | "purchase"; reference_type: "income" | "expense" | "payment"; reference_id: string; invoice_number: string | null; party_name: string | null; party_gstin: string | null; taxable_amount: number; cgst_rate: number; sgst_rate: number; igst_rate: number; cgst_amount: number; sgst_amount: number; igst_amount: number; total_tax: number; hsn_sac: string | null; txn_date: string; status: FinTxnStatus; created_by: string | null; created_at: string; updated_at: string; }
+export interface Receivable { id: string; branch_id: string; member_id: string | null; invoice_id: string | null; subscription_id: string | null; receivable_type: ReceivableType; original_amount: number; paid_amount: number; balance_amount: number; due_date: string | null; status: ReceivableStatus; reminder_count: number; last_reminder_at: string | null; notes: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; members?: { full_name: string; member_code: string; phone: string } | null; }
+export interface FinAttachment { id: string; branch_id: string; entity_type: "expense" | "income" | "journal_entry" | "bank_transaction"; entity_id: string; file_name: string; file_url: string; file_size: number | null; mime_type: string | null; uploaded_by: string | null; created_at: string; }
+export interface FinanceDashboardMetrics { todayCollection: number; monthlyCollection: number; totalRevenue: number; totalExpenses: number; netProfit: number; cashInHand: number; bankBalance: number; outstandingReceivables: number; activeMembers: number; membershipsRenewingDue: number; collectionEfficiency: number; avgRevenuePerMember: number; }
+export interface OutstandingReceivablesSummary { overdueCount: number; overdueAmount: number; pendingCount: number; pendingAmount: number; totalOutstanding: number; }
 export interface FinanceRevenuePoint { date: string; income: number; expense: number; profit: number; }
 export interface FinancePaymentModePoint { mode: string; amount: number; count: number; }
 export interface FinanceReceivableAgingPoint { bucket: string; amount: number; count: number; }
-
-// â”€â”€â”€ Finance Query Params â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-export interface FinanceParams extends ReportParams {
-  dateFrom?: string;
-  dateTo?: string;
-  status?: string;
-}
-
-export interface ExpenseParams extends FinanceParams {
-  categoryId?: string;
-  vendorId?: string;
-  approvalStatus?: ExpenseApprovalStatus | "all";
-}
-
-export interface IncomeParams extends FinanceParams {
-  categoryId?: string;
-  memberId?: string;
-  isMembershipIncome?: boolean;
-}
-
-export interface ReceivableParams extends FinanceParams {
-  receivableType?: ReceivableType | "all";
-  memberId?: string;
-}
-
-export interface LedgerParams extends FinanceParams {
-  accountId?: string;
-}
-
-export interface GstParams extends FinanceParams {
-  txnType?: "sales" | "purchase" | "all";
-}
-export interface ReportsFilterState {
-  datePreset?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  branchId?: string | null;
-  paymentMode?: string;
-  membershipPlanId?: string;
-  trainerId?: string;
-  incomeCategoryId?: string;
-  expenseCategoryId?: string;
-  memberId?: string;
-  status?: string;
-}
-
-export interface ReportsFilterOption {
-  label: string;
-  value: string;
-}
-
-export interface ReportKpi {
-  label: string;
-  value: number;
-  detail?: string;
-}
-
-export interface ReportTrendPoint {
-  label: string;
-  revenue: number;
-  expenses: number;
-  profit: number;
-}
-
-export interface ReportPaymentModePoint {
-  mode: string;
-  amount: number;
-  count: number;
-}
-
-export interface ReportOutstandingBucket {
-  bucket: string;
-  amount: number;
-  count: number;
-}
-
-export interface ReportOverviewTableRow {
-  id: string;
-  date: string;
-  memberName: string | null;
-  branchName: string | null;
-  category: string;
-  type: "income" | "expense" | "receivable";
-  amount: number;
-  status: string;
-  reference: string | null;
-}
-
-export interface ReportsRealtimeStatus {
-  enabled: boolean;
-  status: "live" | "fallback";
-  subscribedTables: string[];
-}
-
-export interface ReportsOverviewResponse {
-  filters: {
-    applied: Required<Pick<ReportsFilterState, "datePreset" | "dateFrom" | "dateTo">> & ReportsFilterState;
-    options: {
-      branches: ReportsFilterOption[];
-      paymentModes: ReportsFilterOption[];
-      membershipPlans: ReportsFilterOption[];
-      trainers: ReportsFilterOption[];
-      incomeCategories: ReportsFilterOption[];
-      expenseCategories: ReportsFilterOption[];
-    };
-  };
-  generatedAt: string;
-  realtime: ReportsRealtimeStatus;
-  summary: {
-    totalRevenue: number;
-    totalExpenses: number;
-    netProfit: number;
-    outstanding: number;
-    todayCollection: number;
-    monthlyCollection: number;
-    activeMembers: number;
-    newMembers: number;
-    renewals: number;
-    attendance: number;
-    averageRevenuePerMember: number;
-    collectionEfficiency: number;
-    profitMargin: number;
-  };
-  chartData: {
-    monthlyTrend: ReportTrendPoint[];
-    paymentModes: ReportPaymentModePoint[];
-    outstandingAging: ReportOutstandingBucket[];
-  };
-  tableData: ReportOverviewTableRow[];
-}
+export interface FinanceParams extends ReportParams { dateFrom?: string; dateTo?: string; status?: string; }
+export interface ExpenseParams extends FinanceParams { categoryId?: string; vendorId?: string; approvalStatus?: ExpenseApprovalStatus | "all"; }
+export interface IncomeParams extends FinanceParams { categoryId?: string; memberId?: string; isMembershipIncome?: boolean; }
+export interface ReceivableParams extends FinanceParams { receivableType?: ReceivableType | "all"; memberId?: string; }
+export interface LedgerParams extends FinanceParams { accountId?: string; }
+export interface GstParams extends FinanceParams { txnType?: "sales" | "purchase" | "all"; }
+export interface ReportsFilterState { datePreset?: string; dateFrom?: string; dateTo?: string; branchId?: string | null; paymentMode?: string; membershipPlanId?: string; trainerId?: string; incomeCategoryId?: string; expenseCategoryId?: string; memberId?: string; status?: string; }
+export interface ReportsFilterOption { label: string; value: string; }
+export interface ReportKpi { label: string; value: number; detail?: string; }
+export interface ReportTrendPoint { label: string; revenue: number; expenses: number; profit: number; }
+export interface ReportPaymentModePoint { mode: string; amount: number; count: number; }
+export interface ReportOutstandingBucket { bucket: string; amount: number; count: number; }
+export interface ReportOverviewTableRow { id: string; date: string; memberName: string | null; branchName: string | null; category: string; type: "income" | "expense" | "receivable"; amount: number; status: string; reference: string | null; }
+export interface ReportsRealtimeStatus { enabled: boolean; status: "live" | "fallback"; subscribedTables: string[]; }
+export interface ReportsOverviewResponse { filters: { applied: Required<Pick<ReportsFilterState, "datePreset" | "dateFrom" | "dateTo">> & ReportsFilterState; options: { branches: ReportsFilterOption[]; paymentModes: ReportsFilterOption[]; membershipPlans: ReportsFilterOption[]; trainers: ReportsFilterOption[]; incomeCategories: ReportsFilterOption[]; expenseCategories: ReportsFilterOption[]; }; }; generatedAt: string; realtime: ReportsRealtimeStatus; summary: { totalRevenue: number; totalExpenses: number; netProfit: number; outstanding: number; todayCollection: number; monthlyCollection: number; activeMembers: number; newMembers: number; renewals: number; attendance: number; averageRevenuePerMember: number; collectionEfficiency: number; profitMargin: number; }; chartData: { monthlyTrend: ReportTrendPoint[]; paymentModes: ReportPaymentModePoint[]; outstandingAging: ReportOutstandingBucket[]; }; tableData: ReportOverviewTableRow[]; }

@@ -1,22 +1,20 @@
 /**
- * Portal definitions â€” single source of truth for:
+ * Portal definitions - single source of truth for:
  *  - which role maps to which portal
  *  - the default dashboard path per portal
  *  - the base path prefix used in middleware
- *
- * Never import from components or Next.js here â€” this file is used in
- * middleware (Edge runtime) as well as server components.
  */
 
 import type { UserRole } from "@/types";
 
 export const PORTAL_BASE: Record<UserRole, string> = {
   super_admin: "/superadmin",
+  owner: "/admin",
   admin: "/admin",
-  manager: "/admin",       // manager shares the admin portal
+  manager: "/admin",
   reception: "/reception",
   trainer: "/trainer",
-  dietician: "/trainer",   // dietician shares the trainer portal
+  dietician: "/trainer",
   "diet-planner": "/trainer",
   diet_planner: "/trainer",
   member: "/member",
@@ -24,6 +22,7 @@ export const PORTAL_BASE: Record<UserRole, string> = {
 
 export const PORTAL_DASHBOARD: Record<UserRole, string> = {
   super_admin: "/superadmin/dashboard",
+  owner: "/admin/dashboard",
   admin: "/admin/dashboard",
   manager: "/admin/dashboard",
   reception: "/reception/dashboard",
@@ -34,13 +33,11 @@ export const PORTAL_DASHBOARD: Record<UserRole, string> = {
   member: "/member/dashboard",
 };
 
-/** All authenticated portal prefixes â€” used in middleware to guard routes */
 export const PROTECTED_PREFIXES = ["/superadmin", "/admin", "/reception", "/trainer", "/member"];
 
-/** Roles allowed in each portal */
 export const PORTAL_ROLES: Record<string, UserRole[]> = {
   "/superadmin": ["super_admin"],
-  "/admin": ["admin", "manager"],
+  "/admin": ["owner", "admin", "manager"],
   "/reception": ["reception"],
   "/trainer": ["trainer", "dietician", "diet-planner", "diet_planner"],
   "/member": ["member"],

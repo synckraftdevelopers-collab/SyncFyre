@@ -18,7 +18,7 @@ export default async function SuperAdminUsersPage() {
   const admin = createAdminClient();
   const { data: users, error } = await admin
     .from("users")
-    .select("id, full_name, email, status, created_at, role:roles(name, slug)")
+    .select("id, full_name, email, phone, status, created_at, tenant_id, role:roles(name, slug)")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -31,12 +31,12 @@ export default async function SuperAdminUsersPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold">All Users</h1>
-          <p className="text-sm text-muted-foreground">Platform accounts and their access roles.</p>
+          <p className="text-sm text-muted-foreground">Platform accounts, owner provisioning, and cross-tenant role visibility.</p>
         </div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Create organization administrator</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Create gym owner</CardTitle></CardHeader>
         <CardContent><CreateGymAdminForm /></CardContent>
       </Card>
 
@@ -47,12 +47,13 @@ export default async function SuperAdminUsersPage() {
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {users?.length ? (
-            <table className="w-full min-w-[700px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">User</th>
                   <th className="px-4 py-3 font-medium">Role</th>
                   <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Scope</th>
                   <th className="px-4 py-3 font-medium">Created</th>
                 </tr>
               </thead>
@@ -64,9 +65,11 @@ export default async function SuperAdminUsersPage() {
                       <td className="px-4 py-3">
                         <p className="font-medium">{user.full_name || "Unnamed user"}</p>
                         <p className="text-xs text-muted-foreground">{user.email || "No email"}</p>
+                        <p className="text-xs text-muted-foreground">{user.phone || "No mobile"}</p>
                       </td>
                       <td className="px-4 py-3"><Badge variant="outline">{role?.name || role?.slug || "Unassigned"}</Badge></td>
                       <td className="px-4 py-3"><Badge variant={user.status === "active" ? "success" : "outline"}>{user.status}</Badge></td>
+                      <td className="px-4 py-3 text-muted-foreground">{user.tenant_id ? "Tenant user" : "Platform user"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{new Date(user.created_at).toLocaleDateString("en-IN")}</td>
                     </tr>
                   );
