@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState } from "react";
 import { LoaderCircle, Mail, ShieldCheck } from "lucide-react";
@@ -21,7 +21,7 @@ function Feedback({ state }: { state: AccountSettingsState }) {
 }
 
 export function AccountSecurityCard({ email }: { email: string | null }) {
-  const [emailState, emailAction, emailPending] = useActionState(updateOwnEmailAction, initialState);
+  const [emailState, emailAction] = useActionState(updateOwnEmailAction, initialState);
   const [passwordState, passwordAction, passwordPending] = useActionState(updateOwnPasswordAction, initialState);
 
   return (
@@ -56,12 +56,6 @@ export function AccountSecurityCard({ email }: { email: string | null }) {
             </label>
             <div className="md:col-span-2">
               <Feedback state={emailState} />
-            </div>
-            <div className="md:col-span-2 flex justify-end">
-              <Button disabled={emailPending}>
-                {emailPending ? <LoaderCircle className="size-4 animate-spin" /> : null}
-                Send verification
-              </Button>
             </div>
           </form>
         </section>

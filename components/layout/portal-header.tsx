@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { Bell, ChevronDown, Menu, Search, Settings, User, LogOut } from "lucide-react";
 import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -7,7 +7,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { logoutAction } from "@/app/(auth)/actions";
-import { useId, useRef } from "react";
+import { useCallback, useId, useRef } from "react";
+import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
 
 export function PortalHeader({
   name,
@@ -19,6 +20,8 @@ export function PortalHeader({
   notificationsHref = "/admin/notifications",
   searchAction = "/admin/members",
   searchPlaceholder = "Search members...",
+  tenantTimezone,
+  branchTimezone,
 }: {
   name: string;
   role: string;
@@ -29,9 +32,23 @@ export function PortalHeader({
   notificationsHref?: string;
   searchAction?: string;
   searchPlaceholder?: string;
+  tenantTimezone?: string | null;
+  branchTimezone?: string | null;
 }) {
   const triggerId = useId();
   const menuLogoutFormRef = useRef<HTMLFormElement>(null);
+
+  const handlePeriodBoundary = useCallback(async (input: { period: string; localDate: string; timeZone: string }) => {
+    try {
+      await fetch("/api/notifications/time-period", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+    } catch (error) {
+      console.warn("[notifications] unable to queue time-period notification", error);
+    }
+  }, []);
 
   return (
     <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
@@ -39,12 +56,19 @@ export function PortalHeader({
         <Menu className="size-5" />
       </Button>
 
-      <span className="truncate font-bold text-base tracking-tight lg:hidden">SyncFyre</span>
+      <span className="hidden truncate font-bold text-base tracking-tight sm:block lg:hidden">SyncFyre</span>
 
       <form action={searchAction} className="relative hidden min-w-0 max-w-lg flex-1 md:block">
         <Search className="absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input name="q" className="h-11 rounded-xl border-0 bg-muted/75 pl-11 shadow-none focus-visible:ring-1" placeholder={searchPlaceholder} />
       </form>
+
+      <RealtimeGreetingClock
+        name={name}
+        tenantTimezone={tenantTimezone}
+        branchTimezone={branchTimezone}
+        onPeriodBoundary={handlePeriodBoundary}
+      />
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <Button variant="ghost" size="icon" aria-label="Search" className="md:hidden">
@@ -68,7 +92,12 @@ export function PortalHeader({
 
         <Link href={notificationsHref} className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")} aria-label="Notifications">
           <Bell className="size-5" />
-          {unreadCount > 0 && <span className="absolute right-2 top-2 size-2 rounded-full bg-primary ring-2 ring-background" />}
+          {unreadCount > 0 ? (
+            <>
+              <span className="absolute right-2 top-2 size-2 rounded-full bg-primary ring-2 ring-background" />
+              <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{unreadCount > 99 ? "99+" : unreadCount}</span>
+            </>
+          ) : null}
         </Link>
 
         <DropdownMenu.Root>

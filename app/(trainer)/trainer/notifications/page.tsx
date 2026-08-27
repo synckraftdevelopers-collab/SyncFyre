@@ -1,2 +1,18 @@
-import { Bell } from "lucide-react"; import { Badge } from "@/components/ui/badge"; import { Card, CardContent } from "@/components/ui/card"; import { requireUser } from "@/lib/auth"; import { createClient } from "@/lib/supabase/server"; import { markNotificationReadAction } from "@/app/actions/notification-actions"; import { buttonVariants } from "@/components/ui/button";
-export default async function TrainerNotificationsPage(){const profile=await requireUser(["trainer", "dietician", "diet-planner", "diet_planner"]);const sb=await createClient();const {data,error}=await sb.from("notifications").select("*").or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id??""}`).order("created_at",{ascending:false}).limit(50);if(error)throw new Error(error.message);const rows=data??[];return <div className="space-y-5"><div><h1 className="text-2xl font-bold">Notifications</h1><p className="text-sm text-muted-foreground">Your personal trainer notifications.</p></div><Card>{rows.length?<div className="divide-y">{rows.map(n=><div key={n.id} className="flex gap-3 p-4"><Bell className="mt-1 size-4"/><div className="flex-1"><p className={!n.read_at?"font-bold":"font-medium"}>{n.title}</p><Badge variant="outline">{n.type}</Badge><p className="mt-1 text-sm text-muted-foreground">{n.message}</p></div>{!n.read_at&&<form action={markNotificationReadAction.bind(null,n.id)}><button className={buttonVariants({variant:"outline",size:"sm"})}>Mark read</button></form>}</div>)}</div>:<CardContent className="py-12 text-center text-sm text-muted-foreground">No notifications.</CardContent>}</Card></div>}
+import { Bell } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { NotificationAutoRefresh } from "@/components/notifications/notification-auto-refresh";
+import { requireUser } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { markNotificationReadAction } from "@/app/actions/notification-actions";
+import { buttonVariants } from "@/components/ui/button";
+
+export default async function TrainerNotificationsPage() {
+  const profile = await requireUser(["trainer", "dietician", "diet-planner", "diet_planner"]);
+  const sb = await createClient();
+  const { data, error } = await sb.from("notifications").select("*").or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id ?? ""}`).order("created_at", { ascending: false }).limit(50);
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  return <div className="space-y-5"><NotificationAutoRefresh /><div><h1 className="text-2xl font-bold">Notifications</h1><p className="text-sm text-muted-foreground">Your personal trainer notifications.</p></div><Card>{rows.length ? <div className="divide-y">{rows.map((n) => <div key={n.id} className="flex gap-3 p-4"><Bell className="mt-1 size-4" /><div className="flex-1"><p className={!n.read_at ? "font-bold" : "font-medium"}>{n.title}</p><Badge variant="outline">{n.type}</Badge><p className="mt-1 text-sm text-muted-foreground">{n.message}</p></div>{!n.read_at && <form action={markNotificationReadAction.bind(null, n.id)}><button className={buttonVariants({ variant: "outline", size: "sm" })}>Mark read</button></form>}</div>)}</div> : <CardContent className="py-12 text-center text-sm text-muted-foreground">No notifications.</CardContent>}</Card></div>;
+}

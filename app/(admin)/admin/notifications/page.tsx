@@ -1,10 +1,11 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Bell, Plus } from "lucide-react";
 import { differenceInCalendarDays, parseISO } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareActions } from "@/components/notifications/share-actions";
+import { NotificationAutoRefresh } from "@/components/notifications/notification-auto-refresh";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency } from "@/lib/utils";
@@ -40,7 +41,7 @@ type PendingPaymentRow = {
 function sectionKeyForNotification(item: NotificationRow) {
   if (item.type === "membership_expired") return "expired";
   if (item.type === "membership_expiry_reminder") {
-    const days = Number(item.metadata?.remaining_days ?? NaN);
+    const days = Number(item.metadata?.remaining_days ?? Number.NaN);
     if (days === 14 || days === 15) return "expiring-two-weeks";
     if (days >= 0 && days < 14) return "expiring-soon";
   }
@@ -49,7 +50,7 @@ function sectionKeyForNotification(item: NotificationRow) {
 
 function buildNotificationMessage(item: NotificationRow) {
   const memberName = item.members?.full_name ?? "Member";
-  const days = Number(item.metadata?.remaining_days ?? NaN);
+  const days = Number(item.metadata?.remaining_days ?? Number.NaN);
   if (item.type === "membership_expired") {
     return `Hello ${memberName}, your gym plan has expired. Please renew your membership to continue your access.`;
   }
@@ -86,10 +87,10 @@ function NotificationList({ notifications }: { notifications: NotificationRow[] 
                 <p className="mt-1 text-sm text-muted-foreground">{item.message}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Member: {memberName}
-                  {memberPhone ? ` · ${memberPhone}` : ""}
+                  {memberPhone ? ` | ${memberPhone}` : ""}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Channels: {(item.channels ?? []).join(", ") || "—"} · Scheduled: {item.scheduled_for ? new Date(item.scheduled_for).toLocaleString("en-IN") : "—"} · Sent: {item.sent_at ? new Date(item.sent_at).toLocaleString("en-IN") : "Not sent"}
+                  Channels: {(item.channels ?? []).join(", ") || "-"} | Scheduled: {item.scheduled_for ? new Date(item.scheduled_for).toLocaleString("en-IN") : "-"} | Sent: {item.sent_at ? new Date(item.sent_at).toLocaleString("en-IN") : "Not sent"}
                 </p>
               </div>
               {!item.read_at && (
@@ -133,9 +134,9 @@ function PendingPaymentList({ rows }: { rows: PendingPaymentRow[] }) {
                   {item.reference ? ` for ${item.reference}` : ""}.
                 </p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Due: {item.due_date ?? "—"}
-                  {daysLeft !== null ? ` · ${daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}` : ""}
-                  {memberPhone ? ` · ${memberPhone}` : ""}
+                  Due: {item.due_date ?? "-"}
+                  {daysLeft !== null ? ` | ${daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}` : ""}
+                  {memberPhone ? ` | ${memberPhone}` : ""}
                 </p>
               </div>
             </div>
@@ -210,6 +211,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
 
   return (
     <div className="space-y-5">
+      <NotificationAutoRefresh />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div>
           <div className="flex items-center gap-2">

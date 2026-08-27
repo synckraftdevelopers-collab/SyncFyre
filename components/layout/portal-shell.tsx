@@ -1,9 +1,12 @@
 "use client";
+
 import { useState, useCallback } from "react";
 import { PortalHeader } from "@/components/layout/portal-header";
 import { PortalSidebar } from "@/components/layout/portal-sidebar";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+import { NotificationProvider, useNotifications } from "@/components/notifications/notification-provider";
 import type { PortalKey } from "@/lib/nav";
+import type { UserRole } from "@/types";
 
 export type { PortalKey };
 
@@ -28,13 +31,15 @@ const profileHrefByPortal: Record<PortalKey, string> = {
   member: "/member/profile",
 };
 
-export function PortalShell({
+function PortalShellFrame({
   children,
   name,
   role,
   portal,
   settingsHref,
   notificationsHref,
+  tenantTimezone,
+  branchTimezone,
 }: {
   children: React.ReactNode;
   name: string;
@@ -42,9 +47,12 @@ export function PortalShell({
   portal: PortalKey;
   settingsHref?: string;
   notificationsHref?: string;
+  tenantTimezone?: string | null;
+  branchTimezone?: string | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopExpanded, setDesktopExpanded] = useState(false);
+  const { unreadCount } = useNotifications();
 
   const handleMenu = useCallback(() => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -67,10 +75,62 @@ export function PortalShell({
           notificationsHref={notificationsHref}
           searchAction={searchActionByPortal[portal]}
           searchPlaceholder={searchPlaceholderByPortal[portal]}
+          unreadCount={unreadCount}
+          tenantTimezone={tenantTimezone}
+          branchTimezone={branchTimezone}
         />
         <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
         <MobileBottomNav portal={portal} onMore={handleMenu} />
       </div>
     </div>
+  );
+}
+
+export function PortalShell({
+  children,
+  name,
+  role,
+  portal,
+  settingsHref,
+  notificationsHref,
+  initialUnreadCount,
+  userId,
+  branchId,
+  tenantId,
+  tenantTimezone,
+  branchTimezone,
+  userRole,
+}: {
+  children: React.ReactNode;
+  name: string;
+  role: string;
+  portal: PortalKey;
+  settingsHref?: string;
+  notificationsHref?: string;
+  initialUnreadCount: number;
+  userId: string;
+  branchId?: string | null;
+  tenantId?: string | null;
+  tenantTimezone?: string | null;
+  branchTimezone?: string | null;
+  userRole?: UserRole | null;
+}) {
+  return (
+    <NotificationProvider
+      initialUnreadCount={initialUnreadCount}
+      scope={{ userId, branchId, tenantId, role: userRole }}
+    >
+      <PortalShellFrame
+        name={name}
+        role={role}
+        portal={portal}
+        settingsHref={settingsHref}
+        notificationsHref={notificationsHref}
+        tenantTimezone={tenantTimezone}
+        branchTimezone={branchTimezone}
+      >
+        {children}
+      </PortalShellFrame>
+    </NotificationProvider>
   );
 }

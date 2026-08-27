@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -11,6 +11,22 @@ export type AccountSettingsState = {
 };
 
 const ALLOWED_ROLES = ["owner", "admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"] as const;
+
+function deriveNameFromEmail(email: string) {
+  const localPart = email.split("@")[0] ?? "";
+  const normalized = localPart
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return "User";
+
+  return normalized
+    .split(" ")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+}
 
 async function verifyCurrentPassword(email: string, currentPassword: string) {
   const supabase = await createClient();
@@ -61,24 +77,40 @@ export async function updateOwnEmailAction(_: AccountSettingsState, formData: Fo
   const verified = await verifyCurrentPassword(profile.email, currentPassword);
   if (!verified.ok) return { error: verified.message, fieldErrors: { current_password: verified.message } };
 
+  const nextFullName = deriveNameFromEmail(newEmail);
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const { error } = await verified.supabase.auth.updateUser(
-    { email: newEmail },
+    { email: newEmail, data: { full_name: nextFullName } },
     { emailRedirectTo: `${origin}/auth/callback?next=/admin/settings?tab=profile` },
   );
 
   if (error) return { error: error.message };
+
+  const { error: profileError } = await verified.supabase
+    .from("users")
+    .update({ full_name: nextFullName })
+    .eq("id", profile.id);
+
+  if (profileError) return { error: profileError.message };
 
   await logAccountSecurityEvent({
     userId: profile.id,
     branchId: profile.branch_id,
     action: "account_email_change_requested",
     description: "Account email change requested",
-    changes: { previous_email: profile.email, requested_email: newEmail },
+    changes: {
+      previous_email: profile.email,
+      requested_email: newEmail,
+      previous_full_name: profile.full_name,
+      requested_full_name: nextFullName,
+    },
   });
 
   revalidatePath("/admin/settings");
-  return { success: `Verification sent to ${newEmail}. Confirm the new email to complete the update.` };
+  revalidatePath("/reception/settings");
+  revalidatePath("/trainer/settings");
+  revalidatePath("/member/profile");
+  return { success: `Verification sent to ${newEmail}. Display name updated to ${nextFullName}.` };
 }
 
 export async function updateOwnPasswordAction(_: AccountSettingsState, formData: FormData): Promise<AccountSettingsState> {

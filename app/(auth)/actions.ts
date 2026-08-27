@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from "@/lib/validations/auth";
 import { PORTAL_DASHBOARD } from "@/lib/portals";
@@ -38,23 +39,32 @@ export async function registerAction(_: AuthState, formData: FormData): Promise<
     if (!parsed.success) return { error: parsed.error.errors[0]?.message ?? "Enter valid registration details." };
 
     const supabase = await createClient();
-    const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const email = parsed.data.email.toLowerCase();
 
     const { data: existingUser } = await supabase.from("users").select("id").eq("email", email).maybeSingle();
     if (existingUser) return { error: "An account with this email already exists." };
 
-    const { error } = await supabase.auth.signUp({
+    const admin = createAdminClient();
+    const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
       email,
       password: parsed.data.password,
-      options: {
-        emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,
-        data: { full_name: parsed.data.full_name, phone: parsed.data.phone || null },
-      },
+      email_confirm: true,
+      user_metadata: { full_name: parsed.data.full_name, phone: parsed.data.phone || null },
     });
 
-    if (error) return { error: error.message };
-    return { success: "Check your email to verify your account and continue setting up your gym." };
+    if (createError || !createdUser.user) return { error: createError?.message ?? "Unable to create your account." };
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: parsed.data.password,
+    });
+
+    if (signInError) {
+      await admin.auth.admin.deleteUser(createdUser.user.id);
+      return { error: signInError.message };
+    }
+
+    return { success: "Account created. Redirecting to gym setup.", redirectTo: "/onboarding" };
   } catch (err) {
     console.error("[registerAction]", err);
     return { error: "Something went wrong. Please try again." };

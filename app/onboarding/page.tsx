@@ -52,7 +52,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   if (profile.role?.slug === "owner" && tenant?.onboarding_completed_at) redirect("/admin/dashboard");
 
   return <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-    <div className="space-y-2"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">SyncTyre onboarding</p><h1 className="text-3xl font-bold tracking-tight">Set up your gym</h1><p className="text-sm text-muted-foreground">Registration is complete. Verify your account, create your organization, and finish the remaining setup at your own pace.</p></div>
+    <div className="space-y-2"><p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary">SyncTyre onboarding</p><h1 className="text-3xl font-bold tracking-tight">Set up your gym</h1><p className="text-sm text-muted-foreground">Registration is complete. Create your organization and finish the remaining setup at your own pace.</p></div>
     {message ? <div className={`rounded-xl p-4 text-sm ${isError ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{message}</div> : null}
     {schemaMissing ? <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Owner onboarding requires the latest Supabase migrations. Apply `supabase/migrations/0017_owner_registration_onboarding.sql` and newer, then reload this page.</div> : null}
 

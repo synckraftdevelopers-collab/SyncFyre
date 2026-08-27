@@ -1,6 +1,7 @@
 import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { NotificationAutoRefresh } from "@/components/notifications/notification-auto-refresh";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { markNotificationReadAction } from "@/app/actions/notification-actions";
@@ -20,6 +21,7 @@ export default async function MemberNotificationsPage() {
 
   return (
     <div className="space-y-5">
+      <NotificationAutoRefresh />
       <div>
         <h1 className="text-2xl font-bold">Notifications</h1>
         <p className="text-sm text-muted-foreground">Updates related to your membership, attendance, and payments.</p>
