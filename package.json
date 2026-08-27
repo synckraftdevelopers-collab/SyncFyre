@@ -3,7 +3,9 @@
     "version": "1.0.0",
     "private": true,
     "scripts": {
+        "predev": "node scripts/setup-next-dir.mjs",
         "dev": "next dev --turbopack",
+        "prebuild": "node scripts/setup-next-dir.mjs",
         "build": "next build",
         "start": "next start",
         "lint": "eslint .",
