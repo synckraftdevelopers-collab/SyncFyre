@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { deleteMemberAction } from "@/app/actions/member-actions";
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,13 @@ import {
 export function DeleteMemberDialog({
   memberId,
   memberName,
+  redirectTo,
 }: {
   memberId: string;
   memberName: string;
+  redirectTo?: string;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -29,9 +33,12 @@ export function DeleteMemberDialog({
       const result = await deleteMemberAction(memberId);
       if (result?.error) {
         toast.error(result.error);
-        setOpen(false);
+        return;
       }
-      // On success, deleteMemberAction redirects — no further handling needed.
+      setOpen(false);
+      toast.success(`${memberName} was removed from the active member register.`);
+      if (redirectTo) router.replace(redirectTo);
+      else router.refresh();
     });
   }
 
@@ -45,10 +52,10 @@ export function DeleteMemberDialog({
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Delete member?</DialogTitle>
+          <DialogTitle>Remove member?</DialogTitle>
           <DialogDescription>
-            This will permanently remove <strong>{memberName}</strong> and all associated records.
-            This action cannot be undone.
+            <strong>{memberName}</strong> will be removed from the active member register. Their historical records are retained for audit.
+            An authorized edit is required to restore the member.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-4">

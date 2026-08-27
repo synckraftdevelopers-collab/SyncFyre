@@ -40,6 +40,13 @@ export async function assignMachineUserIdToMember(input: {
     throw new Error("Machine User ID is required.");
   }
 
+  const { data: conflictingMember, error: memberLookupError } = await supabase.from("members").select("id,full_name,member_code").eq("machine_user_id", machineUserId).neq("id", input.memberId).maybeSingle();
+  if (memberLookupError) throw new Error(memberLookupError.message);
+  if (conflictingMember) throw new Error("This Machine User ID is already assigned to " + conflictingMember.full_name + " (" + conflictingMember.member_code + ").");
+  const { data: conflictingMapping, error: mappingLookupError } = await supabase.from("biometric_member_mapping").select("member_id,members!inner(full_name,member_code)").eq("machine_user_id", machineUserId).neq("member_id", input.memberId).maybeSingle();
+  if (mappingLookupError) throw new Error(mappingLookupError.message);
+  if (conflictingMapping) { const member = Array.isArray(conflictingMapping.members) ? conflictingMapping.members[0] : conflictingMapping.members; throw new Error("This Machine User ID is already assigned to " + (member?.full_name ?? "another member") + (member?.member_code ? " (" + member.member_code + ")." : ".")); }
+
   const { data, error } = await supabase.rpc("assign_biometric_mapping", {
     p_member_id: input.memberId,
     p_machine_user_id: machineUserId,

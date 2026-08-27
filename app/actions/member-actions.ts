@@ -157,9 +157,12 @@ export async function deleteMemberAction(id: string): Promise<{ error?: string }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to deactivate member." };
   }
-  const base = profile.role?.slug === "reception" ? "/reception" : "/admin";
-  revalidatePath(`${base}/members`);
-  redirect(`${base}/members`);
+  // The client owns navigation so a search/filter URL is preserved.
+  revalidatePath("/admin/members");
+  revalidatePath("/reception/members");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/reception/dashboard");
+  return {};
 }
 
 export async function uploadMemberPhotoAction(

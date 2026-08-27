@@ -17,7 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import { getCurrentProfile } from "@/lib/auth";
+import { getPortalContext } from "@/lib/auth";
+import { getLocalDateKey } from "@/lib/time";
 import { formatCurrency } from "@/lib/utils";
 import {
   getDashboardData,
@@ -39,8 +40,10 @@ const quickActions = [
 ] as const;
 
 export default async function ReceptionDashboardPage() {
-  const profile = await getCurrentProfile();
+  const profile = await getPortalContext();
   const branchId = profile?.branch_id;
+  const timeZone = profile?.tenant_timezone ?? profile?.branch_timezone ?? "Asia/Kolkata";
+  const today = getLocalDateKey(new Date(), timeZone);
 
   const [
     { metrics, activities },
@@ -49,7 +52,7 @@ export default async function ReceptionDashboardPage() {
     recentAttendance,
     latestRenewals,
   ] = await Promise.all([
-    getDashboardData(branchId),
+    getDashboardData(branchId, timeZone),
     getRecentMembers(branchId, 5),
     getRecentPayments(branchId, 5),
     getRecentAttendance(branchId, 5),
@@ -77,7 +80,7 @@ export default async function ReceptionDashboardPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Total Members"      value={metrics.totalMembers}     icon={UsersRound}  href="/reception/members" />
           <MetricCard label="Active Members"     value={metrics.activeMembers}    icon={UserCheck}   tone="green" href="/reception/members?status=active" />
-          <MetricCard label="Today's Attendance" value={metrics.todayAttendance}  icon={Activity}    tone="blue"  href="/reception/attendance" />
+          <MetricCard label="Today's Attendance" value={metrics.todayAttendance}  icon={Activity}    tone="blue"  href={`/reception/attendance?from=${today}&to=${today}`} />
           <MetricCard label="Appointments Today" value={metrics.appointments}     icon={CalendarDays} tone="blue" href="/reception/appointments" />
         </div>
       </section>
@@ -206,7 +209,7 @@ export default async function ReceptionDashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-base">Attendance Logs</CardTitle>
-            <Link href="/reception/attendance" className={buttonVariants({ variant: "ghost", size: "sm" })}>View all</Link>
+            <Link href={`/reception/attendance?from=${today}&to=${today}`} className={buttonVariants({ variant: "ghost", size: "sm" })}>View all</Link>
           </CardHeader>
           <CardContent className="p-0">
             {recentAttendance.length === 0 ? (

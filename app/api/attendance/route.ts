@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ data });
   } catch (error) {
+    console.error("Biometric data request failed", error);
     return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to load attendance." }, { status: 400 });
   }
 }

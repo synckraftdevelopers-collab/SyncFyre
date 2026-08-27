@@ -87,7 +87,7 @@ export async function listMembersRich(
     if (search) {
       const s = search.replace(/[%_]/g, "");
       query = query.or(
-        `full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%`,
+        `full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`,
       );
     }
 
@@ -129,7 +129,7 @@ export async function listMembersRich(
     if (gender && gender !== "all") q = q.eq("gender", gender);
     if (search) {
       const s = search.replace(/[%_]/g, "");
-      q = q.or(`full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%`);
+      q = q.or(`full_name.ilike.%${s}%,member_code.ilike.%${s}%,phone.ilike.%${s}%,email.ilike.%${s}%`);
     }
 
     const { data: fallbackData, count: fallbackCount } = await q

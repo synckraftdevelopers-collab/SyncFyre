@@ -30,7 +30,6 @@ export async function queueTimePeriodNotification(input: {
   userId: string;
   tenantId?: string | null;
   branchId?: string | null;
-  fullName?: string | null;
   role?: UserRole | null;
   localDate: string;
   period: "morning" | "afternoon" | "evening" | "night";
@@ -42,18 +41,12 @@ export async function queueTimePeriodNotification(input: {
   if (existing.data?.id) return { created: false, id: existing.data.id };
 
   const titleByPeriod = {
-    morning: "Good Morning! Have a productive day at SyncTyre.",
-    afternoon: "Good Afternoon! Here is your gym activity update.",
-    evening: "Good Evening! Don't forget to review today's gym activity.",
-    night: "Good Night! Today's gym operations are complete.",
+    morning: "Good Morning",
+    afternoon: "Good Afternoon",
+    evening: "Good Evening",
+    night: "Good Night",
   } as const;
-
-  const messageByPeriod = {
-    morning: `Hello ${input.fullName?.trim() || "there"}, your ${input.period} dashboard summary is ready.`,
-    afternoon: `Hello ${input.fullName?.trim() || "there"}, check the latest updates for your gym operations.`,
-    evening: `Hello ${input.fullName?.trim() || "there"}, review attendance, payments, and renewals before the day closes.`,
-    night: `Hello ${input.fullName?.trim() || "there"}, all key activities for today have been recorded.`,
-  } as const;
+  const message = "Welcome back to SyncFyre.";
 
   const targetBranchId = STAFF_ROLES.includes(input.role ?? "member") ? input.branchId ?? null : input.branchId ?? null;
   const { data, error } = await supabase.from("notifications").insert({
@@ -62,7 +55,7 @@ export async function queueTimePeriodNotification(input: {
     tenant_id: input.tenantId ?? null,
     type: "time_period_greeting",
     title: titleByPeriod[input.period],
-    message: messageByPeriod[input.period],
+    message,
     channels: ["dashboard"],
     scheduled_for: new Date().toISOString(),
     metadata: {

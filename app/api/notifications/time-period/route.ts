@@ -19,7 +19,6 @@ export async function POST(request: NextRequest) {
       userId: profile.id,
       tenantId: profile.tenant_id,
       branchId: profile.branch_id,
-      fullName: profile.full_name,
       role: profile.role?.slug ?? null,
       localDate,
       period,

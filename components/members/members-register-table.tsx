@@ -384,6 +384,10 @@ export function MembersRegisterTable({
   const table = useReactTable({
     data,
     columns,
+    // TanStack otherwise uses the displayed array index. Search, filters, and
+    // pagination replace that array, allowing React to reuse an action-menu
+    // instance for another member. The database id stays stable everywhere.
+    getRowId: (member) => member.member_id,
     state: { sorting, columnVisibility: visibility },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setVisibility,

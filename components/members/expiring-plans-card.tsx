@@ -19,6 +19,7 @@ export function ExpiringPlansCard({ counts, selectedDays, basePath = "/admin/mem
     params.delete("exp_from");
     params.delete("exp_to");
     params.set("sub_status", "active");
+    params.set("status", "active");
     params.set("page", "1");
     router.push(`${basePath}?${params.toString()}`);
   }

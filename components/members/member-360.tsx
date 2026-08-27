@@ -255,7 +255,7 @@ export function Member360({
         </Link>
         <div className="ml-auto flex flex-wrap gap-2">
           <Link href={`${basePath}/${member.id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}>Edit Member</Link>
-          {allowDelete ? <DeleteMemberDialog memberId={member.id} memberName={member.full_name} /> : null}
+          {allowDelete ? <DeleteMemberDialog memberId={member.id} memberName={member.full_name} redirectTo={listHref} /> : null}
         </div>
       </div>
 

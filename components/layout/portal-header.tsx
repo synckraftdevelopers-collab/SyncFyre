@@ -64,7 +64,6 @@ export function PortalHeader({
       </form>
 
       <RealtimeGreetingClock
-        name={name}
         tenantTimezone={tenantTimezone}
         branchTimezone={branchTimezone}
         onPeriodBoundary={handlePeriodBoundary}
