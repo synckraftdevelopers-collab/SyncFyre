@@ -1,5 +1,6 @@
 import { timingSafeEqual, createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getMemberByMachineUserId } from "@/services/biometric-mapping.service";
 import {
   extractRequestDeviceCandidates,
   parseBiometricRequest,
