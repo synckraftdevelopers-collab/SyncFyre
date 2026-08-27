@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
@@ -81,7 +82,10 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
     if (error) return { error: error.message };
 
     const dest = await getRedirectForCurrentUser();
-    if (dest) redirect(dest);
+    if (dest) {
+      (await cookies()).set("syncfyre_login_welcome", "1", { path: "/", sameSite: "lax" });
+      redirect(dest);
+    }
 
     await supabase.auth.signOut();
     return { error: "This account has not been assigned an active portal role. Please contact an administrator." };
@@ -128,7 +132,10 @@ export async function resetPasswordAction(_: AuthState, formData: FormData): Pro
     if (error) return { error: error.message };
 
     const dest = await getRedirectForCurrentUser();
-    if (dest) redirect(dest);
+    if (dest) {
+      (await cookies()).set("syncfyre_login_welcome", "1", { path: "/", sameSite: "lax" });
+      redirect(dest);
+    }
 
     await supabase.auth.signOut();
     return { error: "This account has not been assigned an active portal role. Please contact an administrator." };

@@ -2,10 +2,11 @@ import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { NotificationAutoRefresh } from "@/components/notifications/notification-auto-refresh";
+import { NotificationTimestamp } from "@/components/notifications/notification-timestamp";
+import { NotificationViewButton } from "@/components/notifications/notification-view-button";
+import { notificationDestination } from "@/lib/notifications/destination";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { markNotificationReadAction } from "@/app/actions/notification-actions";
-import { buttonVariants } from "@/components/ui/button";
 
 export default async function ReceptionNotificationsPage() {
   const profile = await requireUser(["reception"]);
@@ -13,6 +14,7 @@ export default async function ReceptionNotificationsPage() {
   const { data, error } = await supabase
     .from("notifications")
     .select("*")
+    .eq("tenant_id", profile.tenant_id ?? "00000000-0000-0000-0000-000000000000")
     .or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id ?? ""}`)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -37,11 +39,7 @@ export default async function ReceptionNotificationsPage() {
                   <Badge variant="outline">{notification.type}</Badge>
                   <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
                 </div>
-                {!notification.read_at ? (
-                  <form action={markNotificationReadAction.bind(null, notification.id)}>
-                    <button className={buttonVariants({ variant: "outline", size: "sm" })}>Mark read</button>
-                  </form>
-                ) : null}
+                <div className="mt-3 flex items-center gap-3"><NotificationTimestamp createdAt={notification.created_at} /><NotificationViewButton id={notification.id} unread={!notification.read_at} destination={notificationDestination({ type: notification.type, memberId: notification.member_id, metadata: notification.metadata }, "reception", "/reception/notifications")} /></div>
               </div>
             ))}
           </div>

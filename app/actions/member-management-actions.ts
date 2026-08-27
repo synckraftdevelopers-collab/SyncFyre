@@ -154,11 +154,12 @@ export async function sendRenewalNotificationAction(
   // Fetch member + latest subscription info
   const { data: member, error: mErr } = await supabase
     .from("members")
-    .select("id, full_name, branch_id, user_id")
+    .select("id, full_name, branch_id, tenant_id, user_id")
     .eq("id", memberId)
     .single();
 
   if (mErr || !member) return { error: "Member not found." };
+  if (!member.tenant_id || member.tenant_id !== profile.tenant_id) return { error: "Member is outside your organization." };
 
   const { data: sub } = await supabase
     .from("subscriptions")
@@ -186,6 +187,8 @@ export async function sendRenewalNotificationAction(
     member_id:  member.id,
     user_id:    member.user_id ?? null,
     branch_id:  member.branch_id,
+    tenant_id:  member.tenant_id,
+    target_roles: ["owner", "admin", "manager", "reception"],
     type:       "membership_renewal_reminder",
     title,
     message,

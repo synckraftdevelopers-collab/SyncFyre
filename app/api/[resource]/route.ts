@@ -18,7 +18,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const supabase = await createClient();
   let query = supabase.from(tableForResource[resource]).select("*", { count: "exact" });
-  if (profile.branch_id && resource !== "notifications") query = query.eq("branch_id", profile.branch_id);
+  if (resource === "notifications") query = query.eq("tenant_id", profile.tenant_id ?? "00000000-0000-0000-0000-000000000000");
+  else if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
   if (status && status !== "all") query = query.eq("status", status);
   for (const key of ["member_id", "trainer_id", "appointment_date"] as const) {
     const value = queryParams.get(key);
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const resource = (await params).resource;
   if (!isResourceName(resource)) return NextResponse.json({ error: "Unknown resource" }, { status: 404 });
+  if (resource === "notifications" && !["owner", "admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const requestBody = await request.json() as Record<string, unknown>;
   const workflowAction = typeof requestBody.workflow_action === "string" ? requestBody.workflow_action : undefined;
@@ -49,6 +51,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const payload = { ...parsed.data } as Record<string, unknown>;
   if (profile.branch_id && "branch_id" in payload) payload.branch_id = profile.branch_id;
+  if (resource === "notifications") {
+    payload.branch_id = profile.branch_id;
+    payload.tenant_id = profile.tenant_id;
+    payload.metadata = { ...(payload.metadata as Record<string, unknown>), entity_type: "system" };
+  }
   if (["appointments", "invoices"].includes(resource)) payload.created_by = profile.id;
   if (resource === "payments") payload.collected_by = profile.id;
   if (resource === "progress") payload.recorded_by = profile.id;

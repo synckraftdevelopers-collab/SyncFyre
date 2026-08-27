@@ -12,7 +12,7 @@ const titles: Record<string, string> = {
 };
 
 export default async function AdminNewResourcePage({ params }: { params: Promise<{ module: string }> }) {
-  await requireUser(["admin", "manager"]);
+  await requireUser(["owner", "admin", "manager"]);
   const moduleKey = (await params).module;
   if (!titles[moduleKey]) notFound();
 
@@ -37,7 +37,7 @@ export default async function AdminNewResourcePage({ params }: { params: Promise
     payments:       [{ name:"member_id",label:"Member",type:"select",options:members,required:true },{ name:"amount",label:"Amount (Rs)",type:"number",required:true },{ name:"method",label:"Method",type:"select",required:true,options:[{label:"Cash",value:"cash"},{label:"UPI",value:"upi"},{label:"Card",value:"card"},{label:"Online",value:"online"}] },{ name:"status",label:"Status",type:"select",options:[{label:"Completed",value:"completed"},{label:"Pending",value:"pending"}],defaultValue:"completed" },{ name:"transaction_reference",label:"Reference" }],
     staff:          [{ name:"user_id",label:"User account",type:"select",options:users,required:true },{ name:"employee_code",label:"Employee code",required:true },{ name:"designation",label:"Designation",required:true },{ name:"joining_date",label:"Joining date",type:"date",required:true,defaultValue:today },{ name:"salary",label:"Salary (Rs)",type:"number",required:true },{ name:"leave_balance",label:"Leave balance",type:"number",defaultValue:0 }],
     equipment:      [{ name:"machine_name",label:"Machine name",required:true },{ name:"category",label:"Category",required:true },{ name:"serial_number",label:"Serial number" },{ name:"purchase_date",label:"Purchase date",type:"date" },{ name:"warranty_until",label:"Warranty until",type:"date" },{ name:"next_maintenance_date",label:"Next maintenance",type:"date" },{ name:"notes",label:"Notes",type:"textarea" }],
-    notifications:  [{ name:"type",label:"Notification type",required:true },{ name:"title",label:"Title",required:true },{ name:"message",label:"Message",type:"textarea",required:true },{ name:"channels",label:"Channels",type:"tags",defaultValue:"dashboard" }],
+    notifications:  [{ name:"type",label:"Notification type",required:true },{ name:"title",label:"Title",required:true },{ name:"message",label:"Message",type:"textarea",required:true },{ name:"target_roles",label:"Recipient roles",type:"tags",required:true,defaultValue:"owner,admin,manager,reception" },{ name:"channels",label:"Channels",type:"tags",defaultValue:"dashboard" }],
     "face-machines":[
       { name:"machine_name",label:"Machine name",required:true,defaultValue:"Front Desk AiFace-ERIS" },
       { name:"provider",label:"Provider",type:"select",defaultValue:"essl",options:[{label:"eSSL",value:"essl"},{label:"Generic",value:"generic"}] },

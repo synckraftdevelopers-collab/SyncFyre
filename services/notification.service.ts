@@ -3,15 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/types";
 
 const REMINDER_DAYS = [15, 7, 3, 1, 0] as const;
-const STAFF_ROLES: UserRole[] = ["owner", "admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "super_admin"];
 
 export async function getUnreadNotificationCount(input: {
   userId: string;
   branchId?: string | null;
+  tenantId?: string | null;
   role?: UserRole | null;
 }) {
   const supabase = await createClient();
-  let query = supabase.from("notifications").select("id", { count: "exact", head: true });
+  let query = supabase.from("notifications").select("id", { count: "exact", head: true }).eq("tenant_id", input.tenantId ?? "00000000-0000-0000-0000-000000000000");
 
   if (input.role === "member") {
     query = query.eq("user_id", input.userId);
@@ -24,55 +24,6 @@ export async function getUnreadNotificationCount(input: {
   const { count, error } = await query.is("read_at", null);
   if (error) throw new Error(error.message);
   return count ?? 0;
-}
-
-export async function queueTimePeriodNotification(input: {
-  userId: string;
-  tenantId?: string | null;
-  branchId?: string | null;
-  role?: UserRole | null;
-  localDate: string;
-  period: "morning" | "afternoon" | "evening" | "night";
-  timeZone: string;
-}) {
-  const supabase = createAdminClient();
-  const fingerprint = `time-period:${input.userId}:${input.tenantId ?? "no-tenant"}:${input.localDate}:${input.period}`;
-  const existing = await supabase.from("notifications").select("id").contains("metadata", { fingerprint }).maybeSingle();
-  if (existing.data?.id) return { created: false, id: existing.data.id };
-
-  const titleByPeriod = {
-    morning: "Good Morning",
-    afternoon: "Good Afternoon",
-    evening: "Good Evening",
-    night: "Good Night",
-  } as const;
-  const message = "Welcome back to SyncFyre.";
-
-  const targetBranchId = STAFF_ROLES.includes(input.role ?? "member") ? input.branchId ?? null : input.branchId ?? null;
-  const { data, error } = await supabase.from("notifications").insert({
-    user_id: input.userId,
-    branch_id: targetBranchId,
-    tenant_id: input.tenantId ?? null,
-    type: "time_period_greeting",
-    title: titleByPeriod[input.period],
-    message,
-    channels: ["dashboard"],
-    scheduled_for: new Date().toISOString(),
-    metadata: {
-      fingerprint,
-      category: "time_period_greeting",
-      local_date: input.localDate,
-      period: input.period,
-      time_zone: input.timeZone,
-    },
-  }).select("id").single();
-
-  if (error) {
-    if (error.code === "23505") return { created: false, id: null };
-    throw new Error(error.message);
-  }
-
-  return { created: true, id: data?.id ?? null };
 }
 
 export async function queueSubscriptionReminders() {
@@ -107,6 +58,7 @@ export async function queueSubscriptionReminders() {
         title: days === 0 ? "Membership expired" : `Membership expires in ${days} day${days === 1 ? "" : "s"}`,
         message: days === 0 ? `${member.full_name}'s membership has expired. Renew it to restore access.` : `${member.full_name}'s membership ends on ${date}.`,
         channels: ["dashboard", "email", "sms", "whatsapp"],
+        target_roles: ["owner", "admin", "manager", "reception"],
         scheduled_for: new Date().toISOString(),
         metadata: { fingerprint, subscription_id: subscription.id, remaining_days: days },
       }).select("id").single();

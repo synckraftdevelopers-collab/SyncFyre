@@ -7,7 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { logoutAction } from "@/app/(auth)/actions";
-import { useCallback, useId, useRef } from "react";
+import { useId, useRef } from "react";
 import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
 
 export function PortalHeader({
@@ -38,18 +38,6 @@ export function PortalHeader({
   const triggerId = useId();
   const menuLogoutFormRef = useRef<HTMLFormElement>(null);
 
-  const handlePeriodBoundary = useCallback(async (input: { period: string; localDate: string; timeZone: string }) => {
-    try {
-      await fetch("/api/notifications/time-period", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-    } catch (error) {
-      console.warn("[notifications] unable to queue time-period notification", error);
-    }
-  }, []);
-
   return (
     <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
       <Button variant="ghost" size="icon" onClick={onMenu} aria-label="Toggle navigation" className="shrink-0">
@@ -66,7 +54,6 @@ export function PortalHeader({
       <RealtimeGreetingClock
         tenantTimezone={tenantTimezone}
         branchTimezone={branchTimezone}
-        onPeriodBoundary={handlePeriodBoundary}
       />
 
       <div className="ml-auto flex shrink-0 items-center gap-1">

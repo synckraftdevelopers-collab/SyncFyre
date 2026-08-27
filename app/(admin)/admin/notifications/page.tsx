@@ -6,14 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareActions } from "@/components/notifications/share-actions";
 import { NotificationAutoRefresh } from "@/components/notifications/notification-auto-refresh";
 import { NotificationTimestamp } from "@/components/notifications/notification-timestamp";
+import { NotificationViewButton } from "@/components/notifications/notification-view-button";
+import { notificationDestination } from "@/lib/notifications/destination";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { markNotificationReadAction } from "@/app/actions/notification-actions";
+
 
 export const metadata = { title: "Notifications" };
 
 type NotificationRow = {
   id: string;
+  member_id: string | null;
   title: string;
   type: string;
   message: string;
@@ -76,11 +79,11 @@ function NotificationList({ notifications }: { notifications: NotificationRow[] 
                   <NotificationTimestamp createdAt={item.created_at} />
                 </p>
               </div>
-              {!item.read_at && (
-                <form action={markNotificationReadAction.bind(null, item.id)}>
-                  <button className={buttonVariants({ variant: "outline", size: "sm" })}>Mark read</button>
-                </form>
-              )}
+              <NotificationViewButton
+                id={item.id}
+                unread={!item.read_at}
+                destination={notificationDestination({ type: item.type, memberId: item.member_id, metadata: item.metadata }, "admin", "/admin/notifications")}
+              />
             </div>
             <div className="pl-5">
               <ShareActions memberName={memberName} phone={memberPhone} message={buildNotificationMessage(item)} />
@@ -120,12 +123,13 @@ function NotificationSection({
 
 export default async function AdminNotificationsPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const sp = await searchParams;
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
   const supabase = await createClient();
 
   let query = supabase
     .from("notifications")
-    .select("id, title, type, message, channels, scheduled_for, sent_at, read_at, created_at, metadata, members(full_name, phone, member_code)")
+    .select("id, member_id, title, type, message, channels, scheduled_for, sent_at, read_at, created_at, metadata, members(full_name, phone, member_code)")
+    .eq("tenant_id", profile.tenant_id ?? "00000000-0000-0000-0000-000000000000")
     .or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id ?? ""}`)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -157,9 +161,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
           </div>
           <p className="text-sm text-muted-foreground">Expiry reminders, pending payment follow-ups, and share-ready member prompts for your branch.</p>
         </div>
-        <Link href="/admin/notifications/new" className={buttonVariants({ className: "ml-auto" })}>
-          <Plus className="size-4" /> Create Notification
-        </Link>
+        <Link href="/admin/notifications/new" className={buttonVariants({ className: "ml-auto" })}><Plus className="size-4" /> Create Notification</Link>
       </div>
 
       <div className="flex gap-2">
