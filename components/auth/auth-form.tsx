@@ -42,7 +42,19 @@ export function AuthForm({ action, mode }: { action: (state: AuthState, data: Fo
       <Button className="h-11 w-full" disabled={pending || Boolean(state.redirectTo)}>{(pending || state.redirectTo) && <LoaderCircle className="size-4 animate-spin" />}{mode === "login" ? "Sign In" : mode === "forgot" ? "Send reset link" : mode === "reset" ? "Update password" : "Create account"}</Button>
       {mode === "login" && <div className="pt-3 text-center text-sm"><p className="text-muted-foreground">Don&apos;t have an account?</p><Link href="/register" className="mt-2 inline-block font-semibold text-primary hover:underline">Start your free trial</Link></div>}
       {mode === "register" && <div className="pt-3 text-center text-sm"><p className="text-muted-foreground">Already have an account?</p><Link href="/login" className="mt-2 inline-block font-semibold text-primary hover:underline">Sign in</Link></div>}
-      {mode === "login" && <p className="pt-2 text-center text-xs leading-5 text-muted-foreground">By signing in, you agree to our<br /><Link href="https://syncfyre.com/terms-and-conditions" className="font-medium text-foreground hover:underline">Terms and Conditions</Link>,{" "}<Link href="https://syncfyre.com/privacy-policy" className="font-medium text-foreground hover:underline">Privacy Policy</Link>,{" "}<Link href="https://syncfyre.com/disclaimer" className="font-medium text-foreground hover:underline">Disclaimer</Link>, and{" "}<Link href="https://syncfyre.com/cancellation-and-refund-policy" className="font-medium text-foreground hover:underline">Cancellation and Refund Policy</Link>.</p>}
+      {mode === "login" && <section aria-label="Legal agreements" className="mx-auto max-w-sm px-2 pt-4 text-center text-xs leading-5 text-muted-foreground">
+        <p>
+          By continuing, you agree to our{" "}
+          <Link href="https://syncfyre.com/terms-and-conditions" className="rounded-sm font-medium text-[#173a63] underline decoration-[#173a63]/40 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">Terms &amp; Conditions</Link>{" "}
+          and{" "}
+          <Link href="https://syncfyre.com/privacy-policy" className="rounded-sm font-medium text-[#173a63] underline decoration-[#173a63]/40 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">Privacy Policy</Link>.
+        </p>
+        <p className="mt-2">
+          <Link href="https://syncfyre.com/disclaimer" className="rounded-sm font-medium text-[#173a63] underline decoration-[#173a63]/40 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">Disclaimer</Link>{" "}
+          <span aria-hidden="true" className="px-1 text-muted-foreground/80">·</span>{" "}
+          <Link href="https://syncfyre.com/cancellation-and-refund-policy" className="rounded-sm font-medium text-[#173a63] underline decoration-[#173a63]/40 underline-offset-2 transition-colors hover:text-primary hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">Cancellation &amp; Refund Policy</Link>
+        </p>
+      </section>}
       {(mode === "forgot" || mode === "reset") && <div className="text-center text-sm"><Link className="text-primary hover:underline" href="/login">Back to sign in</Link></div>}
     </form>
   </div>;

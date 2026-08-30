@@ -296,13 +296,14 @@ function SubscriptionStatusFilters({
   // Local optimistic state — updates instantly on click before URL param settles
   const [optimistic, setOptimistic] = useState<string>(selected);
 
-  // Keep in sync when URL param changes (navigation)
+  // Keep in sync when URL param changes (navigation, back/forward)
   useEffect(() => {
     setOptimistic(selected);
   }, [selected]);
 
   function handleSelect(id: string) {
-    const next = id;
+    // Toggle off if already selected
+    const next = optimistic === id ? "" : id;
     setOptimistic(next);
     onSelect(next);
   }

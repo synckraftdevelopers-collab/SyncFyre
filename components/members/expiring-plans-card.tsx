@@ -15,11 +15,20 @@ export function ExpiringPlansCard({ counts, selectedDays, basePath = "/admin/mem
 
   function applyFilter(days: number) {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("expiring_within", String(days));
-    params.delete("exp_from");
-    params.delete("exp_to");
-    params.set("sub_status", "active");
-    params.set("status", "active");
+    // Toggle off if already selected
+    if (selectedDays === days) {
+      params.delete("expiring_within");
+      params.delete("exp_from");
+      params.delete("exp_to");
+      params.delete("sub_status");
+      params.delete("status");
+    } else {
+      params.set("expiring_within", String(days));
+      params.delete("exp_from");
+      params.delete("exp_to");
+      params.set("sub_status", "active");
+      params.set("status", "active");
+    }
     params.set("page", "1");
     router.push(`${basePath}?${params.toString()}`);
   }

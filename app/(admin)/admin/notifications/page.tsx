@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, Plus } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { NotificationViewButton } from "@/components/notifications/notification-
 import { notificationDestination } from "@/lib/notifications/destination";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { BUSINESS_NOTIFICATION_TYPES } from "@/lib/notifications/business";
 
 
 export const metadata = { title: "Notifications" };
@@ -41,15 +42,14 @@ function sectionKeyForNotification(item: NotificationRow) {
 }
 
 function buildNotificationMessage(item: NotificationRow) {
-  const memberName = item.members?.full_name ?? "Member";
   const days = Number(item.metadata?.remaining_days ?? Number.NaN);
   if (item.type === "membership_expired") {
-    return `Hello ${memberName}, your gym plan has expired. Please renew your membership to continue your access.`;
+    return "A gym membership has expired. Please contact the member to arrange renewal.";
   }
   if (item.type === "membership_expiry_reminder" && Number.isFinite(days)) {
-    return `Hello ${memberName}, your gym plan will expire in ${days} day${days === 1 ? "" : "s"}. Please renew it before the end date to avoid interruption.`;
+    return `A gym membership will expire in ${days} day${days === 1 ? "" : "s"}. Please follow up with the member before the end date.`;
   }
-  return `Hello ${memberName}, ${item.message}`;
+  return item.message;
 }
 
 
@@ -131,6 +131,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
     .select("id, member_id, title, type, message, channels, scheduled_for, sent_at, read_at, created_at, metadata, members(full_name, phone, member_code)")
     .eq("tenant_id", profile.tenant_id ?? "00000000-0000-0000-0000-000000000000")
     .or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id ?? ""}`)
+    .in("type", BUSINESS_NOTIFICATION_TYPES)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -161,7 +162,6 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
           </div>
           <p className="text-sm text-muted-foreground">Expiry reminders, pending payment follow-ups, and share-ready member prompts for your branch.</p>
         </div>
-        <Link href="/admin/notifications/new" className={buttonVariants({ className: "ml-auto" })}><Plus className="size-4" /> Create Notification</Link>
       </div>
 
       <div className="flex gap-2">
@@ -190,7 +190,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
           ) : null}
 
           {other.length ? (
-            <NotificationSection title="Other Notifications" description="General branch notifications and alerts." count={other.length}>
+            <NotificationSection title="Business Notifications" description="Payment, membership, and machine events for your branch." count={other.length}>
               <NotificationList notifications={other} />
             </NotificationSection>
           ) : null}

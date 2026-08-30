@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { markNotificationReadAction } from "@/app/actions/notification-actions";
 import { notificationDestination, type NotificationPortal } from "@/lib/notifications/destination";
 import { createClient } from "@/lib/supabase/client";
+import { BUSINESS_NOTIFICATION_TYPES, isBusinessNotificationType } from "@/lib/notifications/business";
 
 type NotificationScope = {
   userId: string;
@@ -32,7 +33,7 @@ type NotificationRow = Record<string, unknown> & {
 const NotificationContext = createContext<NotificationContextValue>({ unreadCount: 0, changeToken: 0 });
 
 function rowMatchesScope(row: Record<string, unknown> | null | undefined, scope: NotificationScope) {
-  if (!row) return false;
+  if (!row || !isBusinessNotificationType(row.type)) return false;
   const userId = typeof row.user_id === "string" ? row.user_id : null;
   const branchId = typeof row.branch_id === "string" ? row.branch_id : null;
   const tenantId = typeof row.tenant_id === "string" ? row.tenant_id : null;
@@ -88,7 +89,7 @@ export function NotificationProvider({
         query = query.eq("user_id", scope.userId);
       }
 
-      const { count, error } = await query.is("read_at", null);
+      const { count, error } = await query.in("type", BUSINESS_NOTIFICATION_TYPES).is("read_at", null);
       if (!active || !mountedRef.current || error) return;
       setUnreadCount(count ?? 0);
       setChangeToken((value) => value + 1);

@@ -30,7 +30,6 @@ import {
   Share2,
   Phone,
   MessageSquare,
-  Bell,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -540,7 +539,6 @@ function ActionMenu({
 }) {
   const [open, setOpen]           = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [notifPending, setNotifPending] = useState(false);
   const id = row.member_id;
 
   const actions = [
@@ -598,29 +596,6 @@ function ActionMenu({
                 {label}
               </Link>
             ))}
-            {/* Send renewal notification */}
-            <div className="my-1 border-t" />
-            <button
-              onClick={async () => {
-                setOpen(false);
-                setNotifPending(true);
-                try {
-                  const { sendRenewalNotificationAction } = await import("@/app/actions/member-management-actions");
-                  const res = await sendRenewalNotificationAction(row.member_id);
-                  if (res?.error) toast.error(res.error);
-                  else toast.success(`Renewal notification sent to ${row.full_name}`);
-                } catch {
-                  toast.error("Failed to send notification");
-                } finally {
-                  setNotifPending(false);
-                }
-              }}
-              disabled={notifPending}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
-            >
-              <Bell className="size-4" />
-              {notifPending ? "Sending…" : "Send Renewal Notification"}
-            </button>
             {row.member_status === "active" && (
               <>
                 <div className="my-1 border-t" />

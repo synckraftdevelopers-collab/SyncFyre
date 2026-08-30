@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Building2, LayoutDashboard, Calendar, Users, Settings, CreditCard, ReceiptText, Cpu, ScrollText, BarChart3,
-  LogOut, Menu, X, ChevronRight,
+  LogOut, Menu, X, ChevronRight, Bell,
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logoutAction } from "@/app/(auth)/actions";
@@ -18,6 +18,7 @@ const nav = [
   { label: "Billing", href: "/superadmin/billing", icon: ReceiptText },
   { label: "Machines", href: "/superadmin/devices", icon: Cpu },
   { label: "Demo Requests", href: "/superadmin/demos", icon: Calendar },
+  { label: "Notifications", href: "/superadmin/notifications", icon: Bell },
   { label: "Reports", href: "/superadmin/reports", icon: BarChart3 },
   { label: "Audit Logs", href: "/superadmin/audit-logs", icon: ScrollText },
   { label: "Settings", href: "/superadmin/settings", icon: Settings },

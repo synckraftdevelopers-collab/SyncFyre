@@ -23,12 +23,12 @@ export function notificationDestination(input: NotificationDestinationInput, por
     if (portal === "reception") return `/reception/members/${memberId}`;
   }
 
-  if (["subscription", "membership", "membership_created", "membership_renewed", "membership_expired", "membership_expiry_reminder", "membership_renewal_reminder"].includes(entityType)) {
+  if (["subscription", "membership", "membership_created", "membership_renewed", "membership_expired", "membership_expiring_today", "membership_expiry_reminder", "membership_renewal_reminder"].includes(entityType)) {
     if (portal === "admin") return memberId ? `/admin/members/${memberId}?tab=memberships` : "/admin/subscriptions";
     if (portal === "reception" && memberId) return `/reception/members/${memberId}?tab=memberships`;
   }
 
-  if (["payment", "payment_received", "payment_failed"].includes(entityType)) {
+  if (["payment", "invoice", "pending_balance", "payment_pending", "payment_received", "payment_failed"].includes(entityType)) {
     if (portal === "admin") return "/admin/payments";
     if (portal === "reception") return "/reception/payments";
   }
