@@ -11,6 +11,7 @@ import { formatCurrency } from "@/lib/utils";
 import { MemberCommunicationMenu } from "@/components/members/member-communication-menu";
 import { AssignTrainerDialog } from "@/components/members/assign-trainer-dialog";
 import { CheckInMemberButton } from "@/components/members/check-in-member-button";
+import { DeleteMemberDialog } from "@/components/members/delete-member-dialog";
 
 const actionPermissions: Record<string, UserRole[]> = {
   call: ["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner"],
@@ -18,6 +19,7 @@ const actionPermissions: Record<string, UserRole[]> = {
   renew: ["admin", "manager", "reception"],
   punch_in: ["admin", "manager", "reception"],
   assign_trainer: ["admin", "manager", "reception"],
+  delete: ["admin", "manager"],
 };
 
 function canUse(action: keyof typeof actionPermissions, role: UserRole | null | undefined) {
@@ -152,6 +154,7 @@ export function MemberCardGrid({
                   <Link href={`${basePath}/${member.member_id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="size-4" />Edit</Link>
                   {canUse("punch_in", role) ? <CheckInMemberButton memberId={member.member_id} checkedIn={!!attendanceMap[member.member_id]} /> : null}
                   {canUse("assign_trainer", role) ? <AssignTrainerDialog memberId={member.member_id} currentTrainerId={member.trainer_id} trainers={trainers} /> : null}
+                  {canUse("delete", role) ? <DeleteMemberDialog memberId={member.member_id} memberName={member.full_name} /> : null}
                 </div>
               </div>
             </CardContent>

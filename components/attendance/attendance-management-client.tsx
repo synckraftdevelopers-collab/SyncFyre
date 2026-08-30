@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, Fingerprint, LoaderCircle, RefreshCw, Trash2, UserRoundSearch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -26,14 +27,7 @@ type AttendanceItem = {
   exception_type: string | null;
 };
 
-type CurrentMappedMember = {
-  id: string;
-  full_name: string;
-  member_code: string;
-  branch_id: string;
-  status: string;
-  machine_user_id: string | null;
-};
+type CurrentMappedMember = MappingItem;
 
 type MappingItem = {
   id: string;
@@ -60,6 +54,8 @@ type MemberItem = {
   branch_id: string;
   status: string;
   machine_user_id: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 type UnidentifiedItem = {
@@ -70,6 +66,8 @@ type UnidentifiedItem = {
   last_seen: string;
   attendance_events: number;
 };
+
+type DeviceItem = { device_id: string; machine_name: string | null };
 
 type Summary = {
   today_total: number;
@@ -113,9 +111,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function AttendanceManagementClient() {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
-  const [from, setFrom] = useState(yesterdayString());
-  const [to, setTo] = useState(todayString());
+  const [from, setFrom] = useState(() => searchParams.get("from") ?? todayString());
+  const [to, setTo] = useState(() => searchParams.get("to") ?? todayString());
+  const [section, setSection] = useState<"attendance" | "mapping">("attendance");
   const [attendanceTab, setAttendanceTab] = useState<"mapped" | "unmapped">("mapped");
   const [mappingTab, setMappingTab] = useState<"verified" | "pending" | "unmapped_members" | "unidentified">("verified");
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -127,11 +127,14 @@ export function AttendanceManagementClient() {
   const [unmappedMembers, setUnmappedMembers] = useState<MemberItem[]>([]);
   const [unidentifiedUsers, setUnidentifiedUsers] = useState<UnidentifiedItem[]>([]);
   const [members, setMembers] = useState<MemberItem[]>([]);
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [mapDialog, setMapDialog] = useState({ open: false, machineUserId: "", machineName: "FACE-DEV-002", memberId: "", eventAt: "", reprocess: true });
+  const [mappingVerified, setMappingVerified] = useState(true);
+  const [mappingStatus, setMappingStatus] = useState("manual_mapping");
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; type: "attendance" | "mapping"; id: string; unassign: boolean }>({ open: false, type: "attendance", id: "", unassign: false });
 
   async function load() {
@@ -142,7 +145,7 @@ export function AttendanceManagementClient() {
         fetchJson<Summary>("/api/attendance?summary=true"),
         fetchJson<{ data: AttendanceItem[] }>(`/api/attendance?status=mapped&search=${encoded}&from=${from}&to=${to}`),
         fetchJson<{ data: AttendanceItem[] }>(`/api/attendance?status=unmapped&search=${encoded}&from=${from}&to=${to}`),
-        fetchJson<{ data: MappingItem[]; mappedMembers: CurrentMappedMember[] }>(`/api/biometric/mappings?status=verified&search=${encoded}`),
+        fetchJson<{ data: MappingItem[]; mappedMembers: CurrentMappedMember[]; devices: DeviceItem[] }>(`/api/biometric/mappings?status=verified&search=${encoded}&includeDevices=true`),
         fetchJson<{ data: MappingItem[] }>(`/api/biometric/mappings?status=pending&search=${encoded}`),
         fetchJson<{ data: MemberItem[] }>(`/api/biometric/unmapped-members?search=${encoded}`),
         fetchJson<{ unidentified: UnidentifiedItem[] }>(`/api/biometric/mappings?status=all&includeUnidentified=true&from=${from}&to=${to}`),
@@ -153,13 +156,14 @@ export function AttendanceManagementClient() {
       setUnmappedAttendance(unmappedRes.data);
       setVerifiedMappings(verifiedRes.data);
       setCurrentMappedMembers(verifiedRes.mappedMembers ?? []);
+      setDevices(verifiedRes.devices ?? []);
       setPendingMappings(pendingRes.data);
       setUnmappedMembers(unmappedMembersRes.data);
       setUnidentifiedUsers(unidentifiedRes.unidentified ?? []);
 
       const memberMap = new Map<string, MemberItem>();
       for (const member of unmappedMembersRes.data) memberMap.set(member.id, member);
-      for (const member of verifiedRes.mappedMembers ?? []) memberMap.set(member.id, member);
+      for (const row of verifiedRes.mappedMembers ?? []) if (row.members) memberMap.set(row.members.id, row.members as MemberItem);
       for (const row of verifiedRes.data) if (row.members) memberMap.set(row.members.id, row.members as MemberItem);
       for (const row of pendingRes.data) if (row.members) memberMap.set(row.members.id, row.members as MemberItem);
       setMembers(Array.from(memberMap.values()).sort((a, b) => a.full_name.localeCompare(b.full_name)));
@@ -208,6 +212,8 @@ export function AttendanceManagementClient() {
       });
       setSuccess("Biometric mapping saved successfully.");
       setMapDialog({ open: false, machineUserId: "", machineName: "FACE-DEV-002", memberId: "", eventAt: "", reprocess: true });
+      setMappingVerified(true);
+      setMappingStatus("manual_mapping");
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to save mapping.");
@@ -281,14 +287,19 @@ export function AttendanceManagementClient() {
         </Button>
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        <button className={buttonVariants({ variant: section === "attendance" ? "default" : "outline" })} onClick={() => setSection("attendance")}>Attendance</button>
+        <button className={buttonVariants({ variant: section === "mapping" ? "default" : "outline" })} onClick={() => setSection("mapping")}>Biometric Mapping</button>
+      </div>
+
       {success ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</div> : null}
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card><CardContent className="flex items-center gap-4 p-5"><Fingerprint className="text-primary" /><div><p className="text-sm text-muted-foreground">Today's Total Attendance</p><p className="text-2xl font-bold">{summary?.today_total ?? 0}</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-4 p-5"><CheckCircle2 className="text-emerald-600" /><div><p className="text-sm text-muted-foreground">Mapped Attendance</p><p className="text-2xl font-bold">{summary?.mapped_attendance ?? 0}</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-4 p-5"><AlertTriangle className="text-amber-600" /><div><p className="text-sm text-muted-foreground">Unmapped Attendance</p><p className="text-2xl font-bold">{summary?.unmapped_attendance ?? 0}</p></div></CardContent></Card>
-        <Card><CardContent className="flex items-center gap-4 p-5"><UserRoundSearch className="text-blue-600" /><div><p className="text-sm text-muted-foreground">Pending Biometric Mappings</p><p className="text-2xl font-bold">{summary?.pending_biometric_mappings ?? 0}</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-4 p-5"><Fingerprint className="text-primary" /><div><p className="text-sm text-muted-foreground">Today&apos;s Total Attendance</p><p className="text-2xl font-bold">{summary ? summary.today_total : "—"}</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-4 p-5"><CheckCircle2 className="text-emerald-600" /><div><p className="text-sm text-muted-foreground">Mapped Attendance</p><p className="text-2xl font-bold">{summary ? summary.mapped_attendance : "—"}</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-4 p-5"><AlertTriangle className="text-amber-600" /><div><p className="text-sm text-muted-foreground">Unmapped Attendance</p><p className="text-2xl font-bold">{summary ? summary.unmapped_attendance : "—"}</p></div></CardContent></Card>
+        <Card><CardContent className="flex items-center gap-4 p-5"><UserRoundSearch className="text-blue-600" /><div><p className="text-sm text-muted-foreground">Pending Biometric Mappings</p><p className="text-2xl font-bold">{summary ? summary.pending_biometric_mappings : "—"}</p></div></CardContent></Card>
       </div>
 
       <Card>
@@ -302,6 +313,7 @@ export function AttendanceManagementClient() {
         </CardContent>
       </Card>
 
+      {section === "attendance" ? (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-3">
           <CardTitle>Attendance</CardTitle>
@@ -349,6 +361,7 @@ export function AttendanceManagementClient() {
         </CardContent>
       </Card>
 
+      ) : (
       <Card>
         <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <CardTitle>Biometric Member Mapping</CardTitle>
@@ -361,72 +374,10 @@ export function AttendanceManagementClient() {
         </CardHeader>
         <CardContent className="overflow-x-auto">
           {mappingTab === "verified" ? (
-            <div className="space-y-6">
-              <div>
-                <p className="mb-3 text-sm font-medium text-muted-foreground">Current mapped members from the real `members.machine_user_id` data.</p>
-                <table className="w-full min-w-[920px] text-sm">
-                  <thead className="border-b text-left text-muted-foreground">
-                    <tr>
-                      <th className="pb-3">Member</th>
-                      <th className="pb-3">Member Code</th>
-                      <th className="pb-3">Machine User ID</th>
-                      <th className="pb-3">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {currentMappedMembers.map((member) => (
-                      <tr key={member.id}>
-                        <td className="py-3 font-medium">{member.full_name}</td>
-                        <td>{member.member_code}</td>
-                        <td>{member.machine_user_id ?? "-"}</td>
-                        <td><Badge variant={member.status === "active" ? "success" : "outline"}>{member.status}</Badge></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!currentMappedMembers.length ? <p className="py-6 text-sm text-muted-foreground">No current mapped members found.</p> : null}
-              </div>
-
-              <div>
-                <p className="mb-3 text-sm font-medium text-muted-foreground">Verified rows from the real `biometric_member_mapping` table. If someone is verified now, this list updates automatically on poll/refresh.</p>
-                <table className="w-full min-w-[1180px] text-sm">
-                  <thead className="border-b text-left text-muted-foreground">
-                    <tr>
-                      <th className="pb-3">Member</th>
-                      <th className="pb-3">Member Code</th>
-                      <th className="pb-3">Machine User ID</th>
-                      <th className="pb-3">Machine Name</th>
-                      <th className="pb-3">Verified</th>
-                      <th className="pb-3">Mapping Status</th>
-                      <th className="pb-3">Created Date</th>
-                      <th className="pb-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {verifiedMappings.map((row) => (
-                      <tr key={row.id}>
-                        <td className="py-3 font-medium">{row.members?.full_name ?? "Unknown"}</td>
-                        <td>{row.members?.member_code ?? "-"}</td>
-                        <td>{row.machine_user_id ?? "-"}</td>
-                        <td>{row.machine_name ?? "FACE-DEV-002"}</td>
-                        <td><Badge variant={row.verified ? "success" : "outline"}>{String(row.verified)}</Badge></td>
-                        <td><Badge variant={row.verified ? "success" : "outline"}>{row.match_status}</Badge></td>
-                        <td>{formatDateTime(row.created_at)}</td>
-                        <td>
-                          <div className="flex flex-wrap gap-2">
-                            <Button variant="outline" size="sm" onClick={() => setDeleteDialog({ open: true, type: "mapping", id: row.id, unassign: false })}>Delete Mapping</Button>
-                            <Button variant="outline" size="sm" onClick={() => setDeleteDialog({ open: true, type: "mapping", id: row.id, unassign: true })}>Unassign</Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {!verifiedMappings.length ? <p className="py-6 text-sm text-muted-foreground">No verified biometric mapping rows found.</p> : null}
-              </div>
-            </div>
+            <table className="w-full min-w-[1180px] text-sm"><thead className="border-b text-left text-muted-foreground"><tr><th className="pb-3">Member</th><th className="pb-3">Member Code</th><th className="pb-3">Machine User ID</th><th className="pb-3">Machine / Device</th><th className="pb-3">Verified</th><th className="pb-3">Mapping Status</th><th className="pb-3">Created Date</th><th className="pb-3">Actions</th></tr></thead><tbody className="divide-y">
+              {currentMappedMembers.map((row: any) => <tr key={row.id}><td className="py-3 font-medium">{row.members?.full_name ?? "Unknown"}</td><td>{row.members?.member_code ?? "-"}</td><td>{row.machine_user_id}</td><td>{row.machine_name ?? "-"}</td><td><Badge variant="success">Verified</Badge></td><td><Badge variant="success">{row.match_status}</Badge></td><td>{formatDateTime(row.created_at)}</td><td><Button variant="outline" size="sm" onClick={() => setMapDialog({ open: true, machineUserId: row.machine_user_id, machineName: row.machine_name ?? "", memberId: row.member_id, eventAt: "", reprocess: false })}>Edit</Button></td></tr>)}
+            </tbody></table>
           ) : null}
-
           {mappingTab === "pending" ? (
             <table className="w-full min-w-[1180px] text-sm">
               <thead className="border-b text-left text-muted-foreground">
@@ -453,7 +404,7 @@ export function AttendanceManagementClient() {
                     <td>{formatDateTime(row.created_at)}</td>
                     <td>
                       <div className="flex flex-wrap gap-2">
-                        {!row.verified ? <Button variant="outline" size="sm" onClick={() => void verifyMapping(row.id)}>Mark Verified</Button> : null}
+                        <Button variant="outline" size="sm" onClick={() => setMapDialog({ open: true, machineUserId: row.machine_user_id ?? "", machineName: row.machine_name ?? "", memberId: row.member_id, eventAt: "", reprocess: false })}>Edit</Button>{!row.verified ? <Button variant="outline" size="sm" onClick={() => void verifyMapping(row.id)}>Mark Verified</Button> : null}
                         {!row.verified ? <Button variant="ghost" size="sm" onClick={() => setSuccess(`Go to the biometric device and enroll ${row.members?.full_name ?? "the member"} using Machine User ID: ${row.machine_user_id ?? "not assigned"}`)}>Register on Machine</Button> : null}
                       </div>
                     </td>
@@ -524,17 +475,21 @@ export function AttendanceManagementClient() {
           ) : null}
         </CardContent>
       </Card>
+      )}
 
       <Dialog open={mapDialog.open} onOpenChange={(open) => setMapDialog((current) => ({ ...current, open }))}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Map Biometric Attendance</DialogTitle>
             <DialogDescription>Machine User ID: {mapDialog.machineUserId || "Enter manually"} | Device: {mapDialog.machineName} | Recent Punch: {mapDialog.eventAt ? formatDateTime(mapDialog.eventAt) : "-"}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {mapDialog.memberId ? <div className="rounded-lg border bg-muted/40 p-3 text-sm"><p className="font-medium">Member Information</p><p>{members.find((member) => member.id === mapDialog.memberId)?.full_name} &middot; {members.find((member) => member.id === mapDialog.memberId)?.member_code}</p><p className="text-muted-foreground">Status: {members.find((member) => member.id === mapDialog.memberId)?.status} ? Branch: {members.find((member) => member.id === mapDialog.memberId)?.branch_id}</p><p className="text-muted-foreground">{members.find((member) => member.id === mapDialog.memberId)?.phone ?? "No phone"} ? {members.find((member) => member.id === mapDialog.memberId)?.email ?? "No email"}</p></div> : null}
             <label className="space-y-1.5 text-sm font-medium">Machine User ID<Input value={mapDialog.machineUserId} onChange={(event) => setMapDialog((current) => ({ ...current, machineUserId: event.target.value }))} /></label>
-            <label className="space-y-1.5 text-sm font-medium">Machine / Device<Input value={mapDialog.machineName} onChange={(event) => setMapDialog((current) => ({ ...current, machineName: event.target.value }))} /></label>
+            <label className="space-y-1.5 text-sm font-medium">Machine / Device<select value={mapDialog.machineName} onChange={(event) => setMapDialog((current) => ({ ...current, machineName: event.target.value }))} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm"><option value="">Select machine</option>{devices.map((device) => <option key={device.device_id} value={device.machine_name ?? device.device_id}>{device.machine_name ?? device.device_id}</option>)}</select></label>
             <label className="space-y-1.5 text-sm font-medium">Select Member<select value={mapDialog.memberId} onChange={(event) => setMapDialog((current) => ({ ...current, memberId: event.target.value }))} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm"><option value="">Choose member</option>{members.map((member) => <option key={member.id} value={member.id}>{member.full_name} - {member.member_code} {member.machine_user_id ? `(${member.machine_user_id})` : ""}</option>)}</select></label>
+            <label className="space-y-1.5 text-sm font-medium">Mapping Status<select value={mappingStatus} onChange={(event) => setMappingStatus(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm"><option value="manual_mapping">Manual mapping</option><option value="verified">Verified</option><option value="pending_registration">Pending registration</option><option value="unidentified_resolved">Unidentified user resolved</option></select></label>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mappingVerified} onChange={(event) => setMappingVerified(event.target.checked)} /> Verified</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mapDialog.reprocess} onChange={(event) => setMapDialog((current) => ({ ...current, reprocess: event.target.checked }))} /> Reprocess previously unmapped attendance for this Machine User ID</label>
             {mapDialog.memberId ? <div className="rounded-xl border bg-muted/40 p-3 text-sm">You are mapping Machine User ID <strong>{mapDialog.machineUserId}</strong> to <strong>{members.find((member) => member.id === mapDialog.memberId)?.full_name ?? "Selected member"}</strong>.</div> : null}
           </div>

@@ -24,7 +24,8 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentProfile } from "@/lib/auth";
+import { getPortalContext } from "@/lib/auth";
+import { getLocalDateKey } from "@/lib/time";
 import { formatCurrency } from "@/lib/utils";
 import {
   getDashboardData,
@@ -54,8 +55,10 @@ const quickActions = [
 ] as const;
 
 export default async function AdminDashboardPage() {
-  const profile = await getCurrentProfile();
+  const profile = await getPortalContext();
   const branchId = profile?.branch_id;
+  const timeZone = profile?.tenant_timezone ?? profile?.branch_timezone ?? "Asia/Kolkata";
+  const today = getLocalDateKey(new Date(), timeZone);
 
   const [
     { metrics, activities },
@@ -67,7 +70,7 @@ export default async function AdminDashboardPage() {
     recentAttendance,
     latestRenewals,
   ] = await Promise.all([
-    getDashboardData(branchId),
+    getDashboardData(branchId, timeZone),
     getRevenueChartData(branchId),
     getAttendanceChartData(branchId),
     getPlanDistributionData(branchId),
@@ -124,7 +127,7 @@ export default async function AdminDashboardPage() {
             value={metrics.todayAttendance}
             icon={Activity}
             tone="blue"
-            href="/admin/attendance"
+            href={`/admin/attendance?from=${today}&to=${today}`}
           />
         </div>
       </section>
@@ -336,7 +339,7 @@ export default async function AdminDashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-base">Attendance Logs</CardTitle>
-            <Link href="/admin/attendance" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            <Link href={`/admin/attendance?from=${today}&to=${today}`} className={buttonVariants({ variant: "ghost", size: "sm" })}>
               View all
             </Link>
           </CardHeader>

@@ -104,7 +104,6 @@ export async function getFinanceDashboardMetrics(
 
   const applyBranch = <T extends object>(q: T): T => {
     if (!branchId) return q;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return (q as any).eq("branch_id", branchId) as T;
   };
 

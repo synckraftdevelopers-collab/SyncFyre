@@ -5,14 +5,11 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export async function markNotificationReadAction(id: string) {
-  const profile = await requireUser(["admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"]);
+  await requireUser(["super_admin", "owner", "admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"]);
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("notifications")
-    .update({ read_at: new Date().toISOString() })
-    .eq("id", id)
-    .or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id ?? ""}`);
+  const { data, error } = await supabase.rpc("mark_notification_read", { p_notification_id: id });
   if (error) throw new Error(error.message);
+  if (!data) throw new Error("Notification was not found or you do not have access to it.");
   revalidatePath("/admin/notifications");
   revalidatePath("/reception/notifications");
   revalidatePath("/trainer/notifications");
@@ -20,7 +17,7 @@ export async function markNotificationReadAction(id: string) {
 }
 
 export async function updateOwnProfileAction(formData: FormData) {
-  const profile = await requireUser(["owner", "admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"]);
+  const profile = await requireUser(["super_admin", "owner", "admin", "manager", "reception", "trainer", "dietician", "diet-planner", "diet_planner", "member"]);
   const supabase = await createClient();
   const fullName = String(formData.get("full_name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();

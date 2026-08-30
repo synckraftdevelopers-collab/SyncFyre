@@ -1,21 +1,23 @@
-﻿import Link from "next/link";
-import { Bell, Plus } from "lucide-react";
-import { differenceInCalendarDays, parseISO } from "date-fns";
+import Link from "next/link";
+import { Bell } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShareActions } from "@/components/notifications/share-actions";
 import { NotificationAutoRefresh } from "@/components/notifications/notification-auto-refresh";
+import { NotificationTimestamp } from "@/components/notifications/notification-timestamp";
+import { NotificationViewButton } from "@/components/notifications/notification-view-button";
+import { notificationDestination } from "@/lib/notifications/destination";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { formatCurrency } from "@/lib/utils";
-import { markNotificationReadAction } from "@/app/actions/notification-actions";
-import { listReceivables } from "@/services/finance.service";
+import { BUSINESS_NOTIFICATION_TYPES } from "@/lib/notifications/business";
+
 
 export const metadata = { title: "Notifications" };
 
 type NotificationRow = {
   id: string;
+  member_id: string | null;
   title: string;
   type: string;
   message: string;
@@ -28,15 +30,6 @@ type NotificationRow = {
   members: { full_name: string | null; phone: string | null; member_code: string | null } | null;
 };
 
-type PendingPaymentRow = {
-  id: string;
-  balance_amount: number | string;
-  due_date: string | null;
-  status: string;
-  receivable_type: string | null;
-  reference: string | null;
-  members: { full_name: string | null; phone: string | null; member_code: string | null } | null;
-};
 
 function sectionKeyForNotification(item: NotificationRow) {
   if (item.type === "membership_expired") return "expired";
@@ -49,23 +42,16 @@ function sectionKeyForNotification(item: NotificationRow) {
 }
 
 function buildNotificationMessage(item: NotificationRow) {
-  const memberName = item.members?.full_name ?? "Member";
   const days = Number(item.metadata?.remaining_days ?? Number.NaN);
   if (item.type === "membership_expired") {
-    return `Hello ${memberName}, your gym plan has expired. Please renew your membership to continue your access.`;
+    return "A gym membership has expired. Please contact the member to arrange renewal.";
   }
   if (item.type === "membership_expiry_reminder" && Number.isFinite(days)) {
-    return `Hello ${memberName}, your gym plan will expire in ${days} day${days === 1 ? "" : "s"}. Please renew it before the end date to avoid interruption.`;
+    return `A gym membership will expire in ${days} day${days === 1 ? "" : "s"}. Please follow up with the member before the end date.`;
   }
-  return `Hello ${memberName}, ${item.message}`;
+  return item.message;
 }
 
-function buildPendingPaymentMessage(item: PendingPaymentRow) {
-  const memberName = item.members?.full_name ?? "Member";
-  const amount = formatCurrency(Number(item.balance_amount ?? 0));
-  const dueDate = item.due_date ?? "the due date";
-  return `Hello ${memberName}, you have a pending gym payment of ${amount}. Please complete it by ${dueDate}.`;
-}
 
 function NotificationList({ notifications }: { notifications: NotificationRow[] }) {
   return (
@@ -90,14 +76,14 @@ function NotificationList({ notifications }: { notifications: NotificationRow[] 
                   {memberPhone ? ` | ${memberPhone}` : ""}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Channels: {(item.channels ?? []).join(", ") || "-"} | Scheduled: {item.scheduled_for ? new Date(item.scheduled_for).toLocaleString("en-IN") : "-"} | Sent: {item.sent_at ? new Date(item.sent_at).toLocaleString("en-IN") : "Not sent"}
+                  <NotificationTimestamp createdAt={item.created_at} />
                 </p>
               </div>
-              {!item.read_at && (
-                <form action={markNotificationReadAction.bind(null, item.id)}>
-                  <button className={buttonVariants({ variant: "outline", size: "sm" })}>Mark read</button>
-                </form>
-              )}
+              <NotificationViewButton
+                id={item.id}
+                unread={!item.read_at}
+                destination={notificationDestination({ type: item.type, memberId: item.member_id, metadata: item.metadata }, "admin", "/admin/notifications")}
+              />
             </div>
             <div className="pl-5">
               <ShareActions memberName={memberName} phone={memberPhone} message={buildNotificationMessage(item)} />
@@ -109,46 +95,6 @@ function NotificationList({ notifications }: { notifications: NotificationRow[] 
   );
 }
 
-function PendingPaymentList({ rows }: { rows: PendingPaymentRow[] }) {
-  return (
-    <div className="divide-y">
-      {rows.map((item) => {
-        const memberName = item.members?.full_name ?? "Unknown member";
-        const memberPhone = item.members?.phone ?? null;
-        const memberCode = item.members?.member_code ?? null;
-        const dueDate = item.due_date ? parseISO(item.due_date) : null;
-        const daysLeft = dueDate ? differenceInCalendarDays(dueDate, new Date()) : null;
-        return (
-          <div key={item.id} className="space-y-3 p-4">
-            <div className="flex gap-3">
-              <span className="mt-2 size-2 shrink-0 rounded-full bg-amber-500" />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold">Pending payment follow-up</p>
-                  <Badge variant="outline">{item.status}</Badge>
-                  {item.receivable_type ? <Badge variant="outline">{item.receivable_type}</Badge> : null}
-                  {memberCode ? <Badge variant="outline">{memberCode}</Badge> : null}
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {memberName} has an outstanding balance of {formatCurrency(Number(item.balance_amount ?? 0))}
-                  {item.reference ? ` for ${item.reference}` : ""}.
-                </p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Due: {item.due_date ?? "-"}
-                  {daysLeft !== null ? ` | ${daysLeft < 0 ? `${Math.abs(daysLeft)} days overdue` : `${daysLeft} days left`}` : ""}
-                  {memberPhone ? ` | ${memberPhone}` : ""}
-                </p>
-              </div>
-            </div>
-            <div className="pl-5">
-              <ShareActions memberName={memberName} phone={memberPhone} message={buildPendingPaymentMessage(item)} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function NotificationSection({
   title,
@@ -177,37 +123,33 @@ function NotificationSection({
 
 export default async function AdminNotificationsPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   const sp = await searchParams;
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
   const supabase = await createClient();
 
   let query = supabase
     .from("notifications")
-    .select("id, title, type, message, channels, scheduled_for, sent_at, read_at, created_at, metadata, members(full_name, phone, member_code)")
-    .eq("branch_id", profile.branch_id)
+    .select("id, member_id, title, type, message, channels, scheduled_for, sent_at, read_at, created_at, metadata, members(full_name, phone, member_code)")
+    .eq("tenant_id", profile.tenant_id ?? "00000000-0000-0000-0000-000000000000")
+    .or(`user_id.eq.${profile.id},branch_id.eq.${profile.branch_id ?? ""}`)
+    .in("type", BUSINESS_NOTIFICATION_TYPES)
     .order("created_at", { ascending: false })
     .limit(50);
 
   if (sp.filter === "unread") query = query.is("read_at", null);
 
-  const [{ data, error }, pendingPaymentsRes] = await Promise.all([
-    query,
-    listReceivables({ branchId: profile.branch_id, page: 1, pageSize: 100 }),
-  ]);
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
 
   const notifications = (data ?? []) as unknown as NotificationRow[];
   const unread = notifications.filter((item) => !item.read_at).length;
-  const pendingPayments = pendingPaymentsRes.data
-    .filter((item) => ["pending", "partial", "overdue"].includes(item.status))
-    .slice(0, 25) as unknown as PendingPaymentRow[];
 
   const expiringTwoWeeks = notifications.filter((item) => sectionKeyForNotification(item) === "expiring-two-weeks");
   const expiringSoon = notifications.filter((item) => sectionKeyForNotification(item) === "expiring-soon");
   const expired = notifications.filter((item) => sectionKeyForNotification(item) === "expired");
   const other = notifications.filter((item) => sectionKeyForNotification(item) === "other");
 
-  const hasAnySection = expiringTwoWeeks.length || expiringSoon.length || expired.length || pendingPayments.length || other.length;
+  const hasAnySection = expiringTwoWeeks.length || expiringSoon.length || expired.length || other.length;
 
   return (
     <div className="space-y-5">
@@ -220,9 +162,6 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
           </div>
           <p className="text-sm text-muted-foreground">Expiry reminders, pending payment follow-ups, and share-ready member prompts for your branch.</p>
         </div>
-        <Link href="/admin/notifications/new" className={buttonVariants({ className: "ml-auto" })}>
-          <Plus className="size-4" /> Create Notification
-        </Link>
       </div>
 
       <div className="flex gap-2">
@@ -232,12 +171,6 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
 
       {hasAnySection ? (
         <div className="space-y-5">
-          {pendingPayments.length ? (
-            <NotificationSection title="Pending Payments" description="Members with pending, partial, or overdue balances." count={pendingPayments.length}>
-              <PendingPaymentList rows={pendingPayments} />
-            </NotificationSection>
-          ) : null}
-
           {expiringTwoWeeks.length ? (
             <NotificationSection title="Plan Expiring In Two Weeks" description="Members whose active plan is reaching the 14 to 15 day reminder window." count={expiringTwoWeeks.length}>
               <NotificationList notifications={expiringTwoWeeks} />
@@ -257,7 +190,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
           ) : null}
 
           {other.length ? (
-            <NotificationSection title="Other Notifications" description="General branch notifications and alerts." count={other.length}>
+            <NotificationSection title="Business Notifications" description="Payment, membership, and machine events for your branch." count={other.length}>
               <NotificationList notifications={other} />
             </NotificationSection>
           ) : null}
@@ -267,8 +200,7 @@ export default async function AdminNotificationsPage({ searchParams }: { searchP
           <CardContent className="grid min-h-64 place-items-center text-center">
             <div>
               <Bell className="mx-auto mb-3 size-10 text-muted-foreground" />
-              <p className="font-medium">No notifications found</p>
-              <p className="text-sm text-muted-foreground">Create a notification or change the filter.</p>
+              <p className="font-medium">No new notifications</p>
             </div>
           </CardContent>
         </Card>

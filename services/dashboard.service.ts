@@ -1,13 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
+import { getLocalDateKey } from "@/lib/time";
 import type { DashboardMetrics } from "@/types";
 import { getOutstandingReceivablesSummary } from "@/services/finance.service";
 
-export async function getDashboardData(branchId?: string | null) {
+export async function getDashboardData(branchId?: string | null, timeZone = "Asia/Kolkata") {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const today = getLocalDateKey(new Date(), timeZone);
+  const through = new Date(`${today}T00:00:00.000Z`);
+  through.setUTCDate(through.getUTCDate() + 30);
+  const inThirtyDays = through.toISOString().slice(0, 10);
   // Supabase exposes different builder types for aggregate and row queries; both support eq at runtime.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const branch = (query: any) => branchId ? query.eq("branch_id", branchId) : query;
   const [members, active, attendance, expiring, expired, revenue, pending, outstandingSummary, appointments, trainers, machines, notifications, branches, activities] = await Promise.all([
     branch(supabase.from("members").select("id", { count: "exact", head: true })),
@@ -122,10 +124,12 @@ export async function getLatestRenewals(branchId?: string | null, limit = 5) {
   }>;
 }
 
-export async function getExpiringMemberships(branchId?: string | null) {
+export async function getExpiringMemberships(branchId?: string | null, timeZone = "Asia/Kolkata") {
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
-  const inThirtyDays = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const today = getLocalDateKey(new Date(), timeZone);
+  const through = new Date(`${today}T00:00:00.000Z`);
+  through.setUTCDate(through.getUTCDate() + 30);
+  const inThirtyDays = through.toISOString().slice(0, 10);
   
   let q = supabase
     .from("subscriptions")

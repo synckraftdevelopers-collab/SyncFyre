@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { memo, useEffect, useMemo, useState } from "react";
 import { getGreetingLabel, getGreetingPeriod, getLocalDateKey, resolveAppTimeZone } from "@/lib/time";
@@ -30,13 +30,11 @@ const timeFormatter = (timeZone: string, includeSeconds: boolean) =>
   });
 
 export const RealtimeGreetingClock = memo(function RealtimeGreetingClock({
-  name,
   tenantTimezone,
   branchTimezone,
   userTimezone,
   onPeriodBoundary,
 }: {
-  name?: string | null;
   tenantTimezone?: string | null;
   branchTimezone?: string | null;
   userTimezone?: string | null;
@@ -76,13 +74,11 @@ export const RealtimeGreetingClock = memo(function RealtimeGreetingClock({
   const compactDate = now ? compactDateFormatter(timeZone).format(now) : "";
   const fullTime = now ? timeFormatter(timeZone, true).format(now) : "";
   const compactTime = now ? timeFormatter(timeZone, false).format(now) : "";
-  const displayName = name?.trim();
 
   return (
     <div className="min-w-0 flex-1 px-1 sm:px-2 md:max-w-[260px] lg:max-w-md">
       <p className="truncate text-sm font-semibold leading-tight text-foreground">
         {greeting}
-        {displayName ? `, ${displayName}` : ""}
       </p>
       <p className="truncate text-[11px] text-muted-foreground lg:hidden">
         {compactDate} | {compactTime}

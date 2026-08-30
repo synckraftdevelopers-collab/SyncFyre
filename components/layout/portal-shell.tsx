@@ -5,6 +5,7 @@ import { PortalHeader } from "@/components/layout/portal-header";
 import { PortalSidebar } from "@/components/layout/portal-sidebar";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { NotificationProvider, useNotifications } from "@/components/notifications/notification-provider";
+import { LoginWelcomeDialog } from "@/components/layout/login-welcome-dialog";
 import type { PortalKey } from "@/lib/nav";
 import type { UserRole } from "@/types";
 
@@ -64,6 +65,7 @@ function PortalShellFrame({
 
   return (
     <div className="min-h-screen bg-background">
+      <LoginWelcomeDialog />
       <PortalSidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} desktopExpanded={desktopExpanded} portal={portal} />
       <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
@@ -119,6 +121,8 @@ export function PortalShell({
     <NotificationProvider
       initialUnreadCount={initialUnreadCount}
       scope={{ userId, branchId, tenantId, role: userRole }}
+      portal={portal}
+      notificationsHref={notificationsHref}
     >
       <PortalShellFrame
         name={name}
