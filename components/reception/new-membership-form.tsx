@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createReceptionMembershipAction } from "@/app/actions/reception-membership-actions";
+import { getLocalDateInputValue } from "@/lib/membership-dates";
 
 type Member = { id: string; full_name: string; member_code: string };
 type Plan = { id: string; name: string; price: number; duration_months: number };
@@ -37,7 +38,7 @@ export function NewMembershipForm({ members, plans, defaultPlanId }: { members: 
       </select>
     </label>
     <label className="block space-y-1.5 text-sm font-medium">Start date
-      <Input name="start_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
+      <Input name="start_date" type="date" required defaultValue={getLocalDateInputValue()} />
     </label>
     <p className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">The plan price, configured discount, GST, and expiry date are calculated securely from the active plan.</p>
     <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button><Button type="submit" disabled={pending}>{pending && <LoaderCircle className="size-4 animate-spin" />} Create subscription</Button></div>

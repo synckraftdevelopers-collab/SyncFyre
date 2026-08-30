@@ -224,9 +224,10 @@ export function MembersRegisterTable({
     // 8. Join Date
     helper.accessor("joined_date", {
       header: ({ column }) => <SortHeader column={column} label="Join Date" />,
-      cell: ({ getValue }) => {
-        try { return <span className="text-sm whitespace-nowrap">{format(parseISO(getValue()), "dd MMM yyyy")}</span>; }
-        catch { return <span className="text-sm">{getValue()}</span>; }
+      cell: ({ row, getValue }) => {
+        const value = row.original.subscription_start ?? getValue();
+        try { return <span className="text-sm whitespace-nowrap">{format(parseISO(value), "dd MMM yyyy")}</span>; }
+        catch { return <span className="text-sm">{value}</span>; }
       },
     }),
 

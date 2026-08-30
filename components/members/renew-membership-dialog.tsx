@@ -5,6 +5,7 @@ import { RotateCcw, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getLocalDateInputValue } from "@/lib/membership-dates";
 import {
   Dialog,
   DialogContent,
@@ -38,10 +39,10 @@ export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
   const [state, action, pending] = useActionState(renewMembershipAction, {});
 
   const plan = plans.find((p) => p.id === planId);
-  const price    = plan?.price ?? 0;
+  const price = plan?.price ?? 0;
   const discount = 0;
-  const gst      = Math.round((price - discount) * (plan?.gst_percent ?? 18) / 100);
-  const total    = price - discount + gst;
+  const gst = Math.round((price - discount) * (plan?.gst_percent ?? 18) / 100);
+  const total = price - discount + gst;
 
   useEffect(() => {
     if (state.success) {
@@ -93,7 +94,7 @@ export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
               <Input
                 name="start_date"
                 type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={getLocalDateInputValue()}
                 required
               />
             </label>
@@ -115,7 +116,6 @@ export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
             </label>
           </div>
 
-          {/* Summary */}
           <div className="rounded-xl border bg-muted/30 p-3 text-sm space-y-1">
             <div className="flex justify-between text-muted-foreground">
               <span>Plan price</span><span>{formatCurrency(price)}</span>

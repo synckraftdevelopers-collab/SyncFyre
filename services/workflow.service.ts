@@ -1,3 +1,4 @@
+import { addCalendarMonthsToDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
 import type { ResourceName } from "@/lib/validations/resources";
 
@@ -42,12 +43,25 @@ export async function createSubscriptionWithHistory(input: {
   remarks?: string | null;
 }) {
   const supabase = await createClient();
+  let resolvedEndDate = input.endDate ?? null;
+
+  if (!resolvedEndDate) {
+    const { data: plan, error: planError } = await supabase
+      .from("membership_plans")
+      .select("duration_months")
+      .eq("id", input.planId)
+      .single();
+
+    if (planError) throw new Error(planError.message);
+    resolvedEndDate = addCalendarMonthsToDateOnly(input.startDate, Number(plan.duration_months));
+  }
+
   const { data, error } = await supabase.rpc("create_subscription_with_history", {
     p_member_id: input.memberId,
     p_plan_id: input.planId,
     p_branch_id: input.branchId,
     p_start_date: input.startDate,
-    p_end_date: input.endDate ?? null,
+    p_end_date: resolvedEndDate,
     p_status: input.status ?? "pending",
     p_auto_renew: input.autoRenew ?? false,
     p_price: input.price,

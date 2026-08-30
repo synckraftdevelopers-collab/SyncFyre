@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addMonths, format, parseISO } from "date-fns";
 import { requireUser } from "@/lib/auth";
+import { parseDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
 import { createSubscriptionWithHistory } from "@/services/workflow.service";
 
@@ -20,8 +20,11 @@ export async function createReceptionMembershipAction(
   const startDate = String(formData.get("start_date") ?? "");
   if (!memberId || !planId || !startDate) return { error: "Member, plan, and start date are required." };
 
-  const parsedDate = parseISO(startDate);
-  if (Number.isNaN(parsedDate.getTime())) return { error: "Enter a valid start date." };
+  try {
+    parseDateOnly(startDate);
+  } catch {
+    return { error: "Enter a valid start date." };
+  }
 
   const supabase = await createClient();
   const [{ data: member }, { data: plan }] = await Promise.all([
@@ -36,7 +39,6 @@ export async function createReceptionMembershipAction(
   const taxable = price - discount;
   const gst = Math.round(taxable * Number(plan.gst_percent) * 100) / 10000;
   const total = taxable + gst;
-  const endDate = format(addMonths(parsedDate, Number(plan.duration_months)), "yyyy-MM-dd");
 
   try {
     await createSubscriptionWithHistory({
@@ -44,7 +46,6 @@ export async function createReceptionMembershipAction(
       planId,
       branchId: profile.branch_id,
       startDate,
-      endDate,
       status: "active",
       price,
       discountAmount: discount,
