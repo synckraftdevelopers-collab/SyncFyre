@@ -70,7 +70,7 @@ export default async function AdminDashboardPage() {
     recentAttendance,
     latestRenewals,
   ] = await Promise.all([
-    getDashboardData(branchId, timeZone),
+    getDashboardData(branchId, timeZone, profile?.tenant_id),
     getRevenueChartData(branchId),
     getAttendanceChartData(branchId),
     getPlanDistributionData(branchId),

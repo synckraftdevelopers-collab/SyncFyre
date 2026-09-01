@@ -3,7 +3,7 @@ import { getLocalDateKey } from "@/lib/time";
 import type { DashboardMetrics } from "@/types";
 import { getOutstandingReceivablesSummary } from "@/services/finance.service";
 
-export async function getDashboardData(branchId?: string | null, timeZone = "Asia/Kolkata") {
+export async function getDashboardData(branchId?: string | null, timeZone = "Asia/Kolkata", tenantId?: string | null) {
   const supabase = await createClient();
   const today = getLocalDateKey(new Date(), timeZone);
   const through = new Date(`${today}T00:00:00.000Z`);
@@ -28,7 +28,11 @@ export async function getDashboardData(branchId?: string | null, timeZone = "Asi
       ? supabase.from("notifications").select("id", { count: "exact", head: true }).eq("branch_id", branchId).is("read_at", null)
       : supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
     // Branches: only meaningful for admin (no branch filter)
-    supabase.from("branches").select("id", { count: "exact", head: true }).eq("status", "active"),
+    (() => {
+      let query = supabase.from("branches").select("id", { count: "exact", head: true }).eq("status", "active");
+      if (tenantId) query = query.eq("tenant_id", tenantId);
+      return query;
+    })(),
     supabase.from("activity_logs").select("id, action, entity_type, description, created_at").order("created_at", { ascending: false }).limit(6),
   ]);
   const total = members.count ?? 0;

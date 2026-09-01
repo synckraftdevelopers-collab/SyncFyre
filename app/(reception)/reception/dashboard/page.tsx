@@ -52,7 +52,7 @@ export default async function ReceptionDashboardPage() {
     recentAttendance,
     latestRenewals,
   ] = await Promise.all([
-    getDashboardData(branchId, timeZone),
+    getDashboardData(branchId, timeZone, profile?.tenant_id),
     getRecentMembers(branchId, 5),
     getRecentPayments(branchId, 5),
     getRecentAttendance(branchId, 5),
