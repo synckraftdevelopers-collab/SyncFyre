@@ -16,7 +16,7 @@ export function NotificationBellDropdown({ notificationsHref }: { notificationsH
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <button className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")} aria-label="Notifications">
+        <button id="notification-bell-trigger" className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")} aria-label="Notifications">
           <Bell className="size-5" />
           {unreadCount > 0 ? (
             <>
