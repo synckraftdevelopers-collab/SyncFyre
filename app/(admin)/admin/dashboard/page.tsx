@@ -143,10 +143,10 @@ export default async function AdminDashboardPage() {
             href="/admin/renewals"
           />
           <MetricCard
-            label="Expired Memberships"
+            label="Expire Members"
             value={metrics.expiredMemberships}
             icon={ShieldCheck}
-            href="/admin/memberships?status=inactive"
+            href="/admin/subscriptions?status=expired"
           />
           <MetricCard
             label="Active Trainers"

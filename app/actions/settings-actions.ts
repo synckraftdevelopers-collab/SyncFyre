@@ -103,11 +103,21 @@ export async function createBranchAction(_: SettingsActionState, formData: FormD
   const { data: branch, error } = await sb.from("branches").insert(branchPayload).select("id").single();
   if (error || !branch) return { error: error?.message ?? "Unable to create branch." };
 
+  const branchState = String(formData.get("state") ?? "").trim() || null;
+  const branchAddress = String(formData.get("address") ?? "").trim() || null;
+  const branchCity = String(formData.get("city") ?? "").trim() || null;
+
   const { error: financeError } = await sb.from("finance_settings").insert({
     branch_id: branch.id,
     tenant_id: profile.tenant_id,
     gst_registered: Boolean(String(formData.get("gstin") ?? "").trim()),
     gstin: String(formData.get("gstin") ?? "").trim() || null,
+    legal_business_name: String(formData.get("legal_business_name") ?? "").trim() || name,
+    business_address: String(formData.get("business_address") ?? "").trim() || branchAddress,
+    business_city: String(formData.get("business_city") ?? "").trim() || branchCity,
+    business_state: String(formData.get("business_state") ?? "").trim() || branchState,
+    business_state_code: String(formData.get("business_state_code") ?? "").trim() || null,
+    business_pincode: String(formData.get("business_pincode") ?? "").trim() || null,
     default_gst_rate: Number(formData.get("default_gst_rate") ?? 18) || 18,
     fiscal_year_start_month: Number(formData.get("fiscal_year_start_month") ?? 4) || 4,
     created_by: profile.id,
@@ -117,6 +127,32 @@ export async function createBranchAction(_: SettingsActionState, formData: FormD
 
   await refresh();
   return { success: `Branch "${name}" created successfully.` };
+}
+
+export async function deleteBranchAction(formData: FormData): Promise<void> {
+  const profile = await requireUser(["owner", "admin"]);
+  if (!profile.tenant_id) return;
+
+  const branchId = String(formData.get("branch_id") ?? "").trim();
+  if (!branchId || branchId === profile.branch_id) return;
+
+  const sb = await createClient();
+  const { count } = await sb
+    .from("branches")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", profile.tenant_id)
+    .eq("status", "active");
+
+  if ((count ?? 0) <= 1) return;
+
+  await sb
+    .from("branches")
+    .update({ status: "inactive" })
+    .eq("id", branchId)
+    .eq("tenant_id", profile.tenant_id)
+    .neq("id", profile.branch_id);
+
+  await refresh();
 }
 
 export async function addCategoryAction(_: SettingsActionState, formData: FormData): Promise<SettingsActionState> {

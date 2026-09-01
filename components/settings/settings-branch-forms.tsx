@@ -44,8 +44,8 @@ export function SettingsBranchForms({ branch, finance, isAdmin }: { branch?: Bra
     <div className="space-y-5">
       <Card>
         <CardHeader>
-          <CardTitle>Branch and GST Settings</CardTitle>
-          <p className="text-sm text-muted-foreground">These values drive Finance, GST, and invoice headers across the branch.</p>
+          <CardTitle>Branch Invoice and GST Settings</CardTitle>
+          <p className="text-sm text-muted-foreground">Each gym should fill these values. The invoice header pulls branch name, GST number, legal business name, address, city, state, and state code from here.</p>
         </CardHeader>
         <CardContent>
           <form action={updateAction} className="grid gap-4 sm:grid-cols-2">
@@ -53,15 +53,15 @@ export function SettingsBranchForms({ branch, finance, isAdmin }: { branch?: Bra
             <Field name="city" label="City" defaultValue={branch?.city} />
             <Field name="state" label="State" defaultValue={branch?.state ?? finance?.business_state ?? ""} />
             <Field name="phone" label="Phone" defaultValue={branch?.phone} />
-            <Field name="legal_business_name" label="Business legal name" defaultValue={finance?.legal_business_name ?? branch?.name ?? ""} />
-            <Field name="gstin" label="GSTIN" defaultValue={finance?.gstin} />
-            <Field name="business_state_code" label="State code" defaultValue={finance?.business_state_code ?? ""} />
+            <Field name="legal_business_name" label="Invoice legal business name" defaultValue={finance?.legal_business_name ?? branch?.name ?? ""} />
+            <Field name="gstin" label="GST No. / GSTIN" defaultValue={finance?.gstin} />
+            <Field name="business_state_code" label="Invoice state code" defaultValue={finance?.business_state_code ?? ""} />
             <Field name="default_gst_rate" label="Default GST rate" defaultValue={String(finance?.default_gst_rate ?? 18)} type="number" />
             <Field name="address" label="Branch address" defaultValue={branch?.address} className="sm:col-span-2" />
-            <Field name="business_address" label="Business address" defaultValue={finance?.business_address ?? branch?.address ?? ""} className="sm:col-span-2" />
-            <Field name="business_city" label="Business city" defaultValue={finance?.business_city ?? branch?.city ?? ""} />
-            <Field name="business_state" label="Business state" defaultValue={finance?.business_state ?? branch?.state ?? ""} />
-            <Field name="business_pincode" label="Business pincode" defaultValue={finance?.business_pincode ?? ""} />
+            <Field name="business_address" label="Invoice business address" defaultValue={finance?.business_address ?? branch?.address ?? ""} className="sm:col-span-2" />
+            <Field name="business_city" label="Invoice city" defaultValue={finance?.business_city ?? branch?.city ?? ""} />
+            <Field name="business_state" label="Invoice state" defaultValue={finance?.business_state ?? branch?.state ?? ""} />
+            <Field name="business_pincode" label="Invoice pincode" defaultValue={finance?.business_pincode ?? ""} />
             <Field name="fiscal_year_start_month" label="Financial year start month" defaultValue={String(finance?.fiscal_year_start_month ?? 4)} type="number" />
             <label className="space-y-1">
               <span className="text-sm font-medium">GST enabled</span>
@@ -95,7 +95,7 @@ export function SettingsBranchForms({ branch, finance, isAdmin }: { branch?: Bra
         <Card>
           <CardHeader>
             <CardTitle>Create New Branch</CardTitle>
-            <p className="text-sm text-muted-foreground">Add another branch with its own Finance and GST settings.</p>
+            <p className="text-sm text-muted-foreground">Add another gym branch and fill its invoice header and GST details at creation time.</p>
           </CardHeader>
           <CardContent>
             <form action={createAction} className="grid gap-4 sm:grid-cols-2">
@@ -104,10 +104,16 @@ export function SettingsBranchForms({ branch, finance, isAdmin }: { branch?: Bra
               <Field name="city" label="City" />
               <Field name="state" label="State" />
               <Field name="phone" label="Phone" />
-              <Field name="gstin" label="GSTIN" />
+              <Field name="gstin" label="GST No. / GSTIN" />
+              <Field name="legal_business_name" label="Invoice legal business name" />
+              <Field name="business_state_code" label="Invoice state code" />
               <Field name="default_gst_rate" label="Default GST rate" defaultValue="18" type="number" />
               <Field name="fiscal_year_start_month" label="Financial year start month" defaultValue="4" type="number" />
-              <Field name="address" label="Address" className="sm:col-span-2" />
+              <Field name="address" label="Branch address" className="sm:col-span-2" />
+              <Field name="business_address" label="Invoice business address" className="sm:col-span-2" />
+              <Field name="business_city" label="Invoice city" />
+              <Field name="business_state" label="Invoice state" />
+              <Field name="business_pincode" label="Invoice pincode" />
 
               {createState.error ? <p className="sm:col-span-2 rounded-lg bg-red-50 p-3 text-sm text-red-600">{createState.error}</p> : null}
               {createState.success ? <p className="sm:col-span-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{createState.success}</p> : null}

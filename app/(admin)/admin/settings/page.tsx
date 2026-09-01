@@ -1,11 +1,12 @@
-import { Building2 } from "lucide-react";
+import { Building2, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { deleteBranchAction } from "@/app/actions/settings-actions";
 import { BiometricSettingsCard } from "@/components/settings/biometric-settings-card";
 import { AccountSecurityCard } from "@/components/settings/account-security-card";
 import { PersonalSettingsForm } from "@/components/settings/personal-settings-form";
 import { CustomizationSettingsPanel } from "@/components/settings/customization-settings-panel";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SettingsBranchForms } from "@/components/settings/settings-branch-forms";
 import type { CommunicationTemplateRecord, MemberCustomFieldRecord, MemberCustomFieldValueRecord } from "@/lib/config/schema";
@@ -41,56 +42,111 @@ export default async function AdminSettingsPage({ searchParams }: { searchParams
   const { tab = "profile", memberSearch = "" } = await searchParams;
   const activeTab = ["application", "biometric", "customization"].includes(tab) ? tab : "profile";
   const profile = await requireUser(["owner", "admin", "manager"]);
-  const sb = await createClient();
+  if (activeTab === "profile") {
+    return (
+      <div className="space-y-5">
+        <div>
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="text-sm text-muted-foreground">Manage account, branch, and Finance configuration for the current branch.</p>
+        </div>
 
-  let memberMappingsQuery = sb.from("members").select("id,full_name,member_code,machine_user_id,status").order("created_at", { ascending: false }).limit(20);
-  if (profile.branch_id) memberMappingsQuery = memberMappingsQuery.eq("branch_id", profile.branch_id);
-  if (memberSearch.trim()) {
-    const search = memberSearch.trim().replace(/[%_,]/g, "");
-    memberMappingsQuery = memberMappingsQuery.or(`full_name.ilike.%${search}%,member_code.ilike.%${search}%,machine_user_id.ilike.%${search}%`);
+        <div className="flex flex-wrap gap-2">
+          {tabs.map(([id, label]) => (
+            <Link key={id} href={`/admin/settings?tab=${id}`} className={buttonVariants({ variant: activeTab === id ? "default" : "outline", size: "sm" })}>
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
+          <PersonalSettingsForm title="Profile Settings" description="Update your personal contact details for the current signed-in account." fullName={profile.full_name} phone={profile.phone} />
+          <AccountSecurityCard email={profile.email} />
+        </div>
+      </div>
+    );
   }
 
-  const customizationEnabled = profile.tenant_id ? await isFeatureEnabled(profile.tenant_id, "customization_engine_enabled") : false;
+  const sb = await createClient();
 
-  const [branchResult, branchesResult, financeResult, devicesResult, syncLogsResult, memberMappingsResult, customizationMembersResult] = await Promise.all([
-    sb.from("branches").select("id,name,code,city,address,phone,state,status").eq("id", profile.branch_id).maybeSingle(),
-    sb.from("branches").select("id,name,code,city,phone,status").eq("status", "active").order("name"),
-    sb.from("finance_settings").select("gst_registered,gstin,legal_business_name,business_address,business_city,business_state,business_state_code,business_pincode,default_gst_rate,gst_pricing_mode,fiscal_year_start_month").eq("branch_id", profile.branch_id).maybeSingle(),
-    (() => {
-      let query = sb.from("face_machine_settings").select("id,machine_name,device_id,device_identifier,manufacturer,model,serial_number,connection_mode,allowed_ip,status,connection_status,last_seen_at,last_sync_at,last_error,machine_api_url,branches(name)").order("created_at", { ascending: false });
-      if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
-      return query;
-    })(),
-    (() => {
-      let query = sb.from("attendance_sync_logs").select("device_id,event_received_at").gte("event_received_at", `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
-      if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
-      return query;
-    })(),
-    memberMappingsQuery,
-    profile.tenant_id ? sb.from("members").select("id,full_name,member_code").eq("tenant_id", profile.tenant_id).order("full_name").limit(100) : Promise.resolve({ data: [] }),
-  ]);
+  const isApplicationTab = activeTab === "application";
+  const isCustomizationTab = activeTab === "customization";
+  const isBiometricTab = activeTab === "biometric";
 
-  const branch = branchResult.data;
-  const branches = branchesResult.data;
-  const finance = financeResult.data;
-  const devices = devicesResult.data;
-  const syncLogs = syncLogsResult.data;
-  const memberMappings = memberMappingsResult.data;
-  const customizationMembers = customizationMembersResult.data;
-  const customizationMemberId = customizationMembers?.[0]?.id ?? null;
+  let branch = null as Awaited<ReturnType<typeof sb.from>> extends never ? never : any;
+  let branches = [] as any[];
+  let finance = null as any;
+  let devices = [] as any[];
+  let syncLogs = [] as any[];
+  let memberMappings = [] as any[];
+  let customizationMembers = [] as any[];
+  let customizationEnabled = false;
+  let resolvedSettings = {} as Record<ConfigKey, ResolvedSettingResult>;
+  let tenantFeatures = [] as any[];
+  let templates = [] as TemplateRow[];
+  let customFields = [] as CustomFieldRow[];
+  let visiblePaymentModes = [] as any[];
+  let sampleValues = [] as CustomFieldValueRow[];
 
-  const customization = profile.tenant_id
-    ? await Promise.all([
-        customizationEnabled ? getResolvedSettings(profile.tenant_id, profile.branch_id) : Promise.resolve({} as Record<ConfigKey, ResolvedSettingResult>),
-        getTenantFeatures(profile.tenant_id),
-        customizationEnabled ? listCommunicationTemplates(profile.tenant_id, profile.branch_id) : Promise.resolve([] as TemplateRow[]),
-        customizationEnabled ? getCustomFields(profile.tenant_id) : Promise.resolve([] as CustomFieldRow[]),
-        getPaymentMethods(profile.tenant_id, profile.branch_id),
-        customizationEnabled && customizationMemberId ? getMemberCustomFieldValues(profile.tenant_id, customizationMemberId) : Promise.resolve([] as CustomFieldValueRow[]),
-      ])
-    : ([{} as Record<ConfigKey, ResolvedSettingResult>, [], [], [], [], []] as const);
+  if (isApplicationTab) {
+    const [branchResult, branchesResult, financeResult] = await Promise.all([
+      sb.from("branches").select("id,name,code,city,address,phone,state,status").eq("id", profile.branch_id).eq("tenant_id", profile.tenant_id).maybeSingle(),
+      sb.from("branches").select("id,name,code,city,phone,status").eq("tenant_id", profile.tenant_id).eq("status", "active").order("name"),
+      sb.from("finance_settings").select("gst_registered,gstin,legal_business_name,business_address,business_city,business_state,business_state_code,default_gst_rate,gst_pricing_mode,fiscal_year_start_month").eq("branch_id", profile.branch_id).maybeSingle(),
+    ]);
+    branch = branchResult.data;
+    branches = branchesResult.data ?? [];
+    finance = financeResult.data;
+  }
 
-  const [resolvedSettings, tenantFeatures, templates, customFields, visiblePaymentModes, sampleValues] = customization;
+  if (isBiometricTab) {
+    let memberMappingsQuery = sb.from("members").select("id,full_name,member_code,machine_user_id,status").order("created_at", { ascending: false }).limit(20);
+    if (profile.branch_id) memberMappingsQuery = memberMappingsQuery.eq("branch_id", profile.branch_id);
+    if (profile.tenant_id) memberMappingsQuery = memberMappingsQuery.eq("tenant_id", profile.tenant_id);
+    if (memberSearch.trim()) {
+      const search = memberSearch.trim().replace(/[%_,]/g, "");
+      memberMappingsQuery = memberMappingsQuery.or(`full_name.ilike.%${search}%,member_code.ilike.%${search}%,machine_user_id.ilike.%${search}%`);
+    }
+
+    const [devicesResult, syncLogsResult, memberMappingsResult] = await Promise.all([
+      (() => {
+        let query = sb.from("face_machine_settings").select("id,machine_name,device_id,device_identifier,manufacturer,model,serial_number,connection_mode,allowed_ip,status,connection_status,last_seen_at,last_sync_at,last_error,machine_api_url,branches(name)").order("created_at", { ascending: false });
+        if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
+        if (profile.tenant_id) query = query.eq("tenant_id", profile.tenant_id);
+        return query;
+      })(),
+      (() => {
+        let query = sb.from("attendance_sync_logs").select("device_id,event_received_at").gte("event_received_at", `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+        if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
+        if (profile.tenant_id) query = query.eq("tenant_id", profile.tenant_id);
+        return query;
+      })(),
+      memberMappingsQuery,
+    ]);
+
+    devices = devicesResult.data ?? [];
+    syncLogs = syncLogsResult.data ?? [];
+    memberMappings = memberMappingsResult.data ?? [];
+  }
+
+  if (isCustomizationTab && profile.tenant_id) {
+    customizationEnabled = await isFeatureEnabled(profile.tenant_id, "customization_engine_enabled");
+    const [branchesResult, customizationMembersResult] = await Promise.all([
+      sb.from("branches").select("id,name,code,city,phone,status").eq("tenant_id", profile.tenant_id).eq("status", "active").order("name"),
+      sb.from("members").select("id,full_name,member_code").eq("tenant_id", profile.tenant_id).order("full_name").limit(100),
+    ]);
+    branches = branchesResult.data ?? [];
+    customizationMembers = customizationMembersResult.data ?? [];
+    const customizationMemberId = customizationMembers[0]?.id ?? null;
+
+    [resolvedSettings, tenantFeatures, templates, customFields, visiblePaymentModes, sampleValues] = await Promise.all([
+      customizationEnabled ? getResolvedSettings(profile.tenant_id, profile.branch_id) : Promise.resolve({} as Record<ConfigKey, ResolvedSettingResult>),
+      getTenantFeatures(profile.tenant_id),
+      customizationEnabled ? listCommunicationTemplates(profile.tenant_id, profile.branch_id) : Promise.resolve([] as TemplateRow[]),
+      customizationEnabled ? getCustomFields(profile.tenant_id) : Promise.resolve([] as CustomFieldRow[]),
+      getPaymentMethods(profile.tenant_id, profile.branch_id),
+      customizationEnabled && customizationMemberId ? getMemberCustomFieldValues(profile.tenant_id, customizationMemberId) : Promise.resolve([] as CustomFieldValueRow[]),
+    ]);
+  }
 
   const todayEvents = new Map<string, number>();
   for (const row of syncLogs ?? []) {
@@ -154,13 +210,6 @@ export default async function AdminSettingsPage({ searchParams }: { searchParams
         ))}
       </div>
 
-      {activeTab === "profile" ? (
-        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <PersonalSettingsForm title="Profile Settings" description="Update your personal contact details for the current signed-in account." fullName={profile.full_name} phone={profile.phone} />
-          <AccountSecurityCard email={profile.email} />
-        </div>
-      ) : null}
-
       {activeTab === "application" ? (
         <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
           <SettingsBranchForms branch={branch} finance={finance} isAdmin={profile.role?.slug === "admin"} />
@@ -170,17 +219,31 @@ export default async function AdminSettingsPage({ searchParams }: { searchParams
               <p className="text-sm text-muted-foreground">Branch configuration affects Finance, GST, invoices, and data visibility across the app.</p>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(branches ?? []).map((branchRow) => (
-                <div key={branchRow.id} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-medium">{branchRow.name}</p>
-                      <p className="text-xs text-muted-foreground">{branchRow.code}{branchRow.city ? ` | ${branchRow.city}` : ""}{branchRow.phone ? ` | ${branchRow.phone}` : ""}</p>
+              {(branches ?? []).map((branchRow) => {
+                const isCurrentBranch = branchRow.id === profile.branch_id;
+                return (
+                  <div key={branchRow.id} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{branchRow.name}</p>
+                        <p className="text-xs text-muted-foreground">{branchRow.code}{branchRow.city ? ` | ${branchRow.city}` : ""}{branchRow.phone ? ` | ${branchRow.phone}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="success">{branchRow.status}</Badge>
+                        {(profile.role?.slug === "owner" || profile.role?.slug === "admin") ? (
+                          <form action={deleteBranchAction}>
+                            <input type="hidden" name="branch_id" value={branchRow.id} />
+                            <Button type="submit" variant="destructive" size="sm" disabled={isCurrentBranch} title={isCurrentBranch ? "Current branch cannot be deleted" : "Delete branch"}>
+                              <Trash2 className="size-4" />
+                              Delete
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
                     </div>
-                    <Badge variant="success">{branchRow.status}</Badge>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {!(branches ?? []).length ? <p className="text-sm text-muted-foreground">No active branches found.</p> : null}
             </CardContent>
           </Card>

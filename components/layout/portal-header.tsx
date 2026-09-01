@@ -1,8 +1,9 @@
 "use client";
-import { Bell, ChevronDown, Menu, Search, Settings, User, LogOut } from "lucide-react";
+import { ChevronDown, Menu, Search, Settings, User, LogOut } from "lucide-react";
 import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NotificationBellDropdown } from "@/components/notifications/notification-bell-dropdown";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -51,10 +52,7 @@ export function PortalHeader({
         <Input name="q" className="h-11 rounded-xl border-0 bg-muted/75 pl-11 shadow-none focus-visible:ring-1" placeholder={searchPlaceholder} />
       </form>
 
-      <RealtimeGreetingClock
-        tenantTimezone={tenantTimezone}
-        branchTimezone={branchTimezone}
-      />
+      <RealtimeGreetingClock tenantTimezone={tenantTimezone} branchTimezone={branchTimezone} />
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <Button variant="ghost" size="icon" aria-label="Search" className="md:hidden">
@@ -76,15 +74,7 @@ export function PortalHeader({
           </button>
         </form>
 
-        <Link href={notificationsHref} className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative")} aria-label="Notifications">
-          <Bell className="size-5" />
-          {unreadCount > 0 ? (
-            <>
-              <span className="absolute right-2 top-2 size-2 rounded-full bg-primary ring-2 ring-background" />
-              <span className="absolute -right-1 -top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">{unreadCount > 99 ? "99+" : unreadCount}</span>
-            </>
-          ) : null}
-        </Link>
+        <NotificationBellDropdown notificationsHref={notificationsHref} />
 
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>

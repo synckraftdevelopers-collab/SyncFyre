@@ -1,4 +1,5 @@
 ﻿import { createClient } from "@/lib/supabase/server";
+import { preferBranchThenGlobal, resolveConfigValue } from "@/services/config-resolver";
 import { CONFIG_DEFAULTS, COMMUNICATION_TEMPLATE_DEFAULTS, FEATURE_DEFAULTS } from "@/lib/config/defaults";
 import {
   CONFIG_DEFINITIONS,
@@ -71,7 +72,7 @@ async function getLegacySettingFallback<K extends ConfigKey>(branchId: string | 
   return (globalData ?? null) as SettingsRow | null;
 }
 
-async function getExistingSourceValue<K extends ConfigKey>(tenantId: string, branchId: string | null | undefined, key: K): Promise<ResolvedSettingResult<K> | null> {
+async function getCanonicalSourceValue<K extends ConfigKey>(tenantId: string, branchId: string | null | undefined, key: K): Promise<ResolvedSettingResult<K> | null> {
   const supabase = await createClient();
 
   if (key === "branding.logo_url" || key === "branding.login_title" || key === "branding.member_portal_title") {
@@ -89,22 +90,34 @@ async function getExistingSourceValue<K extends ConfigKey>(tenantId: string, bra
   }
 
   if (key === "payments.visible_modes") {
-    let query = supabase.from("payment_modes").select("code,branch_id").eq("is_active", true).order("display_order");
-    if (branchId) query = query.in("branch_id", [branchId, null]);
-    else query = query.is("branch_id", null);
+    const globalQuery = supabase
+      .from("payment_modes")
+      .select("code,branch_id")
+      .eq("is_active", true)
+      .is("branch_id", null)
+      .order("display_order");
 
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
+    const branchQuery = branchId
+      ? supabase
+          .from("payment_modes")
+          .select("code,branch_id")
+          .eq("is_active", true)
+          .eq("branch_id", branchId)
+          .order("display_order")
+      : Promise.resolve({ data: [], error: null });
 
-    const branchModes = (data ?? []).filter((row) => row.branch_id === branchId).map((row) => row.code);
-    const globalModes = (data ?? []).filter((row) => row.branch_id === null).map((row) => row.code);
-    const modes = Array.from(new Set(branchModes.length ? branchModes : globalModes));
-    return { key, value: modes as ConfigValueMap[K], source: "legacy" };
-  }
+    const [globalResult, branchResult] = await Promise.all([globalQuery, branchQuery]);
+    if (globalResult.error) throw new Error(globalResult.error.message);
+    if (branchResult.error) throw new Error(branchResult.error.message);
 
-  const legacy = await getLegacySettingFallback(branchId, key);
-  if (legacy) {
-    return { key, value: castConfigValue(key, legacy.value), source: "legacy", legacyRecord: legacy };
+    const branchModes = (branchResult.data ?? []).map((row) => row.code);
+    const globalModes = (globalResult.data ?? []).map((row) => row.code);
+    const modes = preferBranchThenGlobal({
+      branch: branchModes.length ? Array.from(new Set(branchModes)) : null,
+      global: globalModes.length ? Array.from(new Set(globalModes)) : null,
+    });
+
+    return modes ? { key, value: modes as ConfigValueMap[K], source: "legacy" } : null;
   }
 
   return null;
@@ -117,7 +130,10 @@ export async function getTenantSettings(tenantId: string) {
     .select("id,tenant_id,setting_key,setting_value,data_type,scope,is_overridable,updated_at,updated_by,users!tenant_settings_updated_by_fkey(full_name)")
     .eq("tenant_id", tenantId)
     .order("setting_key");
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return [] as Array<ConfigRecord & { users?: { full_name?: string | null } | null }>;
+    throw new Error(error.message);
+  }
   return (data ?? []) as Array<ConfigRecord & { users?: { full_name?: string | null } | null }>;
 }
 
@@ -129,13 +145,16 @@ export async function getBranchSettings(tenantId: string, branchId: string) {
     .eq("tenant_id", tenantId)
     .eq("branch_id", branchId)
     .order("setting_key");
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return [] as Array<ConfigRecord & { users?: { full_name?: string | null } | null }>;
+    throw new Error(error.message);
+  }
   return (data ?? []) as Array<ConfigRecord & { users?: { full_name?: string | null } | null }>;
 }
 
 export async function getResolvedSetting<K extends ConfigKey>(tenantId: string, branchId: string | null | undefined, key: K): Promise<ResolvedSettingResult<K>> {
   const supabase = await createClient();
-  const [tenantSettings, branchSettings] = await Promise.all([
+  const [tenantSettings, branchSettings, legacySetting, canonicalValue] = await Promise.all([
     supabase
       .from("tenant_settings")
       .select("id,tenant_id,setting_key,setting_value,data_type,scope,is_overridable,updated_at,updated_by")
@@ -151,23 +170,32 @@ export async function getResolvedSetting<K extends ConfigKey>(tenantId: string, 
           .eq("setting_key", key)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    getLegacySettingFallback(branchId, key),
+    getCanonicalSourceValue(tenantId, branchId, key),
   ]);
 
-  if (branchSettings.error) throw new Error(branchSettings.error.message);
-  if (tenantSettings.error) throw new Error(tenantSettings.error.message);
-
-  if (branchSettings.data) {
-    return { key, value: castConfigValue(key, branchSettings.data.setting_value as Json), source: "branch", branchRecord: branchSettings.data as ConfigRecord };
+  if (branchSettings.error) {
+    if (!isMissingSchemaError(branchSettings.error.message)) throw new Error(branchSettings.error.message);
+  }
+  if (tenantSettings.error) {
+    if (!isMissingSchemaError(tenantSettings.error.message)) throw new Error(tenantSettings.error.message);
   }
 
-  if (tenantSettings.data) {
-    return { key, value: castConfigValue(key, tenantSettings.data.setting_value as Json), source: "tenant", tenantRecord: tenantSettings.data as ConfigRecord };
-  }
+  const resolved = resolveConfigValue<ResolvedSettingResult<K>>({
+    branch: !branchSettings.error && branchSettings.data
+      ? { key, value: castConfigValue(key, branchSettings.data.setting_value as Json), source: "branch", branchRecord: branchSettings.data as ConfigRecord }
+      : null,
+    tenant: !tenantSettings.error && tenantSettings.data
+      ? { key, value: castConfigValue(key, tenantSettings.data.setting_value as Json), source: "tenant", tenantRecord: tenantSettings.data as ConfigRecord }
+      : null,
+    legacy: legacySetting
+      ? { key, value: castConfigValue(key, legacySetting.value), source: "legacy", legacyRecord: legacySetting }
+      : null,
+    canonical: canonicalValue,
+    defaultValue: { key, value: CONFIG_DEFAULTS[key], source: "default" },
+  });
 
-  const legacy = await getExistingSourceValue(tenantId, branchId, key);
-  if (legacy) return legacy;
-
-  return { key, value: CONFIG_DEFAULTS[key], source: "default" };
+  return resolved.value;
 }
 
 export async function getResolvedSettings(tenantId: string, branchId: string | null | undefined, keys?: ConfigKey[]) {
@@ -179,6 +207,10 @@ export async function getResolvedSettings(tenantId: string, branchId: string | n
 function isMissingRelationError(message: string | undefined) {
   const value = (message ?? "").toLowerCase();
   return value.includes("could not find the table") || value.includes("relation") && value.includes("does not exist");
+}
+
+function isMissingSchemaError(message: string | undefined) {
+  return isMissingRelationError(message) || (message ?? "").toLowerCase().includes("schema cache");
 }
 
 export async function isFeatureEnabled(tenantId: string, featureKey: FeatureKey) {
@@ -207,14 +239,38 @@ export async function getTenantFeatures(tenantId: string) {
 
 export async function getPaymentMethods(tenantId: string, branchId: string | null | undefined) {
   const supabase = await createClient();
-  let query = supabase.from("payment_modes").select("id,name,code,is_active,branch_id,display_order").eq("is_active", true).order("display_order");
-  if (branchId) query = query.in("branch_id", [branchId, null]);
-  else query = query.is("branch_id", null);
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  const globalQuery = supabase
+    .from("payment_modes")
+    .select("id,name,code,is_active,branch_id,display_order")
+    .eq("is_active", true)
+    .is("branch_id", null)
+    .order("display_order");
+
+  const branchQuery = branchId
+    ? supabase
+        .from("payment_modes")
+        .select("id,name,code,is_active,branch_id,display_order")
+        .eq("is_active", true)
+        .eq("branch_id", branchId)
+        .order("display_order")
+    : Promise.resolve({ data: [], error: null });
+
+  const [globalResult, branchResult] = await Promise.all([globalQuery, branchQuery]);
+
+  if (globalResult.error) {
+    if (isMissingSchemaError(globalResult.error.message)) return [];
+    throw new Error(globalResult.error.message);
+  }
+
+  if (branchResult.error) {
+    if (isMissingSchemaError(branchResult.error.message)) return [];
+    throw new Error(branchResult.error.message);
+  }
+
+  const data = [...(branchResult.data ?? []), ...(globalResult.data ?? [])];
   const resolved = await getResolvedSetting(tenantId, branchId, "payments.visible_modes");
   const visible = new Set((resolved.value as string[]).map(String));
-  return (data ?? []).filter((row) => visible.size === 0 || visible.has(row.code));
+  return data.filter((row) => visible.size === 0 || visible.has(row.code));
 }
 
 export async function getNotificationSettings(tenantId: string, branchId: string | null | undefined) {
@@ -244,7 +300,10 @@ export async function getCommunicationTemplate(tenantId: string, branchId: strin
         .eq("is_active", true)
         .maybeSingle()
     : { data: null, error: null };
-  if (branchTemplate.error) throw new Error(branchTemplate.error.message);
+  if (branchTemplate.error) {
+    if (isMissingSchemaError(branchTemplate.error.message)) return null;
+    throw new Error(branchTemplate.error.message);
+  }
   if (branchTemplate.data) return { source: "branch" as const, template: branchTemplate.data as CommunicationTemplateRecord };
 
   const { data, error } = await supabase
@@ -256,7 +315,10 @@ export async function getCommunicationTemplate(tenantId: string, branchId: strin
     .eq("channel", channel)
     .eq("is_active", true)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return null;
+    throw new Error(error.message);
+  }
   if (data) return { source: "tenant" as const, template: data as CommunicationTemplateRecord };
 
   const defaults = (COMMUNICATION_TEMPLATE_DEFAULTS as Record<string, Record<string, { name: string; content: string; variables: readonly string[] } | undefined>>)[templateKey]?.[channel];
@@ -289,7 +351,10 @@ export async function listCommunicationTemplates(tenantId: string, branchId?: st
     .order("channel");
   if (branchId) query = query.in("branch_id", [branchId, null]);
   const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return [];
+    throw new Error(error.message);
+  }
   return data ?? [];
 }
 
@@ -301,14 +366,20 @@ export async function getCustomFields(tenantId: string) {
     .eq("tenant_id", tenantId)
     .order("display_order")
     .order("field_name");
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return [] as Array<MemberCustomFieldRecord & { users?: { full_name?: string | null } | null }>;
+    throw new Error(error.message);
+  }
   return (data ?? []) as Array<MemberCustomFieldRecord & { users?: { full_name?: string | null } | null }>;
 }
 
 export async function getCustomField(fieldId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase.from("member_custom_fields").select("*").eq("id", fieldId).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return null;
+    throw new Error(error.message);
+  }
   return data as MemberCustomFieldRecord | null;
 }
 
@@ -319,7 +390,10 @@ export async function getMemberCustomFieldValues(tenantId: string, memberId: str
     .select("id,tenant_id,member_id,field_id,value,updated_at,member_custom_fields(field_key,field_name,field_type,options,is_required)")
     .eq("tenant_id", tenantId)
     .eq("member_id", memberId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isMissingSchemaError(error.message)) return [] as unknown as Array<MemberCustomFieldValueRecord & { member_custom_fields?: Array<Record<string, Json>> | null }>;
+    throw new Error(error.message);
+  }
   return (data ?? []) as unknown as Array<MemberCustomFieldValueRecord & { member_custom_fields?: Array<Record<string, Json>> | null }>;
 }
 

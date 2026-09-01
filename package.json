@@ -9,7 +9,7 @@
         "build": "next build",
         "start": "next start",
         "lint": "eslint .",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit --preserveSymlinks"
     },
     "dependencies": {
         "@hookform/resolvers": "^3.10.0",
