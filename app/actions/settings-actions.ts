@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 
 async function refresh() {
   revalidatePath("/admin/settings");
+  revalidatePath("/admin/finance");
+  revalidatePath("/admin/finance/gst");
+  revalidatePath("/admin/finance/gst/summary");
+  revalidatePath("/admin/finance/gst/ca-export");
+  revalidatePath("/admin/finance/invoices");
+  revalidatePath("/admin/finance/settings");
   revalidatePath("/admin/finance/income/new");
   revalidatePath("/admin/finance/expenses/new");
   revalidatePath("/admin/members/new");
@@ -25,9 +31,45 @@ export async function updateBranchAction(_: SettingsActionState, formData: FormD
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Branch name is required." };
 
+  const city = String(formData.get("city") ?? "").trim() || null;
+  const state = String(formData.get("state") ?? "").trim() || null;
+  const address = String(formData.get("address") ?? "").trim() || null;
+  const phone = String(formData.get("phone") ?? "").trim() || null;
+  const fiscalYearStartMonth = Number(formData.get("fiscal_year_start_month") ?? 4);
+  const defaultGstRate = Number(formData.get("default_gst_rate") ?? 18);
+  const gstPricingModeValue = String(formData.get("gst_pricing_mode") ?? "exclusive").trim();
+  const gstPricingMode = gstPricingModeValue === "inclusive" ? "inclusive" : "exclusive";
+  const gstRegistered = String(formData.get("gst_registered") ?? "false") === "true";
+
   const sb = await createClient();
-  const { error } = await sb.from("branches").update({ name, city: String(formData.get("city") ?? "").trim() || null, address: String(formData.get("address") ?? "").trim() || null, phone: String(formData.get("phone") ?? "").trim() || null }).eq("id", profile.branch_id).eq("tenant_id", profile.tenant_id);
-  if (error) return { error: error.message };
+  const { error: branchError } = await sb
+    .from("branches")
+    .update({ name, city, state, address, phone })
+    .eq("id", profile.branch_id)
+    .eq("tenant_id", profile.tenant_id);
+  if (branchError) return { error: branchError.message };
+
+  const financePayload = {
+    branch_id: profile.branch_id,
+    tenant_id: profile.tenant_id,
+    gst_registered: gstRegistered,
+    gstin: String(formData.get("gstin") ?? "").trim() || null,
+    legal_business_name: String(formData.get("legal_business_name") ?? "").trim() || null,
+    business_address: String(formData.get("business_address") ?? "").trim() || null,
+    business_city: String(formData.get("business_city") ?? "").trim() || null,
+    business_state: String(formData.get("business_state") ?? "").trim() || state,
+    business_state_code: String(formData.get("business_state_code") ?? "").trim() || null,
+    business_pincode: String(formData.get("business_pincode") ?? "").trim() || null,
+    default_gst_rate: Number.isFinite(defaultGstRate) ? defaultGstRate : 18,
+    gst_pricing_mode: gstPricingMode,
+    fiscal_year_start_month: Number.isFinite(fiscalYearStartMonth) ? fiscalYearStartMonth : 4,
+    updated_by: profile.id,
+  };
+
+  const { error: financeError } = await sb
+    .from("finance_settings")
+    .upsert(financePayload, { onConflict: "branch_id" });
+  if (financeError) return { error: financeError.message };
 
   await refresh();
   return { success: "Branch settings saved." };
@@ -45,13 +87,36 @@ export async function createBranchAction(_: SettingsActionState, formData: FormD
 
   const sb = await createClient();
   const { data: existing } = await sb.from("branches").select("id").eq("code", code).maybeSingle();
-  if (existing) return { error: `Branch code \"${code}\" is already in use.` };
+  if (existing) return { error: `Branch code "${code}" is already in use.` };
 
-  const { error } = await sb.from("branches").insert({ name, code, city: String(formData.get("city") ?? "").trim() || null, address: String(formData.get("address") ?? "").trim() || null, phone: String(formData.get("phone") ?? "").trim() || null, status: "active", tenant_id: profile.tenant_id });
-  if (error) return { error: error.message };
+  const branchPayload = {
+    name,
+    code,
+    city: String(formData.get("city") ?? "").trim() || null,
+    state: String(formData.get("state") ?? "").trim() || null,
+    address: String(formData.get("address") ?? "").trim() || null,
+    phone: String(formData.get("phone") ?? "").trim() || null,
+    status: "active",
+    tenant_id: profile.tenant_id,
+  };
+
+  const { data: branch, error } = await sb.from("branches").insert(branchPayload).select("id").single();
+  if (error || !branch) return { error: error?.message ?? "Unable to create branch." };
+
+  const { error: financeError } = await sb.from("finance_settings").insert({
+    branch_id: branch.id,
+    tenant_id: profile.tenant_id,
+    gst_registered: Boolean(String(formData.get("gstin") ?? "").trim()),
+    gstin: String(formData.get("gstin") ?? "").trim() || null,
+    default_gst_rate: Number(formData.get("default_gst_rate") ?? 18) || 18,
+    fiscal_year_start_month: Number(formData.get("fiscal_year_start_month") ?? 4) || 4,
+    created_by: profile.id,
+    updated_by: profile.id,
+  });
+  if (financeError) return { error: financeError.message };
 
   await refresh();
-  return { success: `Branch \"${name}\" created successfully.` };
+  return { success: `Branch "${name}" created successfully.` };
 }
 
 export async function addCategoryAction(_: SettingsActionState, formData: FormData): Promise<SettingsActionState> {
@@ -67,7 +132,7 @@ export async function addCategoryAction(_: SettingsActionState, formData: FormDa
   if (error) return { error: error.message };
 
   await refresh();
-  return { success: `Category \"${name}\" added.` };
+  return { success: `Category "${name}" added.` };
 }
 
 export async function deactivateCategoryAction(_: SettingsActionState, formData: FormData): Promise<SettingsActionState> {

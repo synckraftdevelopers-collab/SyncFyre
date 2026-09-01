@@ -14,12 +14,14 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const branchId = url.searchParams.get("branch_id");
+  const dateFrom = url.searchParams.get("date_from") ?? undefined;
+  const dateTo = url.searchParams.get("date_to") ?? undefined;
 
   try {
     const [metrics, trend, modes, aging] = await Promise.all([
-      getFinanceDashboardMetrics(branchId),
-      getFinanceRevenueTrend(branchId),
-      getPaymentModeBreakdown(branchId),
+      getFinanceDashboardMetrics(branchId, dateFrom, dateTo),
+      getFinanceRevenueTrend(branchId, 6, dateFrom, dateTo),
+      getPaymentModeBreakdown(branchId, dateFrom, dateTo),
       getReceivableAging(branchId),
     ]);
     return NextResponse.json({ metrics, trend, modes, aging });

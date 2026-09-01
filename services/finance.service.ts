@@ -91,13 +91,17 @@ export async function getOutstandingReceivablesSummary(
 // ─── Finance Dashboard ────────────────────────────────────────────────────────
 
 export async function getFinanceDashboardMetrics(
-  branchId?: string | null
+  branchId?: string | null,
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<FinanceDashboardMetrics> {
   const supabase = await createClient();
   const todayStr = new Date().toISOString().slice(0, 10);
   const monthStart = new Date();
   monthStart.setDate(1);
   const monthStartStr = monthStart.toISOString().slice(0, 10);
+  const rangeStart = dateFrom ?? monthStartStr;
+  const rangeEnd = dateTo ?? todayStr;
   const inThirtyDays = new Date(Date.now() + 30 * 86400000)
     .toISOString()
     .slice(0, 10);
@@ -108,13 +112,14 @@ export async function getFinanceDashboardMetrics(
   };
 
   const [
-    todayIncome,
-    monthIncome,
-    totalIncome,
+    periodIncome,
     totalExpenses,
+    totalGst,
+    membershipIncome,
     cashBalance,
-    bankRows,
-    outstandingSummary,
+    bankAccounts,
+    latestBankTransactions,
+    receivableRows,
     activeMembers,
     renewalsDue,
   ] = await Promise.all([
@@ -122,41 +127,70 @@ export async function getFinanceDashboardMetrics(
       supabase
         .from("income")
         .select("total_amount")
-        .eq("income_date", todayStr)
+        .gte("income_date", rangeStart)
+        .lte("income_date", rangeEnd)
         .eq("status", "posted")
-    ),
-    applyBranch(
-      supabase
-        .from("income")
-        .select("total_amount")
-        .gte("income_date", monthStartStr)
-        .eq("status", "posted")
-    ),
-    applyBranch(
-      supabase.from("income").select("total_amount").eq("status", "posted")
     ),
     applyBranch(
       supabase
         .from("expenses")
         .select("total_amount")
+        .gte("expense_date", rangeStart)
+        .lte("expense_date", rangeEnd)
         .eq("status", "posted")
         .eq("approval_status", "approved")
+    ),
+    applyBranch(
+      supabase
+        .from("gst_transactions")
+        .select("cgst_amount, sgst_amount, igst_amount, total_tax")
+        .eq("status", "posted")
+        .eq("txn_type", "sales")
+        .gte("txn_date", rangeStart)
+        .lte("txn_date", rangeEnd)
+    ),
+    applyBranch(
+      supabase
+        .from("income")
+        .select("total_amount")
+        .gte("income_date", rangeStart)
+        .lte("income_date", rangeEnd)
+        .eq("status", "posted")
+        .eq("is_membership_income", true)
     ),
     applyBranch(
       supabase
         .from("cash_book")
         .select("balance_after")
         .eq("status", "posted")
+        .lte("entry_date", rangeEnd)
+        .order("entry_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1)
     ),
     applyBranch(
       supabase
         .from("bank_accounts")
-        .select("current_balance")
+        .select("id, opening_balance, current_balance")
         .eq("status", "active")
     ),
-    getOutstandingReceivablesSummary(branchId),
+    applyBranch(
+      supabase
+        .from("bank_transactions")
+        .select("bank_account_id, balance_after, txn_date, created_at")
+        .eq("status", "posted")
+        .lte("txn_date", rangeEnd)
+        .order("txn_date", { ascending: false })
+        .order("created_at", { ascending: false })
+    ),
+    applyBranch(
+      supabase
+        .from("receivables")
+        .select("balance_amount, status, due_date, created_at")
+        .gt("balance_amount", 0)
+        .in("status", ["pending", "partial", "overdue"])
+        .lte("created_at", `${rangeEnd}T23:59:59.999Z`)
+    ),
     applyBranch(
       supabase
         .from("members")
@@ -176,73 +210,105 @@ export async function getFinanceDashboardMetrics(
   const sum = (rows: { total_amount?: number | string }[] | null) =>
     (rows ?? []).reduce((acc, r) => acc + Number(r.total_amount ?? 0), 0);
 
-  const todayCol = sum(todayIncome.data);
-  const monthCol = sum(monthIncome.data);
-  const totalRev = sum(totalIncome.data);
-  const totalExp = sum(totalExpenses.data);
-  const netProfit = totalRev - totalExp;
+  const sumGst = (rows: { cgst_amount?: number | string; sgst_amount?: number | string; igst_amount?: number | string; total_tax?: number | string }[] | null) =>
+    (rows ?? []).reduce((acc, row) => ({
+      cgst: acc.cgst + Number(row.cgst_amount ?? 0),
+      sgst: acc.sgst + Number(row.sgst_amount ?? 0),
+      igst: acc.igst + Number(row.igst_amount ?? 0),
+      total: acc.total + Number(row.total_tax ?? 0),
+    }), { cgst: 0, sgst: 0, igst: 0, total: 0 });
+
+  const selectedCollection = sum(periodIncome.data);
+  const periodExpenses = sum(totalExpenses.data);
+  const totalMembershipRevenue = sum(membershipIncome.data);
+  const gstTotals = sumGst(totalGst.data);
+  const netProfit = selectedCollection - periodExpenses;
   const cashInHand =
     (cashBalance.data ?? []).length > 0
       ? Number((cashBalance.data as { balance_after: number }[])[0].balance_after)
       : 0;
-  const bankBal = (bankRows.data ?? []).reduce(
-    (acc: number, r: { current_balance: number }) =>
-      acc + Number(r.current_balance),
-    0
-  );
-  const outstanding = outstandingSummary.totalOutstanding;
+
+  const bankAccountRows = (bankAccounts.data ?? []) as { id: string; opening_balance?: number | string | null; current_balance?: number | string | null }[];
+  const bankTxnRows = (latestBankTransactions.data ?? []) as { bank_account_id: string; balance_after?: number | string | null }[];
+  const latestBankBalances = new Map<string, number>();
+  for (const row of bankTxnRows) {
+    if (!latestBankBalances.has(row.bank_account_id)) {
+      latestBankBalances.set(row.bank_account_id, Number(row.balance_after ?? 0));
+    }
+  }
+  const bankBal = bankAccountRows.reduce((acc, account) => {
+    const latestBalance = latestBankBalances.get(account.id);
+    if (latestBalance !== undefined) return acc + latestBalance;
+    return acc + Number(account.opening_balance ?? account.current_balance ?? 0);
+  }, 0);
+
+  const outstanding = ((receivableRows.data ?? []) as { balance_amount?: number | string | null; due_date?: string | null }[])
+    .filter((row) => !row.due_date || row.due_date <= rangeEnd)
+    .reduce((acc, row) => acc + Number(row.balance_amount ?? 0), 0);
   const active = (activeMembers as { count?: number | null }).count ?? 0;
   const efficiency =
-    monthCol + outstanding > 0
-      ? Math.round((monthCol / (monthCol + outstanding)) * 100)
+    selectedCollection + outstanding > 0
+      ? Math.round((selectedCollection / (selectedCollection + outstanding)) * 100)
       : 100;
-  const avgRev = active > 0 ? Math.round(monthCol / active) : 0;
+  const avgRev = active > 0 ? Math.round(selectedCollection / active) : 0;
 
   return {
-    todayCollection: todayCol,
-    monthlyCollection: monthCol,
-    totalRevenue: totalRev,
-    totalExpenses: totalExp,
+    selectedCollection,
+    totalRevenue: selectedCollection,
+    totalExpenses: periodExpenses,
     netProfit,
     cashInHand,
     bankBalance: bankBal,
     outstandingReceivables: outstanding,
+    gstCollected: gstTotals.total,
+    cgstCollected: gstTotals.cgst,
+    sgstCollected: gstTotals.sgst,
+    igstCollected: gstTotals.igst,
+    membershipRevenue: totalMembershipRevenue,
     activeMembers: active,
     membershipsRenewingDue:
       (renewalsDue as { count?: number | null }).count ?? 0,
     collectionEfficiency: efficiency,
     avgRevenuePerMember: avgRev,
+    periodStart: rangeStart,
+    periodEnd: rangeEnd,
   };
 }
 
 export async function getFinanceRevenueTrend(
   branchId?: string | null,
-  months = 6
+  months = 6,
+  dateFrom?: string,
+  dateTo?: string
 ): Promise<FinanceRevenuePoint[]> {
   const supabase = await createClient();
   const results: FinanceRevenuePoint[] = [];
+  const endBase = dateTo ? new Date(dateTo) : new Date();
 
   for (let i = months - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(1);
+    const d = new Date(endBase.getFullYear(), endBase.getMonth(), 1);
     d.setMonth(d.getMonth() - i);
     const from = d.toISOString().slice(0, 10);
     const to = new Date(d.getFullYear(), d.getMonth() + 1, 0)
       .toISOString()
       .slice(0, 10);
+    if (dateFrom && to < dateFrom) continue;
+    if (dateTo && from > dateTo) continue;
+    const effectiveFrom = dateFrom && from < dateFrom ? dateFrom : from;
+    const effectiveTo = dateTo && to > dateTo ? dateTo : to;
     const label = d.toLocaleString("en-IN", { month: "short", year: "2-digit" });
 
     let iq = supabase
       .from("income")
       .select("total_amount")
-      .gte("income_date", from)
-      .lte("income_date", to)
+       .gte("income_date", effectiveFrom)
+      .lte("income_date", effectiveTo)
       .eq("status", "posted");
     let eq = supabase
       .from("expenses")
       .select("total_amount")
-      .gte("expense_date", from)
-      .lte("expense_date", to)
+       .gte("expense_date", effectiveFrom)
+      .lte("expense_date", effectiveTo)
       .eq("status", "posted")
       .eq("approval_status", "approved");
 
@@ -718,8 +784,47 @@ export async function listGstTransactions(
     .order("txn_date", { ascending: false })
     .range(from, to);
   assertNoError(error, "listGstTransactions");
+
+  const rows = (data ?? []) as GstTransaction[];
+  const memberIds = Array.from(
+    new Set(rows.map((row) => row.member_id).filter((value): value is string => Boolean(value)))
+  );
+  const branchIds = Array.from(
+    new Set(rows.map((row) => row.branch_id).filter((value): value is string => Boolean(value)))
+  );
+  const paymentIds = Array.from(
+    new Set(rows.map((row) => row.payment_id).filter((value): value is string => Boolean(value)))
+  );
+
+  const [membersResult, branchesResult, paymentsResult] = await Promise.all([
+    memberIds.length > 0
+      ? supabase.from("members").select("id, full_name, member_code").in("id", memberIds)
+      : Promise.resolve({ data: [], error: null }),
+    branchIds.length > 0
+      ? supabase.from("branches").select("id, name").in("id", branchIds)
+      : Promise.resolve({ data: [], error: null }),
+    paymentIds.length > 0
+      ? supabase.from("payments").select("id, amount, method, status").in("id", paymentIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  assertNoError(membersResult.error, "listGstTransactions members");
+  assertNoError(branchesResult.error, "listGstTransactions branches");
+  assertNoError(paymentsResult.error, "listGstTransactions payments");
+
+  const membersById = new Map((membersResult.data ?? []).map((member) => [member.id as string, member]));
+  const branchesById = new Map((branchesResult.data ?? []).map((branch) => [branch.id as string, branch]));
+  const paymentsById = new Map((paymentsResult.data ?? []).map((payment) => [payment.id as string, payment]));
+
+  const hydratedRows = rows.map((row) => ({
+    ...row,
+    members: row.member_id ? membersById.get(row.member_id) ?? null : null,
+    branches: row.branch_id ? branchesById.get(row.branch_id) ?? null : null,
+    payments: row.payment_id ? paymentsById.get(row.payment_id) ?? null : null,
+  })) as GstTransaction[];
+
   const total = count ?? 0;
-  return { data: (data ?? []) as GstTransaction[], page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+  return { data: hydratedRows, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
 }
 
 export async function getGstSummary(
@@ -748,7 +853,7 @@ export async function getGstSummary(
     target.igst += Number(r.igst_amount);
     target.total += Number(r.total_tax);
   }
-  return { sales, purchases, netGst: sales.total - purchases.total };
+  return { sales, purchases, netGst: sales.total - purchases.total, grossRevenue: sales.taxable + sales.total };
 }
 
 // ─── Receivables ──────────────────────────────────────────────────────────────

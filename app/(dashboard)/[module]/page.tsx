@@ -40,8 +40,8 @@ const modules: Record<string, ModuleConfig> = {
   reports: { title: "Reports", description: "Turn operational data into decisions and exportable records.", icon: ChartNoAxesCombined, action: "Generate report", features: [
     { title: "Revenue & payments", description: "Analyze collections, balances, and payment channels." }, { title: "Members & attendance", description: "Understand retention, growth, visits, and peak hours." }, { title: "Operations", description: "Report on trainers, appointments, and memberships." },
   ]},
-  notifications: { title: "Notifications", description: "Manage system alerts and multichannel communication.", icon: Bell, action: "New notification", features: [
-    { title: "Membership reminders", description: "Automated expiry reminders at 15, 7, 3, and 1 days." }, { title: "Operational alerts", description: "Send payment, appointment, birthday, and maintenance reminders." }, { title: "Future-ready channels", description: "Dashboard, email, SMS, and WhatsApp provider adapters." },
+  notifications: { title: "Notifications", description: "Review live business alerts and member follow-up prompts.", icon: Bell, action: "Open inbox", features: [
+    { title: "Membership reminders", description: "Automated alerts for today, 2, 8, 15, and 60 day membership milestones." }, { title: "Operational alerts", description: "Track payments, attendance, machine status, and membership events." }, { title: "Delivery", description: "Realtime dashboard notifications with share-ready WhatsApp and SMS actions." },
   ]},
 };
 
@@ -49,7 +49,7 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   const moduleKey = (await params).module;
   const config = modules[moduleKey];
   if (!config) notFound();
-  const actionHref = moduleKey === "reports" ? "/api/reports?resource=members" : `/${moduleKey}/new`;
+  const actionHref = moduleKey === "reports" ? "/api/reports?resource=members" : moduleKey === "notifications" ? "/admin/notifications" : `/${moduleKey}/new`;
   if (moduleKey === "reports") return <ModuleOverview config={config} actionHref={actionHref}/>;
 
   const resource = (moduleKey === "memberships" ? "membership-plans" : moduleKey) as ResourceName;

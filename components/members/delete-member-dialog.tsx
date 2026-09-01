@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -47,15 +47,14 @@ export function DeleteMemberDialog({
       <DialogTrigger asChild>
         <Button variant="destructive" size="sm">
           <Trash2 className="size-4" />
-          Delete member
+          Delete
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Remove member?</DialogTitle>
+          <DialogTitle>Delete Member?</DialogTitle>
           <DialogDescription>
-            <strong>{memberName}</strong> will be removed from the active member register. Their historical records are retained for audit.
-            An authorized edit is required to restore the member.
+            <strong>{memberName}</strong> will be removed from the active member register. Historical records remain preserved for audit. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="mt-4">
@@ -63,10 +62,12 @@ export function DeleteMemberDialog({
             Cancel
           </Button>
           <Button variant="destructive" onClick={handleDelete} disabled={isPending}>
-            {isPending ? "Deleting…" : "Yes, delete"}
+            {isPending ? "Deletingâ€¦" : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
+

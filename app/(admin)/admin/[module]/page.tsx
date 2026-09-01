@@ -12,13 +12,13 @@ const modules: Record<string, ModuleConfig> = {
   staff:         { title: "Staff",          description: "Manage reception, trainers, managers, and admins.", icon: UsersRound,          action: "Add staff",         features: [{ title: "Roles",            description: "Apply least-privilege access per role." },              { title: "Attendance",       description: "Track presence and leave balances." },                { title: "Compensation",     description: "Maintain salary information securely." }] },
   equipment:     { title: "Equipment",      description: "Keep every machine safe, available, and maintained.", icon: Wrench,             action: "Add equipment",     features: [{ title: "Asset register",   description: "Track serial number, purchase date, warranty." },       { title: "Maintenance",      description: "Plan service dates and receive alerts." },            { title: "History",          description: "Record vendors, costs, and work done." }] },
   reports:       { title: "Reports",        description: "Turn operational data into decisions and exports.", icon: ChartNoAxesCombined,  action: "Generate report",   features: [{ title: "Revenue",          description: "Analyze collections and payment channels." },           { title: "Members",          description: "Understand retention, growth, and visits." },         { title: "Operations",       description: "Report on trainers and appointments." }] },
-  notifications: { title: "Notifications", description: "Manage system alerts and multi-channel comms.", icon: Bell,                  action: "New notification",  features: [{ title: "Expiry reminders", description: "Automated alerts at 15, 7, 3, and 1 days." },          { title: "Alerts",           description: "Payment, appointment, and birthday reminders." },    { title: "Channels",         description: "Dashboard, email, SMS, and WhatsApp." }] },
+  notifications: { title: "Notifications", description: "Review live business alerts and member follow-up prompts.", icon: Bell,                  action: "Open inbox",  features: [{ title: "Expiry reminders", description: "Automated alerts for today, 2, 8, 15, and 60 day membership milestones." }, { title: "Operational alerts", description: "Track payments, attendance, machine status, and membership events." }, { title: "Delivery", description: "Realtime dashboard notifications with share-ready WhatsApp and SMS actions." }] },
 };
 
 export default async function AdminModulePage({ params }: { params: Promise<{ module: string }> }) {
   const slug = (await params).module;
   const config = modules[slug];
   if (!config) notFound();
-  const actionHref = slug === "reports" ? "/api/reports?resource=members" : `/admin/${slug}/new`;
+  const actionHref = slug === "reports" ? "/api/reports?resource=members" : slug === "notifications" ? "/admin/notifications" : `/admin/${slug}/new`;
   return <ModuleOverview config={config} actionHref={actionHref} />;
 }

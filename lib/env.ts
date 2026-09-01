@@ -1,5 +1,5 @@
-/**
- * Environment validation � fails fast at startup with a clear message
+﻿/**
+ * Environment validation — fails fast at startup with a clear message
  * if any required server-side variable is missing.
  * Import this file from lib/supabase/admin.ts and any server route that
  * needs secret-level keys so the error surfaces immediately.
@@ -16,8 +16,11 @@ const required = {
 const optional = {
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   EMAIL_PROVIDER_API_KEY: process.env.EMAIL_PROVIDER_API_KEY ?? "",
+  EMAIL_PROVIDER_URL: process.env.EMAIL_PROVIDER_URL ?? "",
   SMS_PROVIDER_API_KEY: process.env.SMS_PROVIDER_API_KEY ?? "",
+  SMS_PROVIDER_URL: process.env.SMS_PROVIDER_URL ?? "",
   WHATSAPP_PROVIDER_API_KEY: process.env.WHATSAPP_PROVIDER_API_KEY ?? "",
+  WHATSAPP_PROVIDER_URL: process.env.WHATSAPP_PROVIDER_URL ?? "",
   BIOMETRIC_PROVIDER: process.env.BIOMETRIC_PROVIDER ?? "essl",
   BIOMETRIC_MOCK_MODE: process.env.BIOMETRIC_MOCK_MODE ?? "false",
   BIOMETRIC_DUPLICATE_WINDOW_SECONDS: process.env.BIOMETRIC_DUPLICATE_WINDOW_SECONDS ?? "90",
@@ -55,8 +58,11 @@ export const env = {
   CRON_SECRET: string;
   NEXT_PUBLIC_APP_URL: string;
   EMAIL_PROVIDER_API_KEY: string;
+  EMAIL_PROVIDER_URL: string;
   SMS_PROVIDER_API_KEY: string;
+  SMS_PROVIDER_URL: string;
   WHATSAPP_PROVIDER_API_KEY: string;
+  WHATSAPP_PROVIDER_URL: string;
   BIOMETRIC_PROVIDER: string;
   BIOMETRIC_MOCK_MODE: string;
   BIOMETRIC_DUPLICATE_WINDOW_SECONDS: string;

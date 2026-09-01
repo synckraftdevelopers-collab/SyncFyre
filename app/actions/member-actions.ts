@@ -2,6 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
+import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
 import { parseDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
 import { memberSchema } from "@/lib/validations/member";
@@ -60,15 +61,28 @@ export async function createMemberAction(
   }
 
   const supabase = await createClient();
-  const { data: plan } = await supabase
-    .from("membership_plans")
-    .select("id, name, branch_id, price, gst_percent, discount_percent, duration_months")
-    .eq("id", planId)
-    .eq("status", "active")
-    .maybeSingle();
+  const [{ data: plan }, { data: branch }, { data: financeSettings }] = await Promise.all([
+    supabase
+      .from("membership_plans")
+      .select("id, name, branch_id, price, gst_percent, discount_percent, duration_months")
+      .eq("id", planId)
+      .eq("status", "active")
+      .maybeSingle(),
+    supabase
+      .from("branches")
+      .select("id, state, tenant_id")
+      .eq("id", parsed.data.branch_id)
+      .maybeSingle(),
+    supabase
+      .from("finance_settings")
+      .select("gst_registered, default_gst_rate, gst_pricing_mode, business_state")
+      .eq("branch_id", parsed.data.branch_id)
+      .maybeSingle(),
+  ]);
 
   if (!plan) return { error: "Select an active package." };
   if (plan.branch_id && plan.branch_id !== parsed.data.branch_id) return { error: "Selected package does not belong to the chosen branch." };
+  if (!branch) return { error: "Selected branch was not found." };
 
   let createdMember: Awaited<ReturnType<typeof createMember>>;
   try {
@@ -77,17 +91,36 @@ export async function createMemberAction(
     return { error: error instanceof Error ? error.message : "Unable to create member." };
   }
 
-  const price = Number(plan.price ?? 0);
-  const discount = Math.round(price * Number(plan.discount_percent ?? 0) * 100) / 10000;
-  const taxable = price - discount;
-  const gst = Math.round(taxable * Number(plan.gst_percent ?? 0) * 100) / 10000;
-  const total = taxable + gst;
+  const discountBase = Number(plan.price ?? 0);
+  const discount = Math.round(discountBase * Number(plan.discount_percent ?? 0) * 100) / 10000;
+  const discountedAmount = Math.max(0, discountBase - discount);
+  const gstEnabled = Boolean(financeSettings?.gst_registered) && Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) > 0;
+  const pricingMode = (financeSettings?.gst_pricing_mode === "inclusive" ? "inclusive" : "exclusive") as GstPricingMode;
+  const gstRate = gstEnabled ? Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) : 0;
+  const gst = calculateGstBreakdown({
+    grossAmount: discountedAmount,
+    gstRate,
+    pricingMode,
+    gymState: financeSettings?.business_state ?? branch.state ?? null,
+    customerState: parsed.data.address ?? branch.state ?? null,
+  });
+  const total = gst.grandTotal;
+
   if (paymentAmount > total) return { error: "Payment completed cannot be greater than total amount." };
 
   try {
     const subscription = await createSubscriptionWithHistory({
-      memberId: createdMember.id, planId: plan.id, branchId: parsed.data.branch_id, startDate, status: "active",
-      price, discountAmount: discount, gstAmount: gst, totalAmount: total, performedBy: profile.id, action: "created",
+      memberId: createdMember.id,
+      planId: plan.id,
+      branchId: parsed.data.branch_id,
+      startDate,
+      status: "active",
+      price: gst.taxableAmount,
+      discountAmount: discount,
+      gstAmount: gst.gstAmount,
+      totalAmount: total,
+      performedBy: profile.id,
+      action: "created",
       remarks: `Collected on registration: ${paymentAmount.toFixed(2)}`,
     });
 
@@ -95,18 +128,51 @@ export async function createMemberAction(
     if (!subscriptionEndDate) throw new Error("Unable to determine membership expiry date.");
 
     const { data: invoice, error: invoiceError } = await supabase.from("invoices").insert({
-      member_id: createdMember.id, subscription_id: (subscription as { id?: string } | null)?.id ?? null,
-      branch_id: parsed.data.branch_id, subtotal: taxable, discount_amount: discount, gst_amount: gst,
-      total_amount: total, amount_paid: 0, balance_amount: total, payment_status: "pending", status: "unpaid",
-      due_date: subscriptionEndDate, line_items: [{ description: plan.name, amount: total }], created_by: profile.id,
+      member_id: createdMember.id,
+      subscription_id: (subscription as { id?: string } | null)?.id ?? null,
+      branch_id: parsed.data.branch_id,
+      tenant_id: branch.tenant_id,
+      subtotal: gst.taxableAmount,
+      taxable_amount: gst.taxableAmount,
+      gst_rate: gst.gstRate,
+      gst_type: gst.gstKind,
+      discount_amount: discount,
+      cgst_amount: gst.cgstAmount,
+      sgst_amount: gst.sgstAmount,
+      igst_amount: gst.igstAmount,
+      gst_amount: gst.gstAmount,
+      total_amount: total,
+      amount_paid: 0,
+      balance_amount: total,
+      payment_status: "pending",
+      status: "unpaid",
+      due_date: subscriptionEndDate,
+      line_items: [{ description: plan.name, amount: total, taxable_amount: gst.taxableAmount, gst_amount: gst.gstAmount }],
+      created_by: profile.id,
     }).select("id").single();
     if (invoiceError || !invoice) throw new Error(invoiceError?.message ?? "Unable to create invoice.");
 
     if (paymentAmount > 0) {
+      const ratio = total > 0 ? Math.min(1, paymentAmount / total) : 1;
       const { error: paymentError } = await supabase.from("payments").insert({
-        invoice_id: invoice.id, member_id: createdMember.id, subscription_id: (subscription as { id?: string } | null)?.id ?? null,
-        branch_id: parsed.data.branch_id, amount: paymentAmount, method: paymentMethod, status: "completed",
-        transaction_reference: transactionRef, paid_at: new Date().toISOString(), collected_by: profile.id,
+        invoice_id: invoice.id,
+        member_id: createdMember.id,
+        subscription_id: (subscription as { id?: string } | null)?.id ?? null,
+        branch_id: parsed.data.branch_id,
+        tenant_id: branch.tenant_id,
+        amount: paymentAmount,
+        taxable_amount: Math.round(gst.taxableAmount * ratio * 100) / 100,
+        gst_rate: gst.gstRate,
+        gst_type: gst.gstKind,
+        gst_amount: Math.round(gst.gstAmount * ratio * 100) / 100,
+        cgst_amount: Math.round(gst.cgstAmount * ratio * 100) / 100,
+        sgst_amount: Math.round(gst.sgstAmount * ratio * 100) / 100,
+        igst_amount: Math.round(gst.igstAmount * ratio * 100) / 100,
+        method: paymentMethod,
+        status: "completed",
+        transaction_reference: transactionRef,
+        paid_at: new Date().toISOString(),
+        collected_by: profile.id,
       });
       if (paymentError) throw new Error(paymentError.message);
     }
@@ -162,7 +228,6 @@ export async function deleteMemberAction(id: string): Promise<{ error?: string }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to deactivate member." };
   }
-  // The client owns navigation so a search/filter URL is preserved.
   revalidatePath("/admin/members");
   revalidatePath("/reception/members");
   revalidatePath("/admin/dashboard");

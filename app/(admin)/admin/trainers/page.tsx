@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { requireUser } from "@/lib/auth";
 import { getTrainerReport } from "@/services/report.service";
+import { TrainerRowActions } from "@/components/trainers/trainer-row-actions";
 
 export const metadata = { title: "Trainers" };
 
@@ -122,7 +123,7 @@ export default async function AdminTrainersPage({
             <table className="w-full min-w-[750px] text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  {["Name", "Specializations", "Experience", "Assigned", "Upcoming Apts", "Status", ""].map((heading) => (
+                  {["Name", "Specializations", "Experience", "Assigned", "Upcoming Apts", "Status", "Actions"].map((heading) => (
                     <th key={heading} className="px-4 py-3 font-medium">
                       {heading}
                     </th>
@@ -162,13 +163,8 @@ export default async function AdminTrainersPage({
                         {trainer.trainer_status}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/trainers/${trainer.trainer_id}`}
-                        className={buttonVariants({ variant: "ghost", size: "sm" })}
-                      >
-                        View
-                      </Link>
+                    <td className="px-4 py-3 text-right">
+                      <TrainerRowActions trainer={trainer} />
                     </td>
                   </tr>
                 ))}
@@ -213,3 +209,4 @@ export default async function AdminTrainersPage({
     </div>
   );
 }
+

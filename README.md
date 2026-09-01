@@ -192,7 +192,7 @@ The API is implemented as Next.js route handlers. Representative, confirmed rout
 | `/api/biometric/*` | eSSL events, diagnostics, and device mock support |
 | `/api/machine/*` | Machine session and attendance operations |
 | `/iclock/*` | Device protocol routes: registry, getrequest, devicecmd, cdata |
-| `/api/cron/reminders` | Secret-protected reminder automation |
+| `/api/cron/reminders` | Secret-protected reminder automation plus outbound notification dispatch |
 
 Public booking is implemented by a server action in `app/(public)/book-demo/actions.ts`, not a documented public REST endpoint.
 
@@ -261,6 +261,12 @@ Create/read/update/delete/approve/export permission matrices are not fully docum
 | `ATTENDANCE_SYNC_SECRET` | Authorizes attendance ingestion | Server only |
 | `CRON_SECRET` | Authorizes reminder cron endpoint | Server only |
 | `NEXT_PUBLIC_APP_URL` | Canonical application URL for redirect flows | Public configuration |
+| `EMAIL_PROVIDER_API_KEY` | Bearer token for the email delivery webhook | Server only |
+| `EMAIL_PROVIDER_URL` | Email delivery webhook endpoint | Server only |
+| `SMS_PROVIDER_API_KEY` | Bearer token for the SMS delivery webhook | Server only |
+| `SMS_PROVIDER_URL` | SMS delivery webhook endpoint | Server only |
+| `WHATSAPP_PROVIDER_API_KEY` | Bearer token for the WhatsApp delivery webhook | Server only |
+| `WHATSAPP_PROVIDER_URL` | WhatsApp delivery webhook endpoint | Server only |
 
 Never commit real values or expose server-only values to the browser.
 

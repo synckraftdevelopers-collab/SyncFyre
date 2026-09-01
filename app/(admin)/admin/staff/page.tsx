@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+﻿import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { StaffDashboard } from "@/components/staff/staff-dashboard";
 
@@ -29,6 +29,7 @@ export default async function AdminStaffPage() {
     .from("staff")
     .select("*, users(id, full_name, email, avatar_url, branch_id, status, roles(name, slug)), branches(name)")
     .eq("branch_id", profile.branch_id)
+    .eq("status", "active")
     .order("employee_code");
 
   const [{ data: branches }, { data: roles }, { data: users }] = await Promise.all([
@@ -42,10 +43,15 @@ export default async function AdminStaffPage() {
       .from("users")
       .select("id, full_name, email, avatar_url, branch_id, status, roles(name, slug)")
       .eq("branch_id", profile.branch_id)
+      .eq("status", "active")
       .order("full_name"),
   ]);
 
-  const physicalStaff = staffRows ?? [];
+  const physicalStaff = (staffRows ?? []).map((staff) => ({
+    ...staff,
+    source_user_id: staff.user_id,
+    branch_name: staff.branches?.name ?? null,
+  }));
   const staffUserIds = new Set(physicalStaff.map((staff) => staff.user_id));
   const registeredStaffWithoutRecord = ((users ?? []) as StaffUser[])
     .filter((user) => {
@@ -59,6 +65,8 @@ export default async function AdminStaffPage() {
       joining_date: null,
       salary: null,
       status: user.status,
+      source_user_id: user.id,
+      branch_name: null,
       users: {
         full_name: user.full_name,
         email: user.email,
@@ -74,7 +82,7 @@ export default async function AdminStaffPage() {
       branches={branches ?? []}
       roles={roles ?? []}
       hasServiceKey={Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)}
-      isAdmin={profile.role?.slug === "admin"}
+      isAdmin={profile.role?.slug === "admin" || profile.role?.slug === "manager"}
     />
   );
 }

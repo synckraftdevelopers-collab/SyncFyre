@@ -8,12 +8,18 @@ export interface Payment {
   subscription_id: string | null;
   branch_id: string;
   amount: number;
+  taxable_amount?: number;
+  gst_rate?: number;
+  gst_type?: "none" | "intra" | "inter";
+  gst_amount?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   method: "cash" | "upi" | "card" | "online";
   status: "pending" | "completed" | "failed" | "refunded" | "partially_refunded";
   transaction_reference: string | null;
   paid_at: string | null;
   created_at: string;
-  // joined
   members?: { full_name: string; member_code: string } | null;
 }
 
@@ -23,7 +29,13 @@ export interface Invoice {
   subscription_id: string | null;
   branch_id: string;
   subtotal: number;
+  taxable_amount?: number;
+  gst_rate?: number;
+  gst_type?: "none" | "intra" | "inter";
   discount_amount: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   gst_amount: number;
   total_amount: number;
   amount_paid: number;
@@ -32,9 +44,54 @@ export interface Invoice {
   line_items: Record<string, unknown>[];
   notes: string | null;
   created_at: string;
-  // joined
-  members?: { full_name: string; member_code: string } | null;
+  invoice_number?: string | null;
+  members?: { full_name: string; member_code: string; phone?: string | null; email?: string | null; address?: string | null } | null;
+  branches?: {
+    name: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    country: string | null;
+    phone: string | null;
+    email: string | null;
+    timezone: string | null;
+    finance_settings?: {
+      gstin?: string | null;
+      legal_business_name?: string | null;
+      business_address?: string | null;
+      business_city?: string | null;
+      business_state?: string | null;
+      business_state_code?: string | null;
+      business_pincode?: string | null;
+      pan?: string | null;
+    } | null;
+    tenants?: {
+      name: string | null;
+      address: string | null;
+      city: string | null;
+      state: string | null;
+      postal_code: string | null;
+      country: string | null;
+      phone: string | null;
+      email: string | null;
+      logo_url: string | null;
+      gst_number: string | null;
+    } | null;
+  } | null;
+  subscriptions?: {
+    start_date: string | null;
+    end_date: string | null;
+    membership_plans?: { name: string | null } | null;
+  } | Array<{
+    start_date: string | null;
+    end_date: string | null;
+    membership_plans?: { name: string | null } | null;
+  }> | null;
 }
+
+const invoiceDetailSelectExtended = "*, members(full_name, member_code, phone, email, address), branches(name, address, city, state, postal_code, country, phone, email, timezone, finance_settings(gstin, legal_business_name, business_address, business_city, business_state, business_state_code, business_pincode, pan), tenants(name, address, city, state, postal_code, country, phone, email, logo_url, gst_number)), subscriptions(start_date, end_date, membership_plans(name)), payments(*)";
+const invoiceDetailSelectFallback = "*, members(full_name, member_code, phone, email, address), branches(name, address, city, state, postal_code, country, phone, email, timezone, finance_settings(gstin), tenants(name, address, city, state, postal_code, country, phone, email, logo_url, gst_number)), subscriptions(start_date, end_date, membership_plans(name)), payments(*)";
 
 export async function listPayments(params: {
   page?: number;
@@ -116,12 +173,26 @@ export async function listInvoices(params: {
 
 export async function getInvoiceById(id: string): Promise<Invoice | null> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const extended = await supabase
     .from("invoices")
-    .select("*, members(full_name, member_code), payments(*)")
+    .select(invoiceDetailSelectExtended)
     .eq("id", id)
-    .single();
-  return data as (Invoice & { payments?: Payment[] }) | null;
+    .maybeSingle();
+
+  if (!extended.error) return extended.data as (Invoice & { payments?: Payment[] }) | null;
+
+  if (extended.error.code !== "42703") {
+    throw new Error(extended.error.message);
+  }
+
+  const fallback = await supabase
+    .from("invoices")
+    .select(invoiceDetailSelectFallback)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (fallback.error) throw new Error(fallback.error.message);
+  return fallback.data as (Invoice & { payments?: Payment[] }) | null;
 }
 
 export type PendingPaymentRow = {
@@ -142,7 +213,6 @@ export type PendingPaymentRow = {
   created_at: string;
 };
 
-/** Outstanding invoices are the single source of truth for pending payments. */
 export async function listPendingPayments(params: {
   branchId?: string | null;
   planId?: string | null;

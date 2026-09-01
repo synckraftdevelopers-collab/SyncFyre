@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import type { MemberCandidate, MemberImportError } from "@/lib/members/member-import";
 import { createClient } from "@/lib/supabase/server";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
+import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
 
 export type MemberExcelImportResult = {
   error?: string;
@@ -200,11 +201,24 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
           throw new Error(`Package '${candidate.package}' was not found.`);
         }
 
+        const [{ data: branch }, { data: financeSettings }] = await Promise.all([
+          supabase.from("branches").select("id, state, tenant_id").eq("id", request.branchId).maybeSingle(),
+          supabase.from("finance_settings").select("gst_registered, default_gst_rate, gst_pricing_mode, business_state").eq("branch_id", request.branchId).maybeSingle(),
+        ]);
+        if (!branch) throw new Error("Branch not found.");
+
         const price = Number(plan.price);
         const discount = Math.round(price * Number(plan.discount_percent) * 100) / 10000;
-        const taxable = price - discount;
-        const gst = Math.round(taxable * Number(plan.gst_percent) * 100) / 10000;
-        const total = taxable + gst;
+        const discountedAmount = Math.max(0, price - discount);
+        const gstEnabled = Boolean(financeSettings?.gst_registered) && Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) > 0;
+        const gst = calculateGstBreakdown({
+          grossAmount: discountedAmount,
+          gstRate: gstEnabled ? Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) : 0,
+          pricingMode: (financeSettings?.gst_pricing_mode === "inclusive" ? "inclusive" : "exclusive") as GstPricingMode,
+          gymState: financeSettings?.business_state ?? branch.state ?? null,
+          customerState: branch.state ?? null,
+        });
+        const total = gst.grandTotal;
         const paymentAmount = candidate.payment ?? 0;
 
         const subscriptionId = await createSubscriptionWithHistory({
@@ -214,9 +228,9 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
           startDate: candidate.membershipStartDate!,
           endDate: candidate.membershipEndDate!,
           status: "active",
-          price,
+          price: gst.taxableAmount,
           discountAmount: discount,
-          gstAmount: gst,
+          gstAmount: gst.gstAmount,
           totalAmount: total,
           performedBy: profile.id,
         });
@@ -227,14 +241,21 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
             member_id: member.id,
             subscription_id: subscriptionId,
             branch_id: request.branchId,
-            subtotal: price,
+            subtotal: gst.taxableAmount,
+            taxable_amount: gst.taxableAmount,
+            gst_rate: gst.gstRate,
+            gst_type: gst.gstKind,
             discount_amount: discount,
-            gst_amount: gst,
+            cgst_amount: gst.cgstAmount,
+            sgst_amount: gst.sgstAmount,
+            igst_amount: gst.igstAmount,
+            gst_amount: gst.gstAmount,
             total_amount: total,
+            tenant_id: branch.tenant_id,
             amount_paid: paymentAmount,
             due_date: candidate.membershipEndDate,
             status: paymentAmount >= total ? "paid" : paymentAmount > 0 ? "partial" : "unpaid",
-            line_items: [{ description: plan.name, amount: total }],
+            line_items: [{ description: plan.name, amount: total, taxable_amount: gst.taxableAmount, gst_amount: gst.gstAmount }],
             notes: candidate.notes,
           })
           .select("id")
@@ -251,6 +272,14 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
             subscription_id: subscriptionId,
             branch_id: request.branchId,
             amount: paymentAmount,
+            taxable_amount: Math.round(gst.taxableAmount * (total > 0 ? Math.min(1, paymentAmount / total) : 1) * 100) / 100,
+            gst_rate: gst.gstRate,
+            gst_type: gst.gstKind,
+            gst_amount: Math.round(gst.gstAmount * (total > 0 ? Math.min(1, paymentAmount / total) : 1) * 100) / 100,
+            cgst_amount: Math.round(gst.cgstAmount * (total > 0 ? Math.min(1, paymentAmount / total) : 1) * 100) / 100,
+            sgst_amount: Math.round(gst.sgstAmount * (total > 0 ? Math.min(1, paymentAmount / total) : 1) * 100) / 100,
+            igst_amount: Math.round(gst.igstAmount * (total > 0 ? Math.min(1, paymentAmount / total) : 1) * 100) / 100,
+            tenant_id: branch.tenant_id,
             method: "cash",
             status: "completed",
             paid_at: `${candidate.membershipStartDate}T00:00:00`,

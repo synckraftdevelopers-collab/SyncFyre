@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { BUSINESS_NOTIFICATION_TYPES } from "@/lib/notifications/business";
+import { dispatchPendingNotificationDeliveries } from "@/services/notification-delivery.service";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
 import type { UserRole } from "@/types";
 
@@ -20,4 +21,10 @@ export async function queueSubscriptionReminders() {
   const { data, error } = await createAdminClient().rpc("generate_membership_reminders");
   if (error) throw new Error(error.message);
   return { queued: Number(data ?? 0) };
+}
+
+export async function runNotificationAutomation() {
+  const reminders = await queueSubscriptionReminders();
+  const deliveries = await dispatchPendingNotificationDeliveries();
+  return { reminders, deliveries };
 }
