@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { Plus } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -67,7 +67,7 @@ export default async function AdminMembersPage({
       subscriptionStartFrom: financialYearDates?.from,
       subscriptionStartTo: financialYearDates?.to,
     }),
-    getBranchOptions(),
+    getBranchOptions({ tenantId: profile?.tenant_id, branchId: profile?.branch_id, role: profile?.role?.slug }),
     getPlanOptions(branchId),
     optionalData(getTrainerOptions(branchId), []),
     (async () => {
@@ -117,12 +117,15 @@ export default async function AdminMembersPage({
   const today = getExpiryDateRange(0, timeZone).from;
   const supabase = await createClient();
   const memberIds = result.data.map((member) => member.member_id);
-  const [attendanceRes, lastVisitRes] = await Promise.all([
+  const [attendanceRes, lastVisitRes, invoicesRes] = await Promise.all([
     memberIds.length
       ? supabase.from("attendance").select("member_id").in("member_id", memberIds).eq("attendance_date", today)
       : { data: [] },
     memberIds.length
       ? supabase.from("attendance").select("member_id, attendance_date").in("member_id", memberIds).lt("attendance_date", today).order("attendance_date", { ascending: false })
+      : { data: [] },
+    memberIds.length
+      ? supabase.from("invoices").select("id, member_id, created_at").in("member_id", memberIds).neq("status", "void").order("created_at", { ascending: false })
       : { data: [] },
   ]);
 
@@ -134,6 +137,10 @@ export default async function AdminMembersPage({
     if (!lastVisitMap[row.member_id]) lastVisitMap[row.member_id] = row.attendance_date;
   }
 
+  const invoiceMap: Record<string, string> = {};
+  for (const invoice of invoicesRes.data ?? []) {
+    if (!invoiceMap[invoice.member_id]) invoiceMap[invoice.member_id] = invoice.id;
+  }
   function pageUrl(nextPage: number) {
     const params = new URLSearchParams(sp as Record<string, string>);
     params.set("page", String(nextPage));
@@ -181,6 +188,7 @@ export default async function AdminMembersPage({
             role={role}
             attendanceMap={attendanceMap}
             lastVisitMap={lastVisitMap}
+            invoiceMap={invoiceMap}
             trainers={trainers.map((trainer) => ({ id: trainer.id, name: trainer.name }))}
           />
         </div>

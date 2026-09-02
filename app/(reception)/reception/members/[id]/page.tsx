@@ -1,9 +1,10 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { Member360 } from "@/components/members/member-360";
 import { MemberEditForm } from "@/components/members/member-edit-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import {
   getBranchOptions,
   getDieticianOptions,
@@ -66,7 +67,7 @@ export default async function ReceptionMemberDetailPage({
     optionalData(getMemberDietPlans(id), []),
     optionalData(getMemberNotifications(id), []),
     optionalData(getPlanOptions(profile.branch_id), []),
-    optionalData(getBranchOptions(), []),
+    optionalData(getBranchOptions({ tenantId: profile.tenant_id, branchId: profile.branch_id, role: profile.role?.slug }), []),
     optionalData(getTrainerOptions(profile.branch_id), []),
     optionalData(getDieticianOptions(profile.branch_id), []),
     supabase
@@ -89,7 +90,8 @@ export default async function ReceptionMemberDetailPage({
     return (
       <div className="mx-auto max-w-4xl space-y-5">
         <div>
-          <h1 className="text-2xl font-bold">Edit member</h1>
+          <BackButton href={`/reception/members/${id}`} confirmOnLeave />
+          <h1 className="mt-2 text-2xl font-bold">Edit member</h1>
           <p className="text-sm text-muted-foreground">Update {member.full_name}&apos;s profile and assignment details.</p>
         </div>
         <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} branches={branches} trainers={trainers} dieticians={dieticians} /></CardContent></Card>

@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+﻿import { notFound } from "next/navigation";
+import { BackButton } from "@/components/ui/back-button";
 import { PrintButton } from "@/components/ui/print-button";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
@@ -87,9 +85,12 @@ function numberToWords(value: number) {
   return `${parts.join(" ").trim()} Rupees Only`;
 }
 
-export default async function AdminInvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AdminInvoiceDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ returnTo?: string }> }) {
   const { id } = await params;
-  await requireUser(["admin", "manager"]);
+  const { returnTo } = await searchParams;
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  const portalPath = profile.role?.slug === "reception" ? "/reception" : "/admin";
+  const backHref = returnTo?.startsWith(`${portalPath}/members`) ? returnTo : `${portalPath}/payments`;
 
   const invoice = (await getInvoiceById(id)) as InvoiceRecord | null;
   if (!invoice) notFound();
@@ -158,10 +159,7 @@ export default async function AdminInvoiceDetailPage({ params }: { params: Promi
       `}</style>
     <div className="mx-auto max-w-5xl space-y-5 print:m-0 print:max-w-none print:w-full">
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Link href="/admin/payments" className={buttonVariants({ variant: "ghost" })}>
-          <ArrowLeft className="size-4" />
-          Payments
-        </Link>
+        <BackButton href={backHref} />
         <div className="ml-auto">
           <PrintButton />
         </div>

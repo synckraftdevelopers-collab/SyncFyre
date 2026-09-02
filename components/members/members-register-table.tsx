@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useMemo,
@@ -54,7 +54,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
-import { deactivateMemberAction } from "@/app/actions/member-management-actions";
+import { assignTrainerAction, deactivateMemberAction } from "@/app/actions/member-management-actions";
 import {
   buildCallUrl,
   buildSmsUrl,
@@ -73,6 +73,7 @@ import {
 type AttendanceMap = Record<string, boolean>;
 type PaymentMap = Record<string, string>;
 type AmountPaidMap = Record<string, number>;
+type InvoiceMap = Record<string, string>;
 
 type MenuState = {
   member: MemberRegisterRow;
@@ -126,7 +127,9 @@ interface MembersRegisterTableProps {
   attendanceMap?: AttendanceMap;
   paymentMap?: PaymentMap;
   amountPaidMap?: AmountPaidMap;
+  invoiceMap?: InvoiceMap;
   lastVisitMap?: Record<string, string>;
+  trainers?: { id: string; name: string }[];
   pageOffset?: number;
 }
 
@@ -136,7 +139,9 @@ export function MembersRegisterTable({
   attendanceMap = {},
   paymentMap = {},
   amountPaidMap = {},
+  invoiceMap = {},
   lastVisitMap = {},
+  trainers = [],
   pageOffset = 0,
 }: MembersRegisterTableProps) {
   const router = useRouter();
@@ -290,9 +295,9 @@ export function MembersRegisterTable({
             male: "Male",
             female: "Female",
             other: "Other",
-            prefer_not_to_say: "—",
+            prefer_not_to_say: "-",
           };
-          return <span className="text-sm">{gender ? (labelMap[gender] ?? gender) : "—"}</span>;
+          return <span className="text-sm">{gender ? (labelMap[gender] ?? gender) : "-"}</span>;
         },
       }),
       helper.accessor("current_plan", {
@@ -331,7 +336,7 @@ export function MembersRegisterTable({
         header: ({ column }) => <SortHeader column={column} label="Expiry" />,
         cell: ({ getValue }) => {
           const value = getValue();
-          if (!value) return <span className="text-sm text-muted-foreground">—</span>;
+          if (!value) return <span className="text-sm text-muted-foreground">-</span>;
           try {
             return <span className="whitespace-nowrap text-sm">{format(parseISO(value), "dd MMM yyyy")}</span>;
           } catch {
@@ -346,7 +351,7 @@ export function MembersRegisterTable({
       helper.accessor("assigned_trainer", {
         header: ({ column }) => <SortHeader column={column} label="Trainer" />,
         cell: ({ getValue }) => (
-          <span className="text-sm">{getValue() ?? <span className="text-muted-foreground">—</span>}</span>
+          <span className="text-sm">{getValue() ?? <span className="text-muted-foreground">-</span>}</span>
         ),
       }),
       helper.accessor("subscription_status", {
@@ -364,7 +369,7 @@ export function MembersRegisterTable({
         header: "Payment",
         cell: ({ row }) => {
           const status = row.original.payment_status || paymentMap[row.original.member_id];
-          if (!status) return <Badge variant="outline">—</Badge>;
+          if (!status) return <Badge variant="outline">-</Badge>;
           const variants: Record<string, { label: string; variant: "success" | "warning" | "danger" | "outline" }> = {
             paid: { label: "Paid", variant: "success" },
             partial: { label: "Partial", variant: "warning" },
@@ -382,7 +387,7 @@ export function MembersRegisterTable({
           <span className="tabular-nums text-sm font-medium">
             {row.original.total_amount !== undefined && row.original.total_amount !== null
               ? formatCurrency(row.original.total_amount)
-              : "—"}
+              : "-"}
           </span>
         ),
       }),
@@ -393,7 +398,7 @@ export function MembersRegisterTable({
           const paid = row.original.paid_amount ?? amountPaidMap[row.original.member_id];
           return (
             <span className="tabular-nums text-sm font-medium text-emerald-600">
-              {paid !== undefined && paid !== null ? formatCurrency(paid) : "—"}
+              {paid !== undefined && paid !== null ? formatCurrency(paid) : "-"}
             </span>
           );
         },
@@ -406,7 +411,7 @@ export function MembersRegisterTable({
           if (balance !== undefined && balance !== null && balance > 0) {
             return <span className="tabular-nums text-sm font-semibold text-rose-600">{formatCurrency(balance)}</span>;
           }
-          return <span className="tabular-nums text-sm text-muted-foreground">{balance === 0 ? "?0" : "—"}</span>;
+          return <span className="tabular-nums text-sm text-muted-foreground">{balance === 0 ? "?0" : "-"}</span>;
         },
       }),
       helper.display({
@@ -577,6 +582,10 @@ export function MembersRegisterTable({
                     "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none",
                     row.original.member_status === "inactive" && "opacity-60",
                   )}
+                  onDoubleClick={(event) => {
+                    event.preventDefault();
+                    openRowMenu(row.original, event.currentTarget, "row", { x: event.clientX, y: event.clientY });
+                  }}
                   onClick={(event) => {
                     const target = event.target as HTMLElement;
                     if (isInteractiveTarget(target)) return;
@@ -630,6 +639,8 @@ export function MembersRegisterTable({
       <RowActionMenu
         menu={rowMenu}
         basePath={basePath}
+        trainers={trainers}
+        invoiceMap={invoiceMap}
         onClose={closeRowMenu}
         onDeactivate={(member) => setDeactivateTarget({ id: member.member_id, name: member.full_name, memberCode: member.member_code, branchName: member.branch_name })}
         onShare={(member) => setShareDialog({ member })}
@@ -686,17 +697,23 @@ function SortHeader<TData>({
 function RowActionMenu({
   menu,
   basePath,
+  trainers,
+  invoiceMap,
   onClose,
   onDeactivate,
   onShare,
 }: {
   menu: MenuState | null;
   basePath: string;
+  trainers: { id: string; name: string }[];
+  invoiceMap: InvoiceMap;
   onClose: () => void;
   onDeactivate: (member: MemberRegisterRow) => void;
   onShare: (member: MemberRegisterRow) => void;
 }) {
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [showTrainers, setShowTrainers] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   const updatePosition = useCallback(() => {
     if (!menu) return;
@@ -742,12 +759,16 @@ function RowActionMenu({
 
   const id = menu.member.member_id;
   const paymentsHref = basePath.startsWith("/reception") ? "/reception/payments" : "/admin/payments";
+  const portalPath = basePath.startsWith("/reception") ? "/reception" : "/admin";
+  const invoiceId = invoiceMap[id];
   const actions = [
     { label: "View profile", icon: Eye, href: `${basePath}/${id}` },
     { label: "Edit", icon: Pencil, href: `${basePath}/${id}?edit=1` },
     { label: "Renew membership", icon: RotateCcw, href: `${basePath}/${id}?tab=membership` },
     { label: "Collect payment", icon: CreditCard, href: `${basePath}/${id}?tab=payment` },
-    { label: "Generate invoice", icon: FileText, href: paymentsHref },
+    invoiceId
+      ? { label: "View invoice", icon: FileText, href: `${portalPath}/invoices/${invoiceId}?returnTo=${encodeURIComponent(basePath)}` }
+      : { label: "Generate invoice", icon: FileText, href: `${portalPath}/invoices/new?memberId=${id}&returnTo=${encodeURIComponent(basePath)}` },
     { label: "Assign trainer", icon: Dumbbell, href: `${basePath}/${id}?tab=trainer` },
     { label: "View attendance", icon: ClipboardList, href: `${basePath}/${id}?tab=attendance` },
   ];
@@ -761,7 +782,7 @@ function RowActionMenu({
         onMouseDown={onClose}
       />
       <div
-        className="fixed z-50 w-60 rounded-xl border bg-background py-1 shadow-xl"
+        className="fixed z-50 w-60 overflow-hidden rounded-xl border bg-background py-1 shadow-xl"
         onWheel={(event) => event.preventDefault()}
         style={{ top: position.top, left: position.left }}
         role="menu"
@@ -771,16 +792,13 @@ function RowActionMenu({
           <p className="truncate text-sm font-semibold">{menu.member.full_name}</p>
           <p className="truncate text-xs text-muted-foreground">{menu.member.member_code}</p>
         </div>
-        {actions.map(({ label, icon: Icon, href }) => (
-          <Link
-            key={label}
-            href={href}
-            onClick={onClose}
-            className="flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors hover:bg-muted"
-            role="menuitem"
-          >
-            <Icon className="size-4 text-muted-foreground" />
-            {label}
+        {actions.map(({ label, icon: Icon, href }) => label === "Assign trainer" ? (
+          <button key={label} type="button" onClick={() => setShowTrainers(true)} className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm transition-colors hover:bg-muted" role="menuitem">
+            <Icon className="size-4 text-muted-foreground" />{label}
+          </button>
+        ) : (
+          <Link key={label} href={href} onClick={onClose} className="flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors hover:bg-muted" role="menuitem">
+            <Icon className="size-4 text-muted-foreground" />{label}
           </Link>
         ))}
         <button
@@ -806,6 +824,39 @@ function RowActionMenu({
               role="menuitem"
             ><UserX className="size-4" />Delete</button>
       </div>
+      <Dialog open={showTrainers} onOpenChange={setShowTrainers}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign trainer to {menu.member.full_name}</DialogTitle>
+            <DialogDescription>Select a trainer from the list below.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto rounded-xl border">
+            <button type="button" disabled={isAssigning} onClick={() => {
+              setIsAssigning(true);
+              assignTrainerAction(id, null).then((result) => {
+                if (result.error) toast.error(result.error);
+                else { toast.success("Trainer assignment removed."); setShowTrainers(false); onClose(); window.location.reload(); }
+              }).finally(() => setIsAssigning(false));
+            }} className="flex w-full items-center px-4 py-3 text-left text-sm hover:bg-muted">
+              Not assigned
+            </button>
+            {trainers.length ? trainers.map((trainer) => (
+              <button key={trainer.id} type="button" disabled={isAssigning} onClick={() => {
+                setIsAssigning(true);
+                assignTrainerAction(id, trainer.id).then((result) => {
+                  if (result.error) toast.error(result.error);
+                  else { toast.success(`${trainer.name} assigned successfully.`); setShowTrainers(false); onClose(); window.location.reload(); }
+                }).finally(() => setIsAssigning(false));
+              }} className="flex w-full items-center border-t px-4 py-3 text-left text-sm hover:bg-muted">
+                {trainer.name}
+              </button>
+            )) : <p className="border-t px-4 py-5 text-sm text-muted-foreground">No active trainers available.</p>}
+          </div>
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setShowTrainers(false)} disabled={isAssigning}>Cancel</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>,
     document.body,
   );
@@ -866,7 +917,7 @@ function ShareMemberDialog({
                 <InfoItem label="Start" value={startDate} />
                 <InfoItem label="End" value={endDate} />
                 <InfoItem label="Payment" value={formatCurrency(payment)} />
-                <InfoItem label="Phone" value={member.phone ?? "—"} />
+                <InfoItem label="Phone" value={member.phone ?? "-"} />
               </div>
             </div>
 
@@ -985,7 +1036,7 @@ function InfoItem({ label, value }: { label: string; value: string }) {
 }
 
 function formatMemberDate(value: string | null): string {
-  if (!value) return "—";
+  if (!value) return "-";
   try {
     return format(parseISO(value), "dd MMM yyyy");
   } catch {
@@ -1016,6 +1067,15 @@ function MembersEmptyState() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1,8 +1,9 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { ResourceCreateForm, type FormField } from "@/components/modules/resource-create-form";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { BackButton } from "@/components/ui/back-button";
 
 const titles: Record<string, string> = {
   memberships: "Create membership plan", appointments: "Book appointment", trainers: "Add trainer",
@@ -60,7 +61,8 @@ export default async function AdminNewResourcePage({ params }: { params: Promise
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">{titles[moduleKey]}</h1>
+        <BackButton href={returnTo} confirmOnLeave />
+        <h1 className="mt-2 text-2xl font-bold">{titles[moduleKey]}</h1>
         <p className="text-sm text-muted-foreground">Complete the information below. Required fields are validated before saving.</p>
       </div>
       <Card>

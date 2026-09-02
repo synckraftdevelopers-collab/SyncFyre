@@ -1,9 +1,10 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import { Apple, ArrowLeft, Bell, CreditCard, Dumbbell, FileUp, MessageCircle, Phone, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
+import { Apple, Bell, CreditCard, Dumbbell, FileUp, MessageCircle, Phone, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
 import type { UserRole } from "@/types";
 import { MemberProgressChart } from "@/components/progress/member-progress-chart";
 import { MemberAvatar } from "@/components/members/member-avatar";
+import { BackButton } from "@/components/ui/back-button";
 import { MemberProfileTabs } from "@/components/members/member-profile-tabs";
 import { AssignDieticianDialog } from "@/components/members/assign-dietician-dialog";
 import { AssignTrainerDialog } from "@/components/members/assign-trainer-dialog";
@@ -249,10 +250,7 @@ export function Member360({
   return (
     <div className="mx-auto max-w-7xl space-y-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={listHref} className={buttonVariants({ variant: "ghost", size: "sm" })}>
-          <ArrowLeft className="size-4" />
-          Members
-        </Link>
+        <BackButton href={listHref} />
         <div className="ml-auto flex flex-wrap gap-2">
           <Link href={`${basePath}/${member.id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}>Edit Member</Link>
           {allowDelete ? <DeleteMemberDialog memberId={member.id} memberName={member.full_name} redirectTo={listHref} /> : null}

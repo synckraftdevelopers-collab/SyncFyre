@@ -276,6 +276,7 @@ export function MemberViewToggle({
   role,
   attendanceMap,
   lastVisitMap,
+  invoiceMap,
   trainers,
 }: {
   data: MemberRegisterRow[];
@@ -283,6 +284,7 @@ export function MemberViewToggle({
   role: UserRole | null | undefined;
   attendanceMap: Record<string, boolean>;
   lastVisitMap: Record<string, string>;
+  invoiceMap?: Record<string, string>;
   trainers: { id: string; name: string }[];
 }) {
   const [view, setView] = useState<"cards" | "rows">("rows");
@@ -335,7 +337,7 @@ export function MemberViewToggle({
           trainers={trainers}
         />
       ) : (
-        <MembersRegisterTable data={data} basePath={basePath} attendanceMap={attendanceMap} lastVisitMap={lastVisitMap} />
+        <MembersRegisterTable data={data} basePath={basePath} trainers={trainers} attendanceMap={attendanceMap} lastVisitMap={lastVisitMap} invoiceMap={invoiceMap} />
       )}
     </div>
   );

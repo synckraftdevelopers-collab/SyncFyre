@@ -1,4 +1,4 @@
-/**
+﻿/**
  * member-extended.service.ts
  *
  * Extended server-side queries for the Members Management module.
@@ -571,13 +571,29 @@ async function validateAssignment(
   };
 }
 
-export async function getBranchOptions() {
+export type BranchOptionScope = {
+  tenantId: string | null | undefined;
+  branchId?: string | null;
+  role?: string | null;
+};
+
+export async function getBranchOptions({ tenantId, branchId, role }: BranchOptionScope) {
+  if (!tenantId) return [];
+
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("branches")
     .select("id, name")
+    .eq("tenant_id", tenantId)
     .eq("status", "active")
     .order("name");
+
+  if (!["owner", "admin", "manager"].includes(role ?? "") && branchId) {
+    query = query.eq("id", branchId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
   return data ?? [];
 }
 

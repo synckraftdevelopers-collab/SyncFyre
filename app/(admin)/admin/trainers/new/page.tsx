@@ -1,7 +1,8 @@
-import { Card, CardContent } from "@/components/ui/card";
+﻿import { Card, CardContent } from "@/components/ui/card";
 import { ResourceCreateForm } from "@/components/modules/resource-create-form";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { BackButton } from "@/components/ui/back-button";
 
 export const metadata = { title: "Add Trainer" };
 
@@ -21,7 +22,8 @@ export default async function NewTrainerPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Add trainer</h1>
+        <BackButton href="/admin/trainers" confirmOnLeave />
+        <h1 className="mt-2 text-2xl font-bold">Add trainer</h1>
         <p className="text-sm text-muted-foreground">Create a trainer profile for an existing user account.</p>
       </div>
       <Card>

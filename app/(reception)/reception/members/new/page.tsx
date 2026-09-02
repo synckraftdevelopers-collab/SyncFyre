@@ -1,6 +1,7 @@
-import { Card, CardContent } from "@/components/ui/card";
+﻿import { Card, CardContent } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { AddMemberWizard } from "@/components/members/add-member-wizard";
+import { BackButton } from "@/components/ui/back-button";
 import {
   getBranchOptions,
   getPlanOptions,
@@ -14,7 +15,7 @@ export default async function ReceptionNewMemberPage() {
   const branchId = profile.branch_id;
 
   const [branches, plans, trainers] = await Promise.all([
-    getBranchOptions(),
+    getBranchOptions({ tenantId: profile.tenant_id, branchId: profile.branch_id, role: profile.role?.slug }),
     getPlanOptions(branchId),
     getTrainerOptions(branchId),
   ]);
@@ -22,7 +23,8 @@ export default async function ReceptionNewMemberPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Register Member</h1>
+        <BackButton href="/reception/members" confirmOnLeave />
+        <h1 className="mt-2 text-2xl font-bold">Register Member</h1>
         <p className="text-sm text-muted-foreground">
           Complete the wizard. A member code is generated automatically on save.
         </p>

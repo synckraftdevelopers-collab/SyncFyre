@@ -1,6 +1,4 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+﻿import { BackButton } from "@/components/ui/back-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -8,7 +6,8 @@ import { InvoiceForm } from "@/components/members/invoice-form";
 
 export const metadata = { title: "Collect Payment" };
 
-export default async function ReceptionNewInvoicePage() {
+export default async function ReceptionNewInvoicePage({ searchParams }: { searchParams: Promise<{ memberId?: string; returnTo?: string }> }) {
+  const params = await searchParams;
   await requireUser(["reception"]);
   const supabase = await createClient();
 
@@ -20,9 +19,7 @@ export default async function ReceptionNewInvoicePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/reception/payments" className={buttonVariants({ variant: "ghost" })}>
-          <ArrowLeft className="size-4" />Payments
-        </Link>
+        <BackButton href={params.returnTo ?? "/reception/payments"} confirmOnLeave />
         <div>
           <h1 className="text-2xl font-bold">Collect payment</h1>
           <p className="text-sm text-muted-foreground">Create an invoice and record a payment in one step.</p>
@@ -30,7 +27,7 @@ export default async function ReceptionNewInvoicePage() {
       </div>
       <Card>
         <CardContent className="p-5 md:p-7">
-          <InvoiceForm members={membersRes.data ?? []} plans={plansRes.data ?? []} />
+          <InvoiceForm members={membersRes.data ?? []} plans={plansRes.data ?? []} initialMemberId={params.memberId} returnTo={params.returnTo} />
         </CardContent>
       </Card>
     </div>

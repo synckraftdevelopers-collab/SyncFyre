@@ -1,7 +1,5 @@
-import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+﻿import { notFound } from "next/navigation";
+import { BackButton } from "@/components/ui/back-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -29,9 +27,7 @@ export default async function EditMembershipPlanPage({
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center gap-3">
-        <Link href="/admin/memberships" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-          <ArrowLeft className="size-4" /> Plans
-        </Link>
+        <BackButton href="/admin/memberships" confirmOnLeave />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Edit Plan</h1>
           <p className="text-sm text-muted-foreground">{plan.name}</p>

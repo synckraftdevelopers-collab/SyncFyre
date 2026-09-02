@@ -39,14 +39,14 @@ export function AssignTrainerDialog({ memberId, currentTrainerId, trainers }: Pr
     return trainers.filter((trainer) => trainer.name.toLowerCase().includes(term));
   }, [trainers, query]);
 
-  function handleSubmit() {
+  function handleSubmit(selectedId = trainerId) {
     startTransition(async () => {
-      const result = await assignTrainerAction(memberId, trainerId || null);
+      const result = await assignTrainerAction(memberId, selectedId || null);
       if (result.error) {
         toast.error(result.error);
         return;
       }
-      toast.success(trainerId ? "Trainer assigned successfully." : "Trainer assignment removed.");
+      toast.success(selectedId ? "Trainer assigned successfully." : "Trainer assignment removed.");
       setOpen(false);
       router.refresh();
     });
@@ -77,7 +77,7 @@ export function AssignTrainerDialog({ memberId, currentTrainerId, trainers }: Pr
             </button>
             <div className="max-h-64 overflow-y-auto">
               {filteredTrainers.length ? filteredTrainers.map((trainer) => (
-                <button key={trainer.id} type="button" onClick={() => setTrainerId(trainer.id)} className={`flex w-full items-center justify-between border-t px-3 py-2 text-left text-sm ${trainerId === trainer.id ? "bg-primary/10 font-medium" : "hover:bg-muted/40"}`}>
+                <button key={trainer.id} type="button" onClick={() => { setTrainerId(trainer.id); handleSubmit(trainer.id); }} className={`flex w-full items-center justify-between border-t px-3 py-2 text-left text-sm ${trainerId === trainer.id ? "bg-primary/10 font-medium" : "hover:bg-muted/40"}`}>
                   <span>{trainer.name}</span>
                 </button>
               )) : <p className="border-t px-3 py-4 text-sm text-muted-foreground">No active trainers available.</p>}
@@ -87,7 +87,7 @@ export function AssignTrainerDialog({ memberId, currentTrainerId, trainers }: Pr
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isPending}>
+            <Button onClick={() => handleSubmit()} disabled={isPending}>
               {isPending && <LoaderCircle className="size-4 animate-spin" />}
               {trainerId ? "Save Changes" : "Remove"}
             </Button>
@@ -97,3 +97,5 @@ export function AssignTrainerDialog({ memberId, currentTrainerId, trainers }: Pr
     </Dialog>
   );
 }
+
+

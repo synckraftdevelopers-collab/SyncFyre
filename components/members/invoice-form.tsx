@@ -23,12 +23,12 @@ interface Plan {
 
 const fieldClass = "space-y-1.5 text-sm font-medium";
 
-export function InvoiceForm({ members, plans }: { members: Member[]; plans: Plan[] }) {
+export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { members: Member[]; plans: Plan[]; initialMemberId?: string; returnTo?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
 
-  const [memberId, setMemberId] = useState("");
+  const [memberId, setMemberId] = useState(initialMemberId ?? "");
   const [planId, setPlanId] = useState("");
   const [customPrice, setCustomPrice] = useState("");
   const [discount, setDiscount] = useState("0");

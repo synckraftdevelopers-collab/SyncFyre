@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
@@ -24,6 +24,7 @@ export async function createMemberAction(
   formData: FormData,
 ): Promise<MemberFormState> {
   const profile = await requireUser(["admin", "manager", "reception"]);
+  if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
   const raw = Object.fromEntries(formData);
   const branchId = String(raw.branch_id ?? profile.branch_id ?? "");
   const parsed = memberSchema.safeParse({
@@ -72,6 +73,8 @@ export async function createMemberAction(
       .from("branches")
       .select("id, state, tenant_id")
       .eq("id", parsed.data.branch_id)
+      .eq("tenant_id", profile.tenant_id)
+      .eq("status", "active")
       .maybeSingle(),
     supabase
       .from("finance_settings")
@@ -82,7 +85,10 @@ export async function createMemberAction(
 
   if (!plan) return { error: "Select an active package." };
   if (plan.branch_id && plan.branch_id !== parsed.data.branch_id) return { error: "Selected package does not belong to the chosen branch." };
-  if (!branch) return { error: "Selected branch was not found." };
+  if (!branch) return { error: "Select an active branch in your organization." };
+  if (profile.role?.slug === "reception" && profile.branch_id !== branch.id) {
+    return { error: "Reception staff can register members only for their assigned branch." };
+  }
 
   let createdMember: Awaited<ReturnType<typeof createMember>>;
   try {
