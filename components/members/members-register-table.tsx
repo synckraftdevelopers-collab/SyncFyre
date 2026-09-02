@@ -730,21 +730,24 @@ function RowActionMenu({
     };
 
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", onClose, true);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", onClose, true);
     };
   }, [menu, onClose, updatePosition]);
 
   if (!menu || typeof document === "undefined") return null;
 
   const id = menu.member.member_id;
+  const paymentsHref = basePath.startsWith("/reception") ? "/reception/payments" : "/admin/payments";
   const actions = [
     { label: "View profile", icon: Eye, href: `${basePath}/${id}` },
     { label: "Edit", icon: Pencil, href: `${basePath}/${id}?edit=1` },
     { label: "Renew membership", icon: RotateCcw, href: `${basePath}/${id}?tab=membership` },
     { label: "Collect payment", icon: CreditCard, href: `${basePath}/${id}?tab=payment` },
-    { label: "Generate invoice", icon: FileText, href: `${basePath}/${id}?tab=invoice` },
+    { label: "Generate invoice", icon: FileText, href: paymentsHref },
     { label: "Assign trainer", icon: Dumbbell, href: `${basePath}/${id}?tab=trainer` },
     { label: "View attendance", icon: ClipboardList, href: `${basePath}/${id}?tab=attendance` },
   ];
@@ -759,6 +762,7 @@ function RowActionMenu({
       />
       <div
         className="fixed z-50 w-60 rounded-xl border bg-background py-1 shadow-xl"
+        onWheel={(event) => event.preventDefault()}
         style={{ top: position.top, left: position.left }}
         role="menu"
         aria-label={`Actions for ${menu.member.full_name}`}
@@ -771,7 +775,7 @@ function RowActionMenu({
           <Link
             key={label}
             href={href}
-            onMouseDown={onClose}
+            onClick={onClose}
             className="flex items-center gap-2.5 px-3.5 py-2 text-sm transition-colors hover:bg-muted"
             role="menuitem"
           >
