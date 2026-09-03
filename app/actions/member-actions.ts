@@ -5,9 +5,10 @@ import { requireUser } from "@/lib/auth";
 import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
 import { parseDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
-import { memberSchema } from "@/lib/validations/member";
+import { applyMemberFormConfiguration, memberSchema } from "@/lib/validations/member";
 import { createMember, updateMember } from "@/services/member.service";
-import { createSubscriptionWithHistory } from "@/services/workflow.service";
+import { getMemberFormConfiguration } from "@/services/member-form-config.service";
+import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 import { deactivateMember } from "@/services/member-extended.service";
 
 export type MemberFormState = { error?: string; fields?: Record<string, string[]> };
@@ -27,7 +28,8 @@ export async function createMemberAction(
   if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
   const raw = Object.fromEntries(formData);
   const branchId = String(raw.branch_id ?? profile.branch_id ?? "");
-  const parsed = memberSchema.safeParse({
+  const memberFormConfiguration = profile.tenant_id ? await getMemberFormConfiguration(profile.tenant_id) : [];
+  const parsed = applyMemberFormConfiguration(memberSchema, memberFormConfiguration).safeParse({
     ...raw,
     branch_id: branchId,
     phone: normalizePhone(raw.phone),
@@ -191,6 +193,150 @@ export async function createMemberAction(
   redirect(`${base}/members`);
 }
 
+export async function generateMemberInvoiceAction(memberId: string): Promise<{ error?: string; invoiceId?: string; redirectTo?: string }> {
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  if (!memberId) return { error: "Member ID is missing." };
+
+  const supabase = await createClient();
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, full_name, branch_id, address")
+    .eq("id", memberId)
+    .single();
+
+  if (memberError || !member) return { error: memberError?.message ?? "Member not found." };
+
+  const { data: subscription, error: subscriptionError } = await supabase
+    .from("subscriptions")
+    .select("id, branch_id, plan_id, start_date, end_date, status, membership_plans(id, name, price, gst_percent, discount_percent)")
+    .eq("member_id", memberId)
+    .in("status", ["active", "pending"])
+    .order("end_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (subscriptionError) return { error: subscriptionError.message };
+  if (!subscription?.plan_id) return { error: "No active membership plan found for this member." };
+
+  const { data: existingInvoices, error: existingInvoiceError } = await supabase
+    .from("invoices")
+    .select("id")
+    .eq("member_id", memberId)
+    .eq("subscription_id", subscription.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (existingInvoiceError) return { error: existingInvoiceError.message };
+
+  const portalBase = profile.role?.slug === "reception" ? "/reception" : "/admin";
+  const existingInvoice = existingInvoices?.[0];
+  if (existingInvoice?.id) {
+    return {
+      invoiceId: existingInvoice.id,
+      redirectTo: `${portalBase}/invoices/${existingInvoice.id}`,
+    };
+  }
+
+  const [{ data: branch, error: branchError }, { data: financeSettings, error: financeError }] = await Promise.all([
+    supabase
+      .from("branches")
+      .select("id, state, tenant_id")
+      .eq("id", subscription.branch_id ?? member.branch_id)
+      .maybeSingle(),
+    supabase
+      .from("finance_settings")
+      .select("gst_registered, default_gst_rate, gst_pricing_mode, business_state")
+      .eq("branch_id", subscription.branch_id ?? member.branch_id)
+      .maybeSingle(),
+  ]);
+
+  if (branchError) return { error: branchError.message };
+  if (financeError) return { error: financeError.message };
+  if (!branch) return { error: "Branch not found for this membership." };
+
+  const plan = Array.isArray(subscription.membership_plans)
+    ? subscription.membership_plans[0] ?? null
+    : subscription.membership_plans;
+  if (!plan) return { error: "Membership plan details are missing." };
+
+  const basePrice = Number(plan.price ?? 0);
+  const discount = Math.round(basePrice * Number(plan.discount_percent ?? 0) * 100) / 10000;
+  const discountedAmount = Math.max(0, basePrice - discount);
+  const gstEnabled = Boolean(financeSettings?.gst_registered) && Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) > 0;
+  const pricingMode = (financeSettings?.gst_pricing_mode === "inclusive" ? "inclusive" : "exclusive") as GstPricingMode;
+  const gstRate = gstEnabled ? Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) : 0;
+  const gst = calculateGstBreakdown({
+    grossAmount: discountedAmount,
+    gstRate,
+    pricingMode,
+    gymState: financeSettings?.business_state ?? branch.state ?? null,
+    customerState: branch.state ?? null,
+  });
+
+  const total = gst.grandTotal;
+  const dueDate = subscription.end_date ?? subscription.start_date ?? new Date().toISOString().slice(0, 10);
+
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices")
+    .insert({
+      member_id: memberId,
+      subscription_id: subscription.id,
+      branch_id: branch.id,
+      tenant_id: branch.tenant_id,
+      subtotal: gst.taxableAmount,
+      taxable_amount: gst.taxableAmount,
+      gst_rate: gst.gstRate,
+      gst_type: gst.gstKind,
+      discount_amount: discount,
+      cgst_amount: gst.cgstAmount,
+      sgst_amount: gst.sgstAmount,
+      igst_amount: gst.igstAmount,
+      gst_amount: gst.gstAmount,
+      total_amount: total,
+      amount_paid: 0,
+      balance_amount: total,
+      payment_status: "pending",
+      status: "unpaid",
+      due_date: dueDate,
+      notes: null,
+      line_items: [{
+        description: plan.name ?? "Membership",
+        amount: total,
+        taxable_amount: gst.taxableAmount,
+        gst_amount: gst.gstAmount,
+      }],
+      created_by: profile.id,
+    })
+    .select("id")
+    .single();
+
+  if (invoiceError || !invoice) return { error: invoiceError?.message ?? "Unable to create invoice." };
+
+  await logActivity({
+    performedBy: profile.id,
+    branchId: branch.id,
+    action: "invoice_created",
+    entityType: "invoice",
+    entityId: invoice.id,
+    description: `Invoice created for ${member.full_name}`,
+    metadata: {
+      member_id: memberId,
+      subscription_id: subscription.id,
+      plan_id: subscription.plan_id,
+      total_amount: total,
+    },
+  });
+
+  revalidatePath(`${portalBase}/members`);
+  revalidatePath(`${portalBase}/members/${memberId}`);
+  revalidatePath(`${portalBase}/payments`);
+
+  return {
+    invoiceId: invoice.id,
+    redirectTo: `${portalBase}/invoices/${invoice.id}`,
+  };
+}
+
 export async function updateMemberAction(
   _: MemberFormState,
   formData: FormData,
@@ -201,7 +347,8 @@ export async function updateMemberAction(
   const raw = Object.fromEntries(formData);
   const { id: _id, ...rest } = raw;
   void _id;
-  const parsed = memberSchema.partial().safeParse({
+  const memberFormConfiguration = profile.tenant_id ? await getMemberFormConfiguration(profile.tenant_id) : [];
+  const parsed = applyMemberFormConfiguration(memberSchema.partial(), memberFormConfiguration).safeParse({
     ...rest,
     phone: normalizePhone(rest.phone),
     emergency_contact_phone: normalizePhone(rest.emergency_contact_phone),

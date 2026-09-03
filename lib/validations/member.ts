@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getDefaultMemberFormConfiguration, type MemberFormFieldConfiguration } from "@/lib/members/member-form-config";
 
 const phonePattern = /^(?:\+91)?[6-9]\d{9}$/;
 const optionalPhone = z
@@ -37,3 +38,17 @@ export const memberSchema = z.object({
 });
 
 export type MemberInput = z.infer<typeof memberSchema>;
+
+export function applyMemberFormConfiguration<T extends z.ZodTypeAny>(schema: T, configuration: MemberFormFieldConfiguration[] = getDefaultMemberFormConfiguration()) {
+  return schema.superRefine((value, ctx) => {
+    const payload = value as Record<string, unknown>;
+    for (const field of configuration) {
+      if (!field.required) continue;
+      const current = payload[field.key];
+      const empty = current == null || current === "" || (typeof current === "number" && Number.isNaN(current)) || (Array.isArray(current) && current.length === 0);
+      if (empty) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [field.key], message: `${field.label} is required.` });
+      }
+    }
+  });
+}

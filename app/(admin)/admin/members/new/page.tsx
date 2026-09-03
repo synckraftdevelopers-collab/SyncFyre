@@ -1,6 +1,7 @@
 ﻿import { Card, CardContent } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { AddMemberWizard } from "@/components/members/add-member-wizard";
+import { getMemberFormConfiguration } from "@/services/member-form-config.service";
 import { BackButton } from "@/components/ui/back-button";
 import {
   getBranchOptions,
@@ -14,10 +15,11 @@ export default async function AdminNewMemberPage() {
   const profile = await requireUser(["admin", "manager", "reception"]);
   const branchId = profile.branch_id;
 
-  const [branches, plans, trainers] = await Promise.all([
+  const [branches, plans, trainers, memberFormFields] = await Promise.all([
     getBranchOptions({ tenantId: profile.tenant_id, branchId: profile.branch_id, role: profile.role?.slug }),
     getPlanOptions(branchId),
     getTrainerOptions(branchId),
+    profile.tenant_id ? getMemberFormConfiguration(profile.tenant_id) : Promise.resolve([]),
   ]);
 
   return (
@@ -30,7 +32,7 @@ export default async function AdminNewMemberPage() {
         </p>
         <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
           <span className="font-semibold text-primary">Required to register:</span>{" "}
-          Full name, package, start date, and payment amount.
+          Membership details, payment details, and any member fields marked required for this gym.
         </div>
       </div>
       <Card>
@@ -39,6 +41,7 @@ export default async function AdminNewMemberPage() {
             branches={branches}
             plans={plans}
             trainers={trainers}
+            memberFormFields={memberFormFields}
             basePath="/admin/members"
           />
         </CardContent>

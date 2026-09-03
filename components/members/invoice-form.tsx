@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,9 +26,11 @@ const fieldClass = "space-y-1.5 text-sm font-medium";
 export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { members: Member[]; plans: Plan[]; initialMemberId?: string; returnTo?: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const [memberId, setMemberId] = useState(initialMemberId ?? "");
+  const initialMemberSelection = initialMemberId ?? searchParams.get("memberId") ?? "";
+  const [memberId, setMemberId] = useState(initialMemberSelection);
   const [planId, setPlanId] = useState("");
   const [customPrice, setCustomPrice] = useState("");
   const [discount, setDiscount] = useState("0");
@@ -37,6 +39,11 @@ export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { mem
   const [txRef, setTxRef] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!initialMemberSelection) return;
+    setMemberId((current) => current || initialMemberSelection);
+  }, [initialMemberSelection]);
 
   // Auto-fill pricing when a plan is selected
   useEffect(() => {
@@ -140,7 +147,8 @@ export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { mem
             value={memberId}
             onChange={(e) => setMemberId(e.target.value)}
             required
-            className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm"
+            disabled={Boolean(initialMemberSelection)}
+            className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-70"
           >
             <option value="">Select member</option>
             {members.map((m) => (
@@ -282,3 +290,5 @@ export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { mem
     </form>
   );
 }
+
+

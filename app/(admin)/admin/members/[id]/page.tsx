@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { Member360 } from "@/components/members/member-360";
 import { MemberEditForm } from "@/components/members/member-edit-form";
 import { Card, CardContent } from "@/components/ui/card";
+import { getMemberFormConfiguration } from "@/services/member-form-config.service";
 import { BackButton } from "@/components/ui/back-button";
 import {
   getBranchOptions,
@@ -54,6 +55,7 @@ export default async function AdminMemberDetailPage({
     branches,
     trainers,
     dieticians,
+    memberFormFields,
     receivablesRes,
     activityRes,
   ] = await Promise.all([
@@ -70,18 +72,9 @@ export default async function AdminMemberDetailPage({
     optionalData(getBranchOptions({ tenantId: profile.tenant_id, branchId: profile.branch_id, role: profile.role?.slug }), []),
     optionalData(getTrainerOptions(profile.branch_id), []),
     optionalData(getDieticianOptions(profile.branch_id), []),
-    supabase
-      .from("receivables")
-      .select("id, invoice_id, original_amount, paid_amount, balance_amount, due_date, status, receivable_type")
-      .eq("member_id", id)
-      .order("due_date", { ascending: true }),
-    supabase
-      .from("activity_logs")
-      .select("id, action, entity_type, description, created_at")
-      .eq("branch_id", profile.branch_id)
-      .or(`entity_id.eq.${id},description.ilike.%member%`)
-      .order("created_at", { ascending: false })
-      .limit(20),
+    profile.tenant_id ? getMemberFormConfiguration(profile.tenant_id) : Promise.resolve([]),
+    supabase.from("receivables").select("id, invoice_id, original_amount, paid_amount, balance_amount, due_date, status, receivable_type").eq("member_id", id).order("due_date", { ascending: true }),
+    supabase.from("activity_logs").select("id, action, entity_type, description, created_at").eq("branch_id", profile.branch_id).or(`entity_id.eq.${id},description.ilike.%member%`).order("created_at", { ascending: false }).limit(20),
   ]);
 
   if (!member) notFound();
@@ -94,7 +87,7 @@ export default async function AdminMemberDetailPage({
           <h1 className="mt-2 text-2xl font-bold">Edit member</h1>
           <p className="text-sm text-muted-foreground">Update {member.full_name}&apos;s profile and assignment details.</p>
         </div>
-        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} branches={branches} trainers={trainers} dieticians={dieticians} /></CardContent></Card>
+        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} memberFormFields={memberFormFields} branches={branches} trainers={trainers} dieticians={dieticians} /></CardContent></Card>
       </div>
     );
   }

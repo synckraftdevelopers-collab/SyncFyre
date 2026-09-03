@@ -246,6 +246,7 @@ export function Member360({
   const latestProgress = progress[0];
   const mobile = member.phone.replace(/\D/g, "");
   const whatsappHref = mobile ? `https://wa.me/${mobile.startsWith("91") ? mobile : `91${mobile}`}` : null;
+  const collectPaymentLink = `${collectPaymentHref}${collectPaymentHref.includes("?") ? "&" : "?"}memberId=${member.id}`;
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -278,7 +279,7 @@ export function Member360({
               <div className="flex flex-wrap gap-2">
                 <a href={`tel:${member.phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a>
                 {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
-                {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentHref} className={buttonVariants({ size: "sm" })}><CreditCard className="size-4" />Collect Payment</Link> : null}
+                {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><CreditCard className="size-4" />Collect Payment</Link> : null}
                 {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} /> : null}
               </div>
             </div>
@@ -336,7 +337,7 @@ export function Member360({
                   <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                     <a href={`tel:${member.phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a>
                     {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
-                    {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentHref} className={buttonVariants({ size: "sm" })}><Wallet className="size-4" />Collect Payment</Link> : null}
+                    {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><Wallet className="size-4" />Collect Payment</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={`${basePath}/${member.id}?tab=membership`} className={buttonVariants({ variant: "outline", size: "sm" })}><TrendingUp className="size-4" />Renew</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href="/reception/attendance" className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignTrainerDialog memberId={member.id} currentTrainerId={member.assigned_trainer_id} trainers={trainers} /> : null}
@@ -446,9 +447,9 @@ export function Member360({
               <CardContent className="space-y-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="danger">{formatCurrency(outstanding)} Outstanding</Badge>
-                  <Link href={collectPaymentHref} className={buttonVariants({ size: 'sm' })}>Collect Payment</Link>
+                  <Link href={collectPaymentLink} className={buttonVariants({ size: 'sm' })}>Collect Payment</Link>
                   {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'outline', size: 'sm' })}>WhatsApp Reminder</a> : null}
-                  <Link href={collectPaymentHref} className={buttonVariants({ variant: 'outline', size: 'sm' })}>Payment Link</Link>
+                  <Link href={collectPaymentLink} className={buttonVariants({ variant: 'outline', size: 'sm' })}>Payment Link</Link>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {Object.entries(aging).map(([label, value]) => (
@@ -507,3 +508,5 @@ function DietRow({ label, value }: { label: string; value: string | null }) {
 function EmptyState({ text, actionLabel }: { text: string; actionLabel?: string }) {
   return <div className="rounded-3xl border border-dashed p-8 text-center"><p className="font-medium">{text}</p>{actionLabel ? <p className="mt-1 text-sm text-muted-foreground">{actionLabel} is available from supported member actions.</p> : <p className="mt-1 text-sm text-muted-foreground">This section will appear when real data exists.</p>}</div>;
 }
+
+

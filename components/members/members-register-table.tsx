@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useTransition,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -55,6 +56,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { assignTrainerAction, deactivateMemberAction } from "@/app/actions/member-management-actions";
+import { generateMemberInvoiceAction } from "@/app/actions/member-actions";
 import {
   buildCallUrl,
   buildSmsUrl,
@@ -411,7 +413,7 @@ export function MembersRegisterTable({
           if (balance !== undefined && balance !== null && balance > 0) {
             return <span className="tabular-nums text-sm font-semibold text-rose-600">{formatCurrency(balance)}</span>;
           }
-          return <span className="tabular-nums text-sm text-muted-foreground">{balance === 0 ? "?0" : "-"}</span>;
+          return <span className="tabular-nums text-sm text-muted-foreground">{balance === 0 ? "0" : "-"}</span>;
         },
       }),
       helper.display({
@@ -711,7 +713,9 @@ function RowActionMenu({
   onDeactivate: (member: MemberRegisterRow) => void;
   onShare: (member: MemberRegisterRow) => void;
 }) {
+  const router = useRouter();
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [isGeneratingInvoice, startInvoiceGeneration] = useTransition();
   const [showTrainers, setShowTrainers] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
 
@@ -758,20 +762,32 @@ function RowActionMenu({
   if (!menu || typeof document === "undefined") return null;
 
   const id = menu.member.member_id;
-  const paymentsHref = basePath.startsWith("/reception") ? "/reception/payments" : "/admin/payments";
-  const portalPath = basePath.startsWith("/reception") ? "/reception" : "/admin";
-  const invoiceId = invoiceMap[id];
   const actions = [
     { label: "View profile", icon: Eye, href: `${basePath}/${id}` },
     { label: "Edit", icon: Pencil, href: `${basePath}/${id}?edit=1` },
     { label: "Renew membership", icon: RotateCcw, href: `${basePath}/${id}?tab=membership` },
     { label: "Collect payment", icon: CreditCard, href: `${basePath}/${id}?tab=payment` },
-    invoiceId
-      ? { label: "View invoice", icon: FileText, href: `${portalPath}/invoices/${invoiceId}?returnTo=${encodeURIComponent(basePath)}` }
-      : { label: "Generate invoice", icon: FileText, href: `${portalPath}/invoices/new?memberId=${id}&returnTo=${encodeURIComponent(basePath)}` },
     { label: "Assign trainer", icon: Dumbbell, href: `${basePath}/${id}?tab=trainer` },
     { label: "View attendance", icon: ClipboardList, href: `${basePath}/${id}?tab=attendance` },
   ];
+
+  const handleGenerateInvoice = () => {
+    onClose();
+    startInvoiceGeneration(async () => {
+      const result = await generateMemberInvoiceAction(id);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      if (!result.redirectTo) {
+        toast.error("Invoice route was not returned.");
+        return;
+      }
+      toast.success("Invoice ready.");
+      router.push(result.redirectTo);
+      router.refresh();
+    });
+  };
 
   return createPortal(
     <>
@@ -801,6 +817,16 @@ function RowActionMenu({
             <Icon className="size-4 text-muted-foreground" />{label}
           </Link>
         ))}
+        <button
+          type="button"
+          onClick={handleGenerateInvoice}
+          disabled={isGeneratingInvoice}
+          className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+          role="menuitem"
+        >
+          <FileText className="size-4 text-muted-foreground" />
+          {isGeneratingInvoice ? "Generating invoice..." : "Generate invoice"}
+        </button>
         <button
           type="button"
           onClick={() => {
