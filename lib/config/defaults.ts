@@ -12,6 +12,11 @@ export const CONFIG_DEFAULTS: ConfigValueMap = {
   "payments.visible_modes": [],
   "payments.allow_partial_payments": true,
   "payments.require_approval": false,
+  "members.form_fields": {
+    phone: { visible: true, required: false }, email: { visible: true, required: false }, gender: { visible: true, required: false }, date_of_birth: { visible: true, required: false }, address: { visible: true, required: false },
+    emergency_contact_name: { visible: true, required: false }, emergency_contact_phone: { visible: true, required: false }, height_cm: { visible: true, required: false }, weight_kg: { visible: true, required: false }, blood_group: { visible: true, required: false }, medical_conditions: { visible: true, required: false }, fitness_goal: { visible: true, required: false },
+    candidate_consent_name: { visible: false, required: false }, relationship_to_candidate: { visible: false, required: false }, screening_date: { visible: false, required: false }, screening_valid_until: { visible: false, required: false }, assigned_trainer_id: { visible: true, required: false },
+  },
   "notifications.membership_expiry.enabled": true,
   "notifications.membership_expiry.channels": [],
   "notifications.payment_pending.enabled": true,

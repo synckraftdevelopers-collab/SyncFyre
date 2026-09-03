@@ -1,4 +1,4 @@
-﻿
+
 "use client";
 
 import { useActionState } from "react";
@@ -19,6 +19,7 @@ import {
   saveCommunicationTemplateAction,
   saveMemberCustomFieldAction,
   saveMemberCustomFieldValueAction,
+  saveMemberFormSettingsAction,
   saveNotificationPreferencesAction,
   savePaymentVisibilityAction,
   saveTenantFeatureAction,
@@ -26,6 +27,7 @@ import {
   type CustomizationActionState,
 } from "@/app/actions/customization-actions";
 import { getAllowedTemplateVariables, getSupportedTemplateKeys } from "@/lib/config/template-variables";
+import { MEMBER_FORM_FIELDS, resolveMemberFormFields } from "@/lib/members/form-config";
 import type { CommunicationChannel, ConfigKey, FeatureKey } from "@/lib/config/schema";
 
 interface BranchOption {
@@ -115,6 +117,8 @@ export function CustomizationSettingsPanel({
   const [valueState, valueAction, valuePending] = useActionState<CustomizationActionState, FormData>(saveMemberCustomFieldValueAction, {});
   const [valueDeleteState, valueDeleteAction] = useActionState<CustomizationActionState, FormData>(deleteMemberCustomFieldValueAction, {});
   const [resetState, resetAction] = useActionState<CustomizationActionState, FormData>(resetBranchSettingAction, {});
+  const [memberFormState, memberFormAction, memberFormPending] = useActionState<CustomizationActionState, FormData>(saveMemberFormSettingsAction, {});
+  const memberFormFields = resolveMemberFormFields(resolved["members.form_fields"]?.value);
 
   const engineFeature = features.find((feature) => feature.key === "customization_engine_enabled");
   const manageableFeatures = features.filter((feature) => feature.key !== "customization_engine_enabled");

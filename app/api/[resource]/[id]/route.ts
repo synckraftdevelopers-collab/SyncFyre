@@ -4,6 +4,26 @@ import { createClient } from "@/lib/supabase/server";
 import { isResourceName, resourceSchemas, tableForResource } from "@/lib/validations/resources";
 import { logActivity, softDeleteById, supportsSoftDelete, tableForSoftDelete, updateSubscriptionWithHistory } from "@/services/workflow.service";
 
+async function verifyMemberPlanScope(resource: string, id: string, payload: Record<string, unknown>, profile: NonNullable<Awaited<ReturnType<typeof getCurrentProfile>>>) {
+  if (resource !== "workouts" && resource !== "diet-plans") return;
+  if (!profile.tenant_id) throw new Error("Tenant context is required.");
+  const supabase = await createClient();
+  const table = resource === "workouts" ? "workouts" : "diet_plans";
+  const fields = resource === "workouts" ? "id, member_id, branch_id, trainer_id" : "id, member_id, branch_id, staff_id";
+  const { data: rawRecord, error: recordError } = await supabase.from(table).select(fields).eq("id", id).maybeSingle();
+  const record = rawRecord as { id: string; member_id: string; branch_id: string; trainer_id?: string | null; staff_id?: string | null } | null;
+  if (recordError || !record) throw new Error("Plan not found.");
+  const memberId = String(payload.member_id ?? record.member_id);
+  const { data: member } = await supabase.from("members").select("id, branch_id").eq("id", memberId).eq("tenant_id", profile.tenant_id).maybeSingle();
+  if (!member) throw new Error("Member is outside your organization.");
+  if (profile.role?.slug === "reception" && member.branch_id !== profile.branch_id) throw new Error("Reception staff can update plans only in their assigned branch.");
+  payload.member_id = member.id;
+  payload.branch_id = member.branch_id;
+  if (profile.role?.slug === "trainer") {
+    const { data: trainer } = await supabase.from("trainers").select("id, staff_id").eq("user_id", profile.id).eq("branch_id", member.branch_id).eq("status", "active").maybeSingle();
+    if (!trainer || (resource === "workouts" && record.trainer_id !== trainer.id) || (resource === "diet-plans" && record.staff_id !== trainer.staff_id)) throw new Error("You are not authorized to update this plan.");
+  }
+}
 async function authorize(resource: string) {
   const profile = await getCurrentProfile();
   return profile && profile.role?.slug !== "member" && isResourceName(resource) ? profile : null;
@@ -54,7 +74,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from(tableForResource[resource]).update(payload).eq("id", id).select().single();
+  try {
+    await verifyMemberPlanScope(resource, id, payload, profile);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Unable to verify plan scope" }, { status: 403 });
+  }  const { data, error } = await supabase.from(tableForResource[resource]).update(payload).eq("id", id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
   await logActivity({

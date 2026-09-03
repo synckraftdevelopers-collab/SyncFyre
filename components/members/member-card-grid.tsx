@@ -153,7 +153,7 @@ export function MemberCardGrid({
                   {canUse("renew", role) ? <Link href={actionHref(basePath, member.member_id, "membership")} className={buttonVariants({ size: "sm" })}><RefreshCcw className="size-4" />Renew</Link> : null}
                   <Link href={`${basePath}/${member.member_id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="size-4" />Edit</Link>
                   {canUse("punch_in", role) ? <CheckInMemberButton memberId={member.member_id} checkedIn={!!attendanceMap[member.member_id]} /> : null}
-                  {canUse("assign_trainer", role) ? <AssignTrainerDialog memberId={member.member_id} currentTrainerId={member.trainer_id} trainers={trainers} /> : null}
+                  {canUse("assign_trainer", role) ? <AssignTrainerDialog memberId={member.member_id} memberName={member.full_name} currentTrainerId={member.trainer_id} trainers={trainers} /> : null}
                   {canUse("delete", role) ? <DeleteMemberDialog memberId={member.member_id} memberName={member.full_name} /> : null}
                 </div>
               </div>

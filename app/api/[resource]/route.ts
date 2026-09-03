@@ -47,7 +47,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   delete requestBody.workflow_action;
   delete requestBody.remarks;
 
-  if (profile.branch_id) requestBody.branch_id = profile.branch_id;
+  if (resource === "workouts" || resource === "diet-plans") {
+    if (!profile.tenant_id) return NextResponse.json({ error: "Tenant context is required" }, { status: 403 });
+    const memberId = String(requestBody.member_id ?? "");
+    const supabase = await createClient();
+    const { data: member } = await supabase.from("members").select("id, branch_id").eq("id", memberId).eq("tenant_id", profile.tenant_id).maybeSingle();
+    if (!member) return NextResponse.json({ error: "Member is outside your organization" }, { status: 403 });
+    if (profile.role?.slug === "reception" && member.branch_id !== profile.branch_id) return NextResponse.json({ error: "Reception staff can create plans only in their assigned branch" }, { status: 403 });
+    requestBody.branch_id = member.branch_id;
+  }  if (profile.branch_id) requestBody.branch_id = profile.branch_id;
   const parsed = resourceSchemas[resource].safeParse(requestBody);
   if (!parsed.success) return NextResponse.json({ error: "Validation failed", issues: parsed.error.flatten() }, { status: 422 });
 

@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
@@ -468,4 +468,21 @@ export async function deleteMemberCustomFieldValueAction(_: CustomizationActionS
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to delete member custom field value." };
   }
+}
+
+export async function saveMemberFormSettingsAction(_: CustomizationActionState, formData: FormData): Promise<CustomizationActionState> {
+  try {
+    const profile = await requireCustomizationProfile();
+    const branchId = String(formData.get("branch_id") ?? "").trim();
+    const { MEMBER_FORM_FIELDS } = await import("@/lib/members/form-config");
+    const value = Object.fromEntries(MEMBER_FORM_FIELDS.map(({ key }) => [key, {
+      visible: parseBoolean(formData.get(`${key}_visible`)),
+      required: parseBoolean(formData.get(`${key}_required`)) && parseBoolean(formData.get(`${key}_visible`)),
+    }]));
+    if (branchId) await upsertBranchSetting(profile, branchId, "members.form_fields", value);
+    else await upsertTenantSetting(profile, "members.form_fields", value);
+    revalidatePath("/admin/settings"); revalidatePath("/admin/members"); revalidatePath("/admin/members/new");
+    revalidatePath("/reception/members"); revalidatePath("/reception/members/new");
+    return { success: branchId ? "Branch member-form settings saved." : "Gym member-form settings saved." };
+  } catch (error) { return { error: error instanceof Error ? error.message : "Unable to save member-form settings." }; }
 }

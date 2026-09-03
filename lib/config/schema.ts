@@ -44,6 +44,7 @@ export type ConfigValueMap = {
   "payments.visible_modes": string[];
   "payments.allow_partial_payments": boolean;
   "payments.require_approval": boolean;
+  "members.form_fields": MemberFormFieldSettings;
   "notifications.membership_expiry.enabled": boolean;
   "notifications.membership_expiry.channels": CommunicationChannel[];
   "notifications.payment_pending.enabled": boolean;
@@ -53,6 +54,15 @@ export type ConfigValueMap = {
   "notifications.daily_closing.enabled": boolean;
   "notifications.daily_closing.channels": CommunicationChannel[];
 };
+
+export type MemberFormFieldKey =
+  | "phone" | "email" | "gender" | "date_of_birth" | "address"
+  | "emergency_contact_name" | "emergency_contact_phone"
+  | "height_cm" | "weight_kg" | "blood_group" | "medical_conditions" | "fitness_goal"
+  | "candidate_consent_name" | "relationship_to_candidate" | "screening_date" | "screening_valid_until"
+  | "assigned_trainer_id";
+
+export type MemberFormFieldSettings = Partial<Record<MemberFormFieldKey, { visible: boolean; required: boolean }>>;
 
 export type ConfigKey = keyof ConfigValueMap;
 
@@ -75,6 +85,7 @@ export const CONFIG_DEFINITIONS: Record<ConfigKey, ConfigDefinition> = {
   "payments.visible_modes": { key: "payments.visible_modes", dataType: "string_array", scope: "tenant_branch", overridable: true },
   "payments.allow_partial_payments": { key: "payments.allow_partial_payments", dataType: "boolean", scope: "tenant", overridable: true },
   "payments.require_approval": { key: "payments.require_approval", dataType: "boolean", scope: "tenant", overridable: true },
+  "members.form_fields": { key: "members.form_fields", dataType: "json", scope: "tenant_branch", overridable: true },
   "notifications.membership_expiry.enabled": { key: "notifications.membership_expiry.enabled", dataType: "boolean", scope: "tenant_branch", overridable: true },
   "notifications.membership_expiry.channels": { key: "notifications.membership_expiry.channels", dataType: "string_array", scope: "tenant_branch", overridable: true },
   "notifications.payment_pending.enabled": { key: "notifications.payment_pending.enabled", dataType: "boolean", scope: "tenant_branch", overridable: true },

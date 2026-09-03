@@ -77,16 +77,50 @@ export async function assignTrainerAction(
   trainerId: string | null,
 ): Promise<AssignTrainerState> {
   const profile = await requireUser(["admin", "manager", "reception"]);
+  if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
+  if (!memberId) return { error: "Member ID is required." };
+
+  const supabase = await (await import("@/lib/supabase/server")).createClient();
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, branch_id, tenant_id")
+    .eq("id", memberId)
+    .eq("tenant_id", profile.tenant_id)
+    .maybeSingle();
+  if (memberError || !member) return { error: "Member not found in your organization." };
+  if (profile.role?.slug === "reception" && member.branch_id !== profile.branch_id) {
+    return { error: "Reception staff can assign trainers only in their assigned branch." };
+  }
+
+  if (trainerId) {
+    const { data: trainer, error: trainerError } = await supabase
+      .from("trainers")
+      .select("id, branch_id, status")
+      .eq("id", trainerId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (trainerError || !trainer) return { error: "Selected trainer is not active or available." };
+    if (trainer.branch_id !== member.branch_id) return { error: "Selected trainer does not belong to this member's branch." };
+    const { data: trainerBranch } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("id", trainer.branch_id)
+      .eq("tenant_id", profile.tenant_id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!trainerBranch) return { error: "Selected trainer is outside your organization." };
+  }
+
   try {
-    await assignTrainer(memberId, trainerId, profile.id);
+    await assignTrainer(member.id, trainerId, profile.id);
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Assignment failed." };
   }
-  revalidatePath(`/admin/members/${memberId}`);
-  revalidatePath("/admin/members");
-  return { success: "Trainer assigned." };
+  const base = profile.role?.slug === "reception" ? "/reception" : "/admin";
+  revalidatePath(`${base}/members/${member.id}`);
+  revalidatePath(`${base}/members`);
+  return { success: trainerId ? "Trainer assigned." : "Trainer assignment removed." };
 }
-
 export async function assignDieticianAction(memberId: string, dieticianId: string | null): Promise<AssignTrainerState> {
   const profile = await requireUser(["admin", "manager", "reception"]);
   try {
