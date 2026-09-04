@@ -38,6 +38,7 @@ export default async function AdminMembersPage({
   const profile = await getPortalContext();
   const branchId = profile?.branch_id ?? null;
   const role = profile?.role?.slug ?? null;
+  const canCustomizeMemberForm = role === "owner" || role === "admin";
   const timeZone = profile?.tenant_timezone ?? profile?.branch_timezone ?? "Asia/Kolkata";
 
   const page = Math.max(1, Number(sp.page ?? 1));
@@ -155,6 +156,11 @@ export default async function AdminMembersPage({
           <p className="text-sm text-muted-foreground">Professional member operations with real plan, payment, attendance, and trainer data.</p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {canCustomizeMemberForm ? (
+            <Link href="/admin/settings/member-form" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Customize Form
+            </Link>
+          ) : null}
           <MemberExcelImportDialog branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))} defaultBranchId={branchId} />
           <Link href="/admin/members/new" className={buttonVariants({ size: "sm" })}>
             <Plus className="size-4" />

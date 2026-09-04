@@ -1,19 +1,13 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { RotateCcw, LoaderCircle } from "lucide-react";
+import { LoaderCircle, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { renewMembershipAction } from "@/app/actions/member-management-actions";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { getLocalDateInputValue } from "@/lib/membership-dates";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { renewMembershipAction } from "@/app/actions/member-management-actions";
 import { formatCurrency } from "@/lib/utils";
 
 interface Plan {
@@ -29,19 +23,20 @@ interface Props {
   memberId: string;
   branchId: string;
   plans: Plan[];
+  defaultOpen?: boolean;
 }
 
 const fieldClass = "space-y-1.5 text-sm font-medium";
 
-export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
-  const [open, setOpen] = useState(false);
+export function RenewMembershipDialog({ memberId, branchId, plans, defaultOpen = false }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const [planId, setPlanId] = useState(plans[0]?.id ?? "");
   const [state, action, pending] = useActionState(renewMembershipAction, {});
 
-  const plan = plans.find((p) => p.id === planId);
+  const plan = plans.find((item) => item.id === planId);
   const price = plan?.price ?? 0;
   const discount = 0;
-  const gst = Math.round((price - discount) * (plan?.gst_percent ?? 18) / 100);
+  const gst = Math.round(((price - discount) * (plan?.gst_percent ?? 18)) / 100);
   const total = price - discount + gst;
 
   useEffect(() => {
@@ -65,7 +60,7 @@ export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
           <DialogTitle>Renew Membership</DialogTitle>
         </DialogHeader>
 
-        <form action={action} className="space-y-4 mt-2">
+        <form action={action} className="mt-2 space-y-4">
           <input type="hidden" name="member_id" value={memberId} />
           <input type="hidden" name="branch_id" value={branchId} />
           <input type="hidden" name="gst_amount" value={gst} />
@@ -76,13 +71,13 @@ export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
             <select
               name="plan_id"
               value={planId}
-              onChange={(e) => setPlanId(e.target.value)}
+              onChange={(event) => setPlanId(event.target.value)}
               className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"
               required
             >
-              {plans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {formatCurrency(p.price)} / {p.duration_months}mo
+              {plans.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} - {formatCurrency(item.price)} / {item.duration_months} mo
                 </option>
               ))}
             </select>
@@ -91,40 +86,30 @@ export function RenewMembershipDialog({ memberId, branchId, plans }: Props) {
           <div className="grid gap-3 md:grid-cols-2">
             <label className={fieldClass}>
               Start date
-              <Input
-                name="start_date"
-                type="date"
-                defaultValue={getLocalDateInputValue()}
-                required
-              />
+              <Input name="start_date" type="date" defaultValue={getLocalDateInputValue()} required />
             </label>
             <label className={fieldClass}>
-              Price (₹)
-              <input
-                name="price"
-                type="hidden"
-                value={price}
-              />
-              <input
-                name="discount_amount"
-                type="hidden"
-                value={discount}
-              />
+              Price (INR)
+              <input name="price" type="hidden" value={price} />
+              <input name="discount_amount" type="hidden" value={discount} />
               <div className="mt-1 flex h-10 items-center rounded-lg border bg-muted/40 px-3 text-sm tabular-nums">
                 {formatCurrency(price)}
               </div>
             </label>
           </div>
 
-          <div className="rounded-xl border bg-muted/30 p-3 text-sm space-y-1">
+          <div className="space-y-1 rounded-xl border bg-muted/30 p-3 text-sm">
             <div className="flex justify-between text-muted-foreground">
-              <span>Plan price</span><span>{formatCurrency(price)}</span>
+              <span>Plan price</span>
+              <span>{formatCurrency(price)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
-              <span>GST ({plan?.gst_percent ?? 18}%)</span><span>{formatCurrency(gst)}</span>
+              <span>GST ({plan?.gst_percent ?? 18}%)</span>
+              <span>{formatCurrency(gst)}</span>
             </div>
-            <div className="flex justify-between font-bold border-t pt-2 mt-1">
-              <span>Total</span><span className="text-primary">{formatCurrency(total)}</span>
+            <div className="mt-1 flex justify-between border-t pt-2 font-bold">
+              <span>Total</span>
+              <span className="text-primary">{formatCurrency(total)}</span>
             </div>
           </div>
 

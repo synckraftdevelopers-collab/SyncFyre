@@ -34,10 +34,10 @@ export default async function ReceptionMemberDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; edit?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string; renew?: string }>;
 }) {
   const { id } = await params;
-  const { tab, edit } = await searchParams;
+  const { tab, edit, renew } = await searchParams;
   const profile = await requireUser(["reception", "admin", "manager"]);
   const supabase = await createClient();
 
@@ -96,6 +96,7 @@ export default async function ReceptionMemberDetailPage({
       trainers={trainers}
       dieticians={dieticians}
       activeTab={tab ?? "overview"}
+      renewOpen={renew === "1"}
     />
   );
 }

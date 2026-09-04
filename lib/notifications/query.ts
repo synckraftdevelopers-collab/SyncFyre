@@ -12,7 +12,7 @@ export type NotificationScopeInput = {
 
 export type NotificationFeedFilter = "all" | "unread" | "archived";
 
-export const NOTIFICATION_SELECT = "id, user_id, member_id, branch_id, tenant_id, type, title, message, channels, target_roles, scheduled_for, sent_at, read_at, created_at, updated_at, metadata, members(full_name, phone, member_code)";
+export const NOTIFICATION_SELECT = "id, user_id, member_id, branch_id, tenant_id, type, title, message, channels, target_roles, scheduled_for, sent_at, read_at, created_at, updated_at, metadata, members(full_name, phone, member_code), branches(name)";
 
 export function applyBusinessNotificationScope(query: any, scope: NotificationScopeInput) {
   if (scope.role === "super_admin") {

@@ -34,10 +34,10 @@ export default async function AdminMemberDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; edit?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string; renew?: string }>;
 }) {
   const { id } = await params;
-  const { tab, edit } = await searchParams;
+  const { tab, edit, renew } = await searchParams;
   const profile = await requireUser(["admin", "manager", "reception"]);
   const supabase = await createClient();
 
@@ -112,6 +112,7 @@ export default async function AdminMemberDetailPage({
       trainers={trainers}
       dieticians={dieticians}
       activeTab={tab ?? "overview"}
+      renewOpen={renew === "1"}
       allowDelete={profile.role?.slug === "admin"}
     />
   );

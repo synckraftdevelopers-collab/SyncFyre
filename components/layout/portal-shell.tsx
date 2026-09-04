@@ -72,6 +72,7 @@ function PortalShellFrame({
           name={name}
           role={role}
           onMenu={handleMenu}
+          portal={portal}
           profileHref={profileHrefByPortal[portal]}
           settingsHref={settingsHref ?? profileHrefByPortal[portal]}
           notificationsHref={notificationsHref}

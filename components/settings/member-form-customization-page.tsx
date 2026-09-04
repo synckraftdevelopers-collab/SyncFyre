@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { GripVertical, LoaderCircle } from "lucide-react";
 import { resetMemberFormConfigurationAction, saveMemberFormConfigurationAction, type MemberFormConfigActionState } from "@/app/actions/member-form-config-actions";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { MemberFormFieldConfiguration } from "@/lib/members/member-form-config";
 import { toast } from "sonner";
@@ -20,17 +21,20 @@ export function MemberFormCustomizationPage({ initialConfiguration }: { initialC
   }, [initialConfiguration]);
 
   useEffect(() => {
-    if (saveState.success) toast.success(saveState.success);
+    if (saveState.success) {
+      toast.success(saveState.success);
+      window.location.reload();
+    }
     if (saveState.error) toast.error(saveState.error);
   }, [saveState.error, saveState.success]);
 
   useEffect(() => {
     if (resetState.success) {
       toast.success(resetState.success);
-      setItems(initialConfiguration);
+      window.location.reload();
     }
     if (resetState.error) toast.error(resetState.error);
-  }, [initialConfiguration, resetState.error, resetState.success]);
+  }, [resetState.error, resetState.success]);
 
   function reorder(next: MemberFormFieldConfiguration[]) {
     setItems(next.map((item, index) => ({ ...item, displayOrder: index + 1, required: item.systemRequired ? true : item.enabled ? item.required : false })));
@@ -65,17 +69,17 @@ export function MemberFormCustomizationPage({ initialConfiguration }: { initialC
       <Card>
         <CardHeader>
           <CardTitle>Member Form Customization</CardTitle>
-          <CardDescription>Drag fields to change display order. Disabling a field only hides it from create and edit forms; it does not delete stored member data.</CardDescription>
+          <CardDescription>Drag fields to change display order. Hiding a field only removes it from the create and edit forms; it does not delete stored member data.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <form action={saveAction} className="space-y-4">
             <input type="hidden" name="config" value={payload} />
-            <div className="overflow-hidden rounded-2xl border">
+            <div className="max-h-[68vh] overflow-auto rounded-2xl border">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-muted/40 text-left text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3">Field</th>
-                    <th className="px-4 py-3">Enabled</th>
+                    <th className="px-4 py-3">Visible</th>
                     <th className="px-4 py-3">Required</th>
                     <th className="px-4 py-3 text-right">Order</th>
                   </tr>
@@ -96,12 +100,12 @@ export function MemberFormCustomizationPage({ initialConfiguration }: { initialC
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        {item.systemRequired ? <Badge variant="success">On</Badge> : <label className="inline-flex items-center gap-2"><input type="checkbox" checked={item.enabled} onChange={(event) => updateField(item.key, { enabled: event.target.checked, required: event.target.checked ? item.required : false })} /><span>{item.enabled ? "On" : "Off"}</span></label>}
+                        {item.systemRequired ? <Badge variant="success">Locked on</Badge> : <label className="inline-flex items-center gap-2"><input type="checkbox" checked={item.enabled} onChange={(event) => updateField(item.key, { enabled: event.target.checked, required: event.target.checked ? item.required : false })} /><span>{item.enabled ? "Shown" : "Hidden"}</span></label>}
                       </td>
                       <td className="px-4 py-3">
                         <label className="inline-flex items-center gap-2">
                           <input type="checkbox" checked={item.required} disabled={!item.enabled || item.systemRequired} onChange={(event) => updateField(item.key, { required: event.target.checked })} />
-                          <span>{item.required ? "On" : "Off"}</span>
+                          <span>{item.required ? "Required" : "Optional"}</span>
                         </label>
                       </td>
                       <td className="px-4 py-3 text-right font-medium">{index + 1}</td>
@@ -115,6 +119,7 @@ export function MemberFormCustomizationPage({ initialConfiguration }: { initialC
             {resetState.error ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">{resetState.error}</p> : null}
             {resetState.success ? <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{resetState.success}</p> : null}
             <div className="flex flex-wrap justify-end gap-3">
+              <Link href="/admin/members" className={buttonVariants({ variant: "outline" })}>Cancel</Link>
               <Button formAction={resetAction} type="submit" variant="outline" disabled={resetPending || savePending}>{resetPending ? "Resetting..." : "Reset to Default"}</Button>
               <Button type="submit" disabled={savePending || resetPending}>{savePending ? <><LoaderCircle className="size-4 animate-spin" />Saving...</> : "Save Changes"}</Button>
             </div>

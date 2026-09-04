@@ -6,8 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotificationTimestamp } from "@/components/notifications/notification-timestamp";
+import { NotificationActions } from "@/components/notifications/notification-actions";
 import { useNotifications } from "@/components/notifications/notification-provider";
 import type { NotificationPortal } from "@/lib/notifications/destination";
+import { getNotificationCategoryLabel, getNotificationDisplayDetail } from "@/lib/notifications/member-notification";
 import { cn } from "@/lib/utils";
 
 function filterNotifications(filter: string | undefined, rows: ReturnType<typeof useNotifications>["notifications"]) {
@@ -26,7 +28,7 @@ function portalDescription(portal: NotificationPortal) {
   if (portal === "member") return "Updates about your membership, attendance, and payments.";
   if (portal === "trainer") return "Business notifications relevant to your branch and role.";
   if (portal === "reception") return "Your branch notifications and member alerts.";
-  return "Expiry reminders, pending payment follow-ups, and business alerts from real backend events.";
+  return "Membership expiry reminders and pending balance alerts from the live backend.";
 }
 
 export function NotificationInbox({
@@ -73,34 +75,45 @@ export function NotificationInbox({
           {loading ? <div className="grid min-h-64 place-items-center p-8 text-center text-sm text-muted-foreground">Loading notifications...</div> : null}
           {!loading && rows.length > 0 ? (
             <div className="divide-y">
-              {rows.map((notification) => (
-                <button
+              {rows.map((notification) => {
+                const detail = getNotificationDisplayDetail(notification);
+                return (
+                <div
                   key={notification.id}
-                  type="button"
-                  onClick={() => void viewNotification(notification)}
                   className={cn(
-                    "flex w-full gap-3 p-4 text-left transition-colors hover:bg-muted/30",
+                    "flex flex-col gap-3 p-4 transition-colors hover:bg-muted/30",
                     !notification.read_at ? "bg-primary/5" : "",
                   )}
                 >
-                  <span className={cn("mt-2 size-2 shrink-0 rounded-full", !notification.read_at ? "bg-primary" : "bg-transparent ring-1 ring-border")} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className={cn("text-sm", !notification.read_at ? "font-bold" : "font-medium")}>{notification.title}</p>
-                      <Badge variant="outline">{notification.type}</Badge>
-                      {notification.members?.member_code ? <Badge variant="outline">{notification.members.member_code}</Badge> : null}
-                      {notification.read_at ? <Badge variant="secondary">Archived</Badge> : null}
+                  <button
+                    type="button"
+                    onClick={() => void viewNotification(notification)}
+                    className="flex w-full gap-3 text-left"
+                  >
+                    <span className={cn("mt-2 size-2 shrink-0 rounded-full", !notification.read_at ? "bg-primary" : "bg-transparent ring-1 ring-border")} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className={cn("text-sm", !notification.read_at ? "font-bold" : "font-medium")}>{notification.title}</p>
+                        <Badge variant="outline">{getNotificationCategoryLabel(notification) ?? notification.type}</Badge>
+                        {notification.members?.member_code ? <Badge variant="outline">{notification.members.member_code}</Badge> : null}
+                        {notification.read_at ? <Badge variant="secondary">Archived</Badge> : null}
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
+                      {detail ? (
+                        <p className="mt-1 text-xs font-medium text-foreground/80">{detail}</p>
+                      ) : null}
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        {notification.members?.full_name ? <span>Member: {notification.members.full_name}</span> : null}
+                        {notification.members?.phone ? <span>{notification.members.phone}</span> : null}
+                        <NotificationTimestamp createdAt={notification.created_at} />
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-muted-foreground">{notification.message}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      {notification.members?.full_name ? <span>Member: {notification.members.full_name}</span> : null}
-                      {notification.members?.phone ? <span>{notification.members.phone}</span> : null}
-                      <NotificationTimestamp createdAt={notification.created_at} />
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-xs font-medium text-primary">View</div>
-                </button>
-              ))}
+                    <div className="shrink-0 text-xs font-medium text-primary">View</div>
+                  </button>
+                  <NotificationActions notification={notification} portal={portal} />
+                </div>
+                );
+              })}
             </div>
           ) : null}
           {!loading && rows.length === 0 ? (

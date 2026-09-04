@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { dispatchPendingNotificationDeliveries } from "@/services/notification-delivery.service";
+import { shouldDisplayNotification } from "@/lib/notifications/member-notification";
 import {
   applyBusinessNotificationScope,
   applyNotificationFeedFilter,
@@ -28,20 +29,21 @@ export type NotificationFeedRow = {
   updated_at: string | null;
   metadata: Record<string, unknown> | null;
   members: { full_name: string | null; phone: string | null; member_code: string | null } | null;
+  branches: { name: string | null } | null;
 };
 
 export async function getUnreadNotificationCount(input: NotificationScopeInput) {
   const supabase = await createClient();
   const query = applyBusinessNotificationScope(
-    supabase.from("notifications").select("id", { count: "exact", head: true }),
+    supabase.from("notifications").select(NOTIFICATION_SELECT).order("created_at", { ascending: false }).limit(200),
     input,
   );
-  const { count, error } = await query.is("read_at", null);
+  const { data, error } = await query.is("read_at", null);
   if (error) {
     if (isMissingSchemaError(error)) return 0;
     throw new Error(error.message);
   }
-  return count ?? 0;
+  return (data ?? []).filter((row: NotificationFeedRow) => shouldDisplayNotification(row)).length;
 }
 
 export async function getNotificationFeed(input: NotificationScopeInput & { filter?: NotificationFeedFilter; limit?: number }) {

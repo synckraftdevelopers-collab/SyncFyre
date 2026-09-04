@@ -7,7 +7,7 @@ import { MemberFormCustomizationPage } from "@/components/settings/member-form-c
 export const metadata = { title: "Member Form Customization" };
 
 export default async function AdminMemberFormSettingsPage() {
-  const profile = await requireUser(["owner", "admin", "manager"]);
+  const profile = await requireUser(["owner", "admin"]);
   if (!profile.tenant_id) return null;
   const configuration = await getMemberFormConfiguration(profile.tenant_id);
 
@@ -18,7 +18,7 @@ export default async function AdminMemberFormSettingsPage() {
           <h1 className="text-2xl font-bold">Settings</h1>
           <p className="text-sm text-muted-foreground">Tenant-specific member form controls for registration and edit flows.</p>
         </div>
-        <Link href="/admin/settings?tab=customization" className={buttonVariants({ variant: "outline", size: "sm" })}>Back to Settings</Link>
+        <Link href="/admin/members" className={buttonVariants({ variant: "outline", size: "sm" })}>Back to Members</Link>
       </div>
       <MemberFormCustomizationPage initialConfiguration={configuration} />
     </div>

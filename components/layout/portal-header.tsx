@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { logoutAction } from "@/app/(auth)/actions";
 import { useId, useRef } from "react";
 import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
+import type { NotificationPortal } from "@/lib/notifications/destination";
 
 export function PortalHeader({
   name,
@@ -19,6 +20,7 @@ export function PortalHeader({
   profileHref = "/admin/settings?tab=profile",
   settingsHref = "/admin/settings?tab=application",
   notificationsHref = "/admin/notifications",
+  portal = "admin",
   searchAction = "/admin/members",
   searchPlaceholder = "Search members...",
   tenantTimezone,
@@ -31,6 +33,7 @@ export function PortalHeader({
   profileHref?: string;
   settingsHref?: string;
   notificationsHref?: string;
+  portal?: NotificationPortal;
   searchAction?: string;
   searchPlaceholder?: string;
   tenantTimezone?: string | null;
@@ -74,7 +77,7 @@ export function PortalHeader({
           </button>
         </form>
 
-        <NotificationBellDropdown notificationsHref={notificationsHref} />
+        <NotificationBellDropdown notificationsHref={notificationsHref} portal={portal} />
 
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>

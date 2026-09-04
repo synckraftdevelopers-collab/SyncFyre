@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { markNotificationReadAction } from "@/app/actions/notification-actions";
 import { isBusinessNotificationType } from "@/lib/notifications/business";
 import { notificationDestination, type NotificationPortal } from "@/lib/notifications/destination";
+import { shouldDisplayNotification } from "@/lib/notifications/member-notification";
 import { applyBusinessNotificationScope, NOTIFICATION_SELECT, type NotificationScopeInput } from "@/lib/notifications/query";
 import { createClient } from "@/lib/supabase/client";
 
@@ -27,6 +28,7 @@ export type NotificationRecord = {
   updated_at: string | null;
   metadata: Record<string, unknown> | null;
   members: { full_name: string | null; phone: string | null; member_code: string | null } | null;
+  branches: { name: string | null } | null;
 };
 
 type NotificationContextValue = {
@@ -83,6 +85,7 @@ function normalizeNotification(row: Record<string, unknown>): NotificationRecord
     updated_at: typeof row.updated_at === "string" ? row.updated_at : null,
     metadata: row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>) : null,
     members: row.members && typeof row.members === "object" ? (row.members as NotificationRecord["members"]) : null,
+    branches: row.branches && typeof row.branches === "object" ? (row.branches as NotificationRecord["branches"]) : null,
   };
 }
 
@@ -112,6 +115,8 @@ export function NotificationProvider({
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
   const notificationsRef = useRef<NotificationRecord[]>([]);
+  const visibleNotifications = useMemo(() => notifications.filter(shouldDisplayNotification), [notifications]);
+  const { branchId, role, tenantId, userId } = scope;
 
   const markNotificationReadAndUpdate = useCallback(async (id: string) => {
     const current = notificationsRef.current.find((item) => item.id === id);
@@ -119,15 +124,8 @@ export function NotificationProvider({
     await markNotificationReadAction(id);
     const readAt = new Date().toISOString();
     setNotifications((rows) => rows.map((item) => (item.id === id ? { ...item, read_at: readAt, updated_at: readAt } : item)));
-    if (current && !current.read_at) setUnreadCount((count) => Math.max(0, count - 1));
-    else void applyBusinessNotificationScope(
-      supabase.from("notifications").select("id", { count: "exact", head: true }),
-      scope,
-    ).is("read_at", null).then(({ count, error }: { count: number | null; error: { message: string } | null }) => {
-      if (!error && mountedRef.current) setUnreadCount(count ?? 0);
-    });
     return true;
-  }, [scope.branchId, scope.role, scope.tenantId, scope.userId, supabase]);
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -141,21 +139,12 @@ export function NotificationProvider({
   }, [notifications]);
 
   useEffect(() => {
-    setUnreadCount(initialUnreadCount);
-  }, [initialUnreadCount]);
+    if (loading) return;
+    setUnreadCount(visibleNotifications.filter((item) => !item.read_at).length);
+  }, [loading, visibleNotifications]);
 
   useEffect(() => {
     let active = true;
-
-    async function refreshUnreadCount() {
-      const query = applyBusinessNotificationScope(
-        supabase.from("notifications").select("id", { count: "exact", head: true }),
-        scope,
-      );
-      const { count, error } = await query.is("read_at", null);
-      if (!active || !mountedRef.current || error) return;
-      setUnreadCount(count ?? 0);
-    }
 
     async function refreshNotifications() {
       const query = applyBusinessNotificationScope(
@@ -169,23 +158,25 @@ export function NotificationProvider({
         setLoading(false);
         return;
       }
-      setNotifications((data ?? []).map((row: unknown) => normalizeNotification(row as Record<string, unknown>)));
+      setNotifications((data ?? [])
+        .map((row: unknown) => normalizeNotification(row as Record<string, unknown>))
+        .filter(shouldDisplayNotification));
       setLoading(false);
     }
 
-    void Promise.all([refreshUnreadCount(), refreshNotifications()]);
+    void refreshNotifications();
 
-    const channelName = scope.role === "super_admin"
+    const channelName = role === "super_admin"
       ? "notifications:super_admin"
-      : `notifications:${scope.tenantId ?? scope.userId}:${scope.branchId ?? scope.userId}:${scope.role ?? "unknown"}`;
+      : `notifications:${tenantId ?? userId}:${branchId ?? userId}:${role ?? "unknown"}`;
 
     const channel = supabase
       .channel(channelName)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications" }, (payload) => {
         if (!rowMatchesScope(payload.new as Record<string, unknown>, scope)) return;
         const notification = normalizeNotification(payload.new as Record<string, unknown>);
+        if (!shouldDisplayNotification(notification)) return;
         setNotifications((current) => mergeNotifications(current, [notification]));
-        void refreshUnreadCount();
         const destination = notificationDestination(notification, portal, notificationsHref);
         toast(notification.title, {
           description: notification.message,
@@ -211,18 +202,18 @@ export function NotificationProvider({
         if (!newMatches && !oldMatches) return;
         if (newMatches) {
           const notification = normalizeNotification(payload.new as Record<string, unknown>);
-          setNotifications((current) => mergeNotifications(current, [notification]));
+          setNotifications((current) => shouldDisplayNotification(notification)
+            ? mergeNotifications(current, [notification])
+            : current.filter((item) => item.id !== notification.id));
         } else {
           const oldId = typeof (payload.old as Record<string, unknown>).id === "string" ? String((payload.old as Record<string, unknown>).id) : "";
           if (oldId) setNotifications((current) => current.filter((item) => item.id !== oldId));
         }
-        void refreshUnreadCount();
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "notifications" }, (payload) => {
         if (!rowMatchesScope(payload.old as Record<string, unknown>, scope)) return;
         const oldId = typeof (payload.old as Record<string, unknown>).id === "string" ? String((payload.old as Record<string, unknown>).id) : "";
         if (oldId) setNotifications((current) => current.filter((item) => item.id !== oldId));
-        void refreshUnreadCount();
       })
       .subscribe((status) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("[notifications] realtime subscription unavailable", status);
@@ -232,7 +223,7 @@ export function NotificationProvider({
       active = false;
       void supabase.removeChannel(channel);
     };
-  }, [markNotificationReadAndUpdate, notificationsHref, portal, router, scope.branchId, scope.role, scope.tenantId, scope.userId, supabase]);
+  }, [branchId, notificationsHref, portal, role, router, scope, supabase, tenantId, userId, markNotificationReadAndUpdate]);
 
   async function viewNotification(notification: NotificationRecord) {
     const destination = notificationDestination(notification, portal, notificationsHref);

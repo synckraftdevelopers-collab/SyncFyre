@@ -20,6 +20,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildWhatsAppUrl, generateMembershipMessage } from "@/lib/member-messages";
 import { calculateAge, calculateBmi, formatCurrency } from "@/lib/utils";
 import type {
   FullMember,
@@ -210,6 +211,7 @@ export function Member360({
   trainers,
   dieticians,
   activeTab,
+  renewOpen = false,
   allowDelete = false,
 }: {
   basePath: string;
@@ -231,6 +233,7 @@ export function Member360({
   trainers: Option[];
   dieticians: Option[];
   activeTab: string;
+  renewOpen?: boolean;
   allowDelete?: boolean;
 }) {
   const age = member.date_of_birth ? calculateAge(member.date_of_birth) : null;
@@ -244,8 +247,18 @@ export function Member360({
   const trainerName = trainers.find((item) => item.id === member.assigned_trainer_id)?.name ?? "Not assigned";
   const dieticianName = dieticians.find((item) => item.id === member.assigned_dietician_id)?.name ?? "Not assigned";
   const latestProgress = progress[0];
-  const mobile = member.phone.replace(/\D/g, "");
-  const whatsappHref = mobile ? `https://wa.me/${mobile.startsWith("91") ? mobile : `91${mobile}`}` : null;
+  const phone = member.phone?.trim() ?? "";
+  const mobile = phone.replace(/\D/g, "");
+  const whatsappMessage = generateMembershipMessage({
+    memberName: member.full_name,
+    gymName: "SyncFyre Gym",
+    planName: activeSubscription?.plan_name ?? null,
+    subscriptionStatus: activeSubscription?.status ?? null,
+    expiryDate: activeSubscription?.end_date ?? null,
+    dueAmount: outstanding > 0 ? outstanding : null,
+    daysRemaining: activeSubscription?.end_date ? Math.floor((new Date(activeSubscription.end_date).getTime() - Date.now()) / 86400000) : null,
+  });
+  const whatsappHref = buildWhatsAppUrl(phone, whatsappMessage);
   const collectPaymentLink = `${collectPaymentHref}${collectPaymentHref.includes("?") ? "&" : "?"}memberId=${member.id}`;
 
   return (
@@ -270,17 +283,21 @@ export function Member360({
                 <SubscriptionStatusBadge status={activeSubscription?.status ?? null} />
               </div>
               <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                <span>{member.phone}</span>
+                <span>{phone || "-"}</span>
                 {member.email ? <span>{member.email}</span> : null}
                 {activeSubscription?.plan_name ? <span>{activeSubscription.plan_name}</span> : null}
                 {age ? <span>{age} yrs</span> : null}
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <a href={`tel:${member.phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a>
+                {phone ? (
+                  <a href={`tel:${phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" disabled><Phone className="size-4" />Call</Button>
+                )}
                 {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
                 {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><CreditCard className="size-4" />Collect Payment</Link> : null}
-                {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} /> : null}
+                {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} defaultOpen={renewOpen} /> : null}
               </div>
             </div>
 
@@ -335,7 +352,11 @@ export function Member360({
                 </CardHeader>
                 <CardContent>
                   <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                    <a href={`tel:${member.phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a>
+                    {phone ? (
+                      <a href={`tel:${phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a>
+                    ) : (
+                      <Button type="button" variant="outline" size="sm" disabled><Phone className="size-4" />Call</Button>
+                    )}
                     {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><Wallet className="size-4" />Collect Payment</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={`${basePath}/${member.id}?tab=membership`} className={buttonVariants({ variant: "outline", size: "sm" })}><TrendingUp className="size-4" />Renew</Link> : null}
@@ -353,7 +374,7 @@ export function Member360({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Membership History</h2>
-                {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} /> : null}
+                {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} defaultOpen={renewOpen} /> : null}
               </div>
               <ResponsiveTable headers={["Plan", "Start", "Expiry", "Status", "Total", "Renewals"]} rows={subscriptions.map((item) => [item.plan_name, formatDate(item.start_date), formatDate(item.end_date), <SubscriptionStatusBadge key={item.id} status={item.status} />, formatCurrency(item.total_amount), String(item.times_renewed)])} empty="No membership history available." />
             </div>
