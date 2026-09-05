@@ -160,7 +160,7 @@ export interface PaymentReportRow {
   amount: number;
   refund_amount: number;
   net_amount: number;
-  payment_method: "cash" | "upi" | "card" | "online";
+  payment_method: "cash" | "upi" | "card" | "online" | "check";
   payment_status: "pending" | "completed" | "failed" | "refunded" | "partially_refunded";
   transaction_reference: string | null;
   collected_by: string | null;
@@ -251,7 +251,7 @@ export interface RevenueReportRow {
   revenue_month_label: string;
   revenue_year: number;
   revenue_month_num: number;
-  payment_method: "cash" | "upi" | "card" | "online";
+  payment_method: "cash" | "upi" | "card" | "online" | "check";
   plan_name: string;
   amount: number;
   refund_amount: number;
@@ -348,7 +348,7 @@ export interface AttendanceReportParams extends ReportParams {
 
 export interface PaymentReportParams extends ReportParams {
   status?: "pending" | "completed" | "failed" | "refunded" | "partially_refunded" | "all";
-  method?: "cash" | "upi" | "card" | "online" | "all";
+  method?: "cash" | "upi" | "card" | "online" | "check" | "all";
   dateFrom?: string;
   dateTo?: string;
 }
@@ -383,8 +383,8 @@ export interface IncomeCategory { id: string; branch_id: string | null; name: st
 export interface ExpenseCategory { id: string; branch_id: string | null; name: string; code: string | null; description: string | null; is_system: boolean; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
 export interface Vendor { id: string; branch_id: string; name: string; contact_name: string | null; phone: string | null; email: string | null; address: string | null; gstin: string | null; pan: string | null; bank_name: string | null; bank_account_no: string | null; bank_ifsc: string | null; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
 export interface ChartOfAccount { id: string; branch_id: string | null; parent_id: string | null; account_code: string; account_name: string; account_type: AccountType; is_system: boolean; is_leaf: boolean; opening_balance: number; description: string | null; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
-export interface Income { id: string; income_number: string; branch_id: string; category_id: string | null; payment_id: string | null; invoice_id: string | null; member_id: string | null; amount: number; taxable_amount?: number; gst_rate?: number; gst_type?: "none" | "intra" | "inter"; cgst_amount?: number; sgst_amount?: number; igst_amount?: number; gst_amount: number; total_amount: number; payment_method: "cash" | "upi" | "card" | "online"; transaction_ref: string | null; income_date: string; description: string | null; notes: string | null; status: FinTxnStatus; is_membership_income: boolean; hsn_sac: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; income_categories?: Pick<IncomeCategory, "id" | "name" | "code"> | null; members?: { full_name: string; member_code: string } | null; }
-export interface Expense { id: string; expense_number: string; branch_id: string; category_id: string | null; vendor_id: string | null; amount: number; taxable_amount?: number; gst_rate?: number; gst_type?: "none" | "intra" | "inter"; cgst_amount?: number; sgst_amount?: number; igst_amount?: number; gst_amount: number; total_amount: number; payment_method: "cash" | "upi" | "card" | "online"; bill_number: string | null; expense_date: string; description: string; notes: string | null; approval_status: ExpenseApprovalStatus; approved_by: string | null; approved_at: string | null; rejection_reason: string | null; is_recurring: boolean; recurring_interval: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | null; next_due_date: string | null; status: FinTxnStatus; hsn_sac: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; expense_categories?: Pick<ExpenseCategory, "id" | "name"> | null; vendors?: Pick<Vendor, "id" | "name"> | null; }
+export interface Income { id: string; income_number: string; branch_id: string; category_id: string | null; payment_id: string | null; invoice_id: string | null; member_id: string | null; amount: number; taxable_amount?: number; gst_rate?: number; gst_type?: "none" | "intra" | "inter"; cgst_amount?: number; sgst_amount?: number; igst_amount?: number; gst_amount: number; total_amount: number; payment_method: "cash" | "upi" | "card" | "online" | "check"; transaction_ref: string | null; income_date: string; description: string | null; notes: string | null; status: FinTxnStatus; is_membership_income: boolean; hsn_sac: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; income_categories?: Pick<IncomeCategory, "id" | "name" | "code"> | null; members?: { full_name: string; member_code: string } | null; }
+export interface Expense { id: string; expense_number: string; branch_id: string; category_id: string | null; vendor_id: string | null; amount: number; taxable_amount?: number; gst_rate?: number; gst_type?: "none" | "intra" | "inter"; cgst_amount?: number; sgst_amount?: number; igst_amount?: number; gst_amount: number; total_amount: number; payment_method: "cash" | "upi" | "card" | "online" | "check"; bill_number: string | null; expense_date: string; description: string; notes: string | null; approval_status: ExpenseApprovalStatus; approved_by: string | null; approved_at: string | null; rejection_reason: string | null; is_recurring: boolean; recurring_interval: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | null; next_due_date: string | null; status: FinTxnStatus; hsn_sac: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; expense_categories?: Pick<ExpenseCategory, "id" | "name"> | null; vendors?: Pick<Vendor, "id" | "name"> | null; }
 export interface BankAccount { id: string; branch_id: string; account_name: string; bank_name: string; account_number: string; ifsc_code: string | null; account_type: "savings" | "current" | "overdraft" | "cash"; opening_balance: number; current_balance: number; is_default: boolean; status: RecordStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }
 export interface BankTransaction { id: string; branch_id: string; bank_account_id: string; txn_type: BankTxnType; amount: number; balance_after: number; reference_no: string | null; txn_date: string; description: string; linked_expense_id: string | null; linked_income_id: string | null; linked_payment_id: string | null; is_reconciled: boolean; reconciled_at: string | null; reconciled_by: string | null; status: FinTxnStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; bank_accounts?: Pick<BankAccount, "id" | "account_name" | "bank_name"> | null; }
 export interface CashBookEntry { id: string; branch_id: string; entry_date: string; entry_type: FinEntryType; amount: number; balance_after: number; description: string; linked_expense_id: string | null; linked_income_id: string | null; linked_payment_id: string | null; status: FinTxnStatus; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; }

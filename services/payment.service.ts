@@ -15,7 +15,7 @@ export interface Payment {
   cgst_amount?: number;
   sgst_amount?: number;
   igst_amount?: number;
-  method: "cash" | "upi" | "card" | "online";
+  method: "cash" | "upi" | "card" | "online" | "check";
   status: "pending" | "completed" | "failed" | "refunded" | "partially_refunded";
   transaction_reference: string | null;
   paid_at: string | null;

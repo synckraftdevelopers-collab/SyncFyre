@@ -62,12 +62,14 @@ export async function createMemberAction(
   const startDate = String(raw.start_date ?? "");
   const paymentAmountText = String(raw.payment_amount ?? "");
   const paymentAmount = paymentAmountText ? Number(paymentAmountText) : NaN;
-  const paymentMethod = ["cash", "upi", "card", "online"].includes(String(raw.payment_method ?? "")) ? String(raw.payment_method) : "cash";
+  const discountAmount = Number(raw.discount_amount ?? 0);
+  const paymentMethod = ["cash", "upi", "card", "online", "check"].includes(String(raw.payment_method ?? "")) ? String(raw.payment_method) : "cash";
   const transactionRef = String(raw.transaction_ref ?? "").trim() || null;
 
   if (!planId) return { error: "Package is required." };
   if (!startDate) return { error: "Start date is required." };
   if (!paymentAmountText || Number.isNaN(paymentAmount) || paymentAmount < 0) return { error: "Payment completed is required." };
+  if (!Number.isFinite(discountAmount) || discountAmount < 0) return { error: "Enter a valid discount amount." };
 
   try {
     parseDateOnly(startDate);
@@ -104,6 +106,12 @@ export async function createMemberAction(
     return { error: "Reception staff can register members only for their assigned branch." };
   }
 
+  const discountBase = Number(plan.price ?? 0);
+  const planDiscount = Math.round(discountBase * Number(plan.discount_percent ?? 0) * 100) / 10000;
+  if (discountAmount > Math.max(0, discountBase - planDiscount)) return { error: "Discount cannot exceed the package amount." };
+  const discount = planDiscount + discountAmount;
+  const discountedAmount = Math.max(0, discountBase - discount);
+
   let createdMember: Awaited<ReturnType<typeof createMember>>;
   try {
     createdMember = await createMember(parsed.data, profile.id, profile.tenant_id);
@@ -111,9 +119,6 @@ export async function createMemberAction(
     return { error: error instanceof Error ? error.message : "Unable to create member." };
   }
 
-  const discountBase = Number(plan.price ?? 0);
-  const discount = Math.round(discountBase * Number(plan.discount_percent ?? 0) * 100) / 10000;
-  const discountedAmount = Math.max(0, discountBase - discount);
   const gstEnabled = Boolean(financeSettings?.gst_registered) && Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) > 0;
   const pricingMode = (financeSettings?.gst_pricing_mode === "inclusive" ? "inclusive" : "exclusive") as GstPricingMode;
   const gstRate = gstEnabled ? Number(plan.gst_percent ?? financeSettings?.default_gst_rate ?? 0) : 0;
