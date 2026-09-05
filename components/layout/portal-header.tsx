@@ -7,6 +7,7 @@ import { NotificationBellDropdown } from "@/components/notifications/notificatio
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { HistoryBackButton } from "@/components/ui/history-back-button";
 import { logoutAction } from "@/app/(auth)/actions";
 import { useId, useRef } from "react";
 import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
@@ -41,9 +42,16 @@ export function PortalHeader({
 }) {
   const triggerId = useId();
   const menuLogoutFormRef = useRef<HTMLFormElement>(null);
+  const backHrefByPortal: Record<string, string> = {
+    admin: "/admin/dashboard",
+    reception: "/reception/dashboard",
+    trainer: "/trainer/dashboard",
+    member: "/member/dashboard",
+  };
 
   return (
     <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
+      <HistoryBackButton fallbackHref={backHrefByPortal[portal] ?? "/"} className="shrink-0" />
       <Button variant="ghost" size="icon" onClick={onMenu} aria-label="Toggle navigation" className="shrink-0">
         <Menu className="size-5" />
       </Button>

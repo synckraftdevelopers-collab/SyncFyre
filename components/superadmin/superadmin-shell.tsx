@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn, initials } from "@/lib/utils";
 import { logoutAction } from "@/app/(auth)/actions";
+import { HistoryBackButton } from "@/components/ui/history-back-button";
 
 const nav = [
   { label: "Dashboard", href: "/superadmin/dashboard", icon: LayoutDashboard },
@@ -117,6 +118,7 @@ export function SuperAdminShell({
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/90 px-4 backdrop-blur-xl lg:hidden">
+          <HistoryBackButton fallbackHref="/superadmin/dashboard" className="shrink-0" />
           <button
             onClick={() => setOpen(true)}
             className="rounded-lg p-2 hover:bg-muted"
@@ -128,6 +130,9 @@ export function SuperAdminShell({
         </header>
 
         <main className="mx-auto max-w-[1400px] p-4 pb-24 md:p-8 lg:pb-8">
+          <div className="mb-4 hidden lg:block">
+            <HistoryBackButton fallbackHref="/superadmin/dashboard" />
+          </div>
           {children}
         </main>
       </div>

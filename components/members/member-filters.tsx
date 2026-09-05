@@ -129,7 +129,7 @@ export function MemberFilters({
         </div>
 
         <FilterSelect
-          value={sp.get("status") ?? "all"}
+          value={sp.get("status") ?? "active"}
           onChange={(v) => update("status", v)}
           placeholder="Member Status"
           options={MEMBER_STATUS_OPTIONS}

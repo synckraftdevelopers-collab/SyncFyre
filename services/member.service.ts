@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Member, PaginatedResult } from "@/types";
 import type { MemberInput } from "@/lib/validations/member";
 import { logActivity } from "@/services/workflow.service";
@@ -17,9 +18,32 @@ export async function listMembers(params: { page?: number; pageSize?: number; se
   return { data: (data ?? []) as Member[], page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
 }
 
-export async function createMember(input: MemberInput, performedBy?: string) {
+export async function createMember(input: MemberInput, performedBy?: string, tenantId?: string | null) {
   const supabase = await createClient();
-  const { data: inserted, error } = await supabase.from("members").insert(input).select().single();
+  const { data: branch, error: branchError } = await supabase
+    .from("branches")
+    .select("id, tenant_id")
+    .eq("id", input.branch_id)
+    .maybeSingle();
+  if (branchError) throw new Error(branchError.message);
+  if (!branch) throw new Error("Selected branch was not found.");
+  if (tenantId && branch.tenant_id && branch.tenant_id !== tenantId) throw new Error("Selected branch does not belong to your organization.");
+
+  const resolvedTenantId = branch.tenant_id ?? tenantId ?? null;
+  if (!resolvedTenantId) throw new Error("Selected branch is missing tenant ownership.");
+
+  if (!branch.tenant_id && tenantId) {
+    const admin = createAdminClient();
+    const { error: backfillError } = await admin
+      .from("branches")
+      .update({ tenant_id: tenantId })
+      .eq("id", branch.id)
+      .is("tenant_id", null);
+    if (backfillError) throw new Error(backfillError.message);
+  }
+
+  const payload = { ...input, tenant_id: resolvedTenantId };
+  const { data: inserted, error } = await supabase.from("members").insert(payload).select().single();
   if (error) throw new Error(error.message);
 
   let data = inserted;

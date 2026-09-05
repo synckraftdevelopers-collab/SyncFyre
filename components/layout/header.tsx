@@ -4,6 +4,7 @@ import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { HistoryBackButton } from "@/components/ui/history-back-button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { logoutAction } from "@/app/(auth)/actions";
@@ -27,6 +28,7 @@ export function Header({
 }) {
   return (
     <header className="sticky top-0 z-30 flex h-20 items-center gap-3 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:px-8">
+      <HistoryBackButton fallbackHref="/dashboard" className="shrink-0" />
       <Button variant="ghost" size="icon" onClick={onMenu} className="lg:hidden" aria-label="Open navigation">
         <Menu className="size-5" />
       </Button>

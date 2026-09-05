@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
+import { insertWithSchemaFallback } from "@/lib/supabase/insert-fallback";
 import { parseDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
 import { applyMemberFormConfiguration, memberSchema } from "@/lib/validations/member";
@@ -19,6 +20,17 @@ function normalizePhone(value: FormDataEntryValue | string | null | undefined) {
   const local = digits.startsWith("91") && digits.length === 12 ? digits.slice(2) : digits;
   return local.length === 10 ? `+91${local}` : String(value ?? "").trim();
 }
+
+const invoiceSchemaFallbackKeys = [
+  ["taxable_amount", "gst_rate", "gst_type", "cgst_amount", "sgst_amount", "igst_amount"],
+  ["balance_amount", "payment_status"],
+  ["tenant_id"],
+] as const;
+
+const paymentSchemaFallbackKeys = [
+  ["taxable_amount", "gst_rate", "gst_type", "gst_amount", "cgst_amount", "sgst_amount", "igst_amount"],
+  ["tenant_id"],
+] as const;
 
 export async function createMemberAction(
   _: MemberFormState,
@@ -94,7 +106,7 @@ export async function createMemberAction(
 
   let createdMember: Awaited<ReturnType<typeof createMember>>;
   try {
-    createdMember = await createMember(parsed.data, profile.id);
+    createdMember = await createMember(parsed.data, profile.id, profile.tenant_id);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to create member." };
   }
@@ -121,6 +133,7 @@ export async function createMemberAction(
       memberId: createdMember.id,
       planId: plan.id,
       branchId: parsed.data.branch_id,
+      tenantId: profile.tenant_id,
       startDate,
       status: "active",
       price: gst.taxableAmount,
@@ -135,7 +148,7 @@ export async function createMemberAction(
     const subscriptionEndDate = (subscription as { id?: string; end_date?: string } | null)?.end_date ?? null;
     if (!subscriptionEndDate) throw new Error("Unable to determine membership expiry date.");
 
-    const { data: invoice, error: invoiceError } = await supabase.from("invoices").insert({
+    const invoicePayload = {
       member_id: createdMember.id,
       subscription_id: (subscription as { id?: string } | null)?.id ?? null,
       branch_id: parsed.data.branch_id,
@@ -157,12 +170,17 @@ export async function createMemberAction(
       due_date: subscriptionEndDate,
       line_items: [{ description: plan.name, amount: total, taxable_amount: gst.taxableAmount, gst_amount: gst.gstAmount }],
       created_by: profile.id,
-    }).select("id").single();
+    };
+    const { data: invoice, error: invoiceError } = await insertWithSchemaFallback<{ id: string }>(
+      (payload) => supabase.from("invoices").insert(payload).select("id").single(),
+      invoicePayload,
+      invoiceSchemaFallbackKeys,
+    );
     if (invoiceError || !invoice) throw new Error(invoiceError?.message ?? "Unable to create invoice.");
 
     if (paymentAmount > 0) {
       const ratio = total > 0 ? Math.min(1, paymentAmount / total) : 1;
-      const { error: paymentError } = await supabase.from("payments").insert({
+      const paymentPayload = {
         invoice_id: invoice.id,
         member_id: createdMember.id,
         subscription_id: (subscription as { id?: string } | null)?.id ?? null,
@@ -181,8 +199,13 @@ export async function createMemberAction(
         transaction_reference: transactionRef,
         paid_at: new Date().toISOString(),
         collected_by: profile.id,
-      });
-      if (paymentError) throw new Error(paymentError.message);
+      };
+      const { error: paymentError } = await insertWithSchemaFallback<null>(
+        (payload) => supabase.from("payments").insert(payload),
+        paymentPayload,
+        paymentSchemaFallbackKeys,
+      );
+      if (paymentError) throw new Error(paymentError.message ?? "Unable to create payment.");
     }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Member created, but package/payment could not be saved." };
@@ -276,9 +299,7 @@ export async function generateMemberInvoiceAction(memberId: string): Promise<{ e
   const total = gst.grandTotal;
   const dueDate = subscription.end_date ?? subscription.start_date ?? new Date().toISOString().slice(0, 10);
 
-  const { data: invoice, error: invoiceError } = await supabase
-    .from("invoices")
-    .insert({
+  const invoicePayload = {
       member_id: memberId,
       subscription_id: subscription.id,
       branch_id: branch.id,
@@ -306,9 +327,12 @@ export async function generateMemberInvoiceAction(memberId: string): Promise<{ e
         gst_amount: gst.gstAmount,
       }],
       created_by: profile.id,
-    })
-    .select("id")
-    .single();
+  };
+  const { data: invoice, error: invoiceError } = await insertWithSchemaFallback<{ id: string }>(
+    (payload) => supabase.from("invoices").insert(payload).select("id").single(),
+    invoicePayload,
+    invoiceSchemaFallbackKeys,
+  );
 
   if (invoiceError || !invoice) return { error: invoiceError?.message ?? "Unable to create invoice." };
 

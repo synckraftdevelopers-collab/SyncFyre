@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { createClient } from "@/lib/supabase/server";
 
 async function refresh() {
@@ -23,6 +24,16 @@ async function refresh() {
 }
 
 export type SettingsActionState = { error?: string; success?: string };
+
+function omitKeys<T extends Record<string, unknown>>(payload: T, keys: readonly string[]) {
+  const next = {} as T;
+  for (const [key, value] of Object.entries(payload)) {
+    if (!keys.includes(key)) {
+      next[key as keyof T] = value as T[keyof T];
+    }
+  }
+  return next;
+}
 
 export async function updateBranchAction(_: SettingsActionState, formData: FormData): Promise<SettingsActionState> {
   const profile = await requireUser(["owner", "admin", "manager"]);
@@ -69,7 +80,25 @@ export async function updateBranchAction(_: SettingsActionState, formData: FormD
   const { error: financeError } = await sb
     .from("finance_settings")
     .upsert(financePayload, { onConflict: "branch_id" });
-  if (financeError) return { error: financeError.message };
+  if (financeError && isMissingSchemaError(financeError)) {
+    const fallbackPayload = omitKeys(financePayload, [
+      "tenant_id",
+      "legal_business_name",
+      "business_address",
+      "business_city",
+      "business_state",
+      "business_state_code",
+      "business_pincode",
+      "default_gst_rate",
+      "gst_pricing_mode",
+    ]);
+    const { error: fallbackError } = await sb
+      .from("finance_settings")
+      .upsert(fallbackPayload, { onConflict: "branch_id" });
+    if (fallbackError) return { error: fallbackError.message };
+  } else if (financeError) {
+    return { error: financeError.message };
+  }
 
   await refresh();
   return { success: "Branch settings saved." };
@@ -107,7 +136,7 @@ export async function createBranchAction(_: SettingsActionState, formData: FormD
   const branchAddress = String(formData.get("address") ?? "").trim() || null;
   const branchCity = String(formData.get("city") ?? "").trim() || null;
 
-  const { error: financeError } = await sb.from("finance_settings").insert({
+  const financeInsert = {
     branch_id: branch.id,
     tenant_id: profile.tenant_id,
     gst_registered: Boolean(String(formData.get("gstin") ?? "").trim()),
@@ -122,8 +151,26 @@ export async function createBranchAction(_: SettingsActionState, formData: FormD
     fiscal_year_start_month: Number(formData.get("fiscal_year_start_month") ?? 4) || 4,
     created_by: profile.id,
     updated_by: profile.id,
-  });
-  if (financeError) return { error: financeError.message };
+  };
+
+  const { error: financeError } = await sb.from("finance_settings").insert(financeInsert);
+  if (financeError && isMissingSchemaError(financeError)) {
+    const fallbackInsert = omitKeys(financeInsert, [
+      "tenant_id",
+      "legal_business_name",
+      "business_address",
+      "business_city",
+      "business_state",
+      "business_state_code",
+      "business_pincode",
+      "default_gst_rate",
+      "gst_pricing_mode",
+    ]);
+    const { error: fallbackError } = await sb.from("finance_settings").insert(fallbackInsert);
+    if (fallbackError) return { error: fallbackError.message };
+  } else if (financeError) {
+    return { error: financeError.message };
+  }
 
   await refresh();
   return { success: `Branch "${name}" created successfully.` };

@@ -41,7 +41,7 @@ export default async function ReceptionMembersPage({
       pageSize,
       search: sp.q || undefined,
       branchId: sp.branch || branchId || undefined,
-      status: sp.status || undefined,
+      status: sp.status || "active",
       planId: sp.plan || undefined,
       trainerId: sp.trainer || undefined,
       gender: sp.gender || undefined,

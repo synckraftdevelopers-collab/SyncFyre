@@ -72,6 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         memberId: String(payload.member_id),
         planId: String(payload.plan_id),
         branchId: String(payload.branch_id),
+        tenantId: profile.tenant_id,
         startDate: String(payload.start_date),
         endDate: (payload.end_date as string | null | undefined) ?? null,
         status: (payload.status as "pending" | "active" | "expired" | "cancelled" | "paused" | undefined) ?? "pending",

@@ -89,8 +89,8 @@ export function PortalSidebar({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-2 py-3">
-          {navigation.map(({ label: navLabel, href, icon: Icon }) => {
-            const active = pathname === href || (href.split("/").length > 2 && pathname.startsWith(`${href}/`));
+          {navigation.map(({ label: navLabel, href, icon: Icon, exact }) => {
+            const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
             return (
               <Link
                 key={href}

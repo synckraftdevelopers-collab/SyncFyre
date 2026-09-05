@@ -45,6 +45,7 @@ export async function createReceptionMembershipAction(
       memberId,
       planId,
       branchId: profile.branch_id,
+      tenantId: profile.tenant_id,
       startDate,
       status: "active",
       price,

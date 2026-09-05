@@ -12,6 +12,7 @@ import { SettingsBranchForms } from "@/components/settings/settings-branch-forms
 import type { CommunicationTemplateRecord, MemberCustomFieldRecord, MemberCustomFieldValueRecord } from "@/lib/config/schema";
 import { FEATURE_KEYS, type ConfigKey } from "@/lib/config/schema";
 import { requireUser } from "@/lib/auth";
+import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { ResolvedSettingResult } from "@/services/config.service";
 import {
@@ -37,6 +38,8 @@ type ResolvedUiMap = Record<string, { value: unknown; source: string; updatedAt:
 type TemplateRow = CommunicationTemplateRecord & { branches?: { name?: string | null }[] | null };
 type CustomFieldRow = MemberCustomFieldRecord & { users?: { full_name?: string | null } | null };
 type CustomFieldValueRow = MemberCustomFieldValueRecord & { member_custom_fields?: Array<{ field_name?: string | null; field_key?: string | null }> | null };
+const financeSettingsSelectExtended = "gst_registered,gstin,legal_business_name,business_address,business_city,business_state,business_state_code,default_gst_rate,gst_pricing_mode,fiscal_year_start_month";
+const financeSettingsSelectFallback = "gst_registered,gstin,fiscal_year_start_month";
 
 export default async function AdminSettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string; memberSearch?: string }> }) {
   const { tab = "profile", memberSearch = "" } = await searchParams;
@@ -88,14 +91,34 @@ export default async function AdminSettingsPage({ searchParams }: { searchParams
   let sampleValues = [] as CustomFieldValueRow[];
 
   if (isApplicationTab) {
-    const [branchResult, branchesResult, financeResult] = await Promise.all([
+    const [branchResult, branchesResult] = await Promise.all([
       sb.from("branches").select("id,name,code,city,address,phone,state,status").eq("id", profile.branch_id).eq("tenant_id", profile.tenant_id).maybeSingle(),
       sb.from("branches").select("id,name,code,city,phone,status").eq("tenant_id", profile.tenant_id).eq("status", "active").order("name"),
-      sb.from("finance_settings").select("gst_registered,gstin,legal_business_name,business_address,business_city,business_state,business_state_code,default_gst_rate,gst_pricing_mode,fiscal_year_start_month").eq("branch_id", profile.branch_id).maybeSingle(),
     ]);
     branch = branchResult.data;
     branches = branchesResult.data ?? [];
-    finance = financeResult.data;
+
+    const financeResult = await sb.from("finance_settings").select(financeSettingsSelectExtended).eq("branch_id", profile.branch_id).maybeSingle();
+    if (financeResult.error) {
+      if (!isMissingSchemaError(financeResult.error)) throw new Error(financeResult.error.message);
+      const fallbackResult = await sb.from("finance_settings").select(financeSettingsSelectFallback).eq("branch_id", profile.branch_id).maybeSingle();
+      if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+      finance = fallbackResult.data
+        ? {
+            ...fallbackResult.data,
+            legal_business_name: branch?.name ?? null,
+            business_address: branch?.address ?? null,
+            business_city: branch?.city ?? null,
+            business_state: branch?.state ?? null,
+            business_state_code: null,
+            business_pincode: null,
+            default_gst_rate: 18,
+            gst_pricing_mode: "exclusive",
+          }
+        : null;
+    } else {
+      finance = financeResult.data;
+    }
   }
 
   if (isBiometricTab) {

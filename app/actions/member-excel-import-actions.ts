@@ -3,9 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import type { MemberCandidate, MemberImportError } from "@/lib/members/member-import";
+import { insertWithSchemaFallback } from "@/lib/supabase/insert-fallback";
 import { createClient } from "@/lib/supabase/server";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
+
+const invoiceSchemaFallbackKeys = [
+  ["taxable_amount", "gst_rate", "gst_type", "cgst_amount", "sgst_amount", "igst_amount"],
+  ["balance_amount", "payment_status"],
+  ["tenant_id"],
+] as const;
+
+const paymentSchemaFallbackKeys = [
+  ["taxable_amount", "gst_rate", "gst_type", "gst_amount", "cgst_amount", "sgst_amount", "igst_amount"],
+  ["tenant_id"],
+] as const;
 
 export type MemberExcelImportResult = {
   error?: string;
@@ -222,10 +234,11 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
         const paymentAmount = candidate.payment ?? 0;
 
         const subscriptionId = await createSubscriptionWithHistory({
-          memberId: member.id,
-          planId: plan.id,
-          branchId: request.branchId,
-          startDate: candidate.membershipStartDate!,
+            memberId: member.id,
+            planId: plan.id,
+            branchId: request.branchId,
+            tenantId: profile.tenant_id,
+            startDate: candidate.membershipStartDate!,
           endDate: candidate.membershipEndDate!,
           status: "active",
           price: gst.taxableAmount,
@@ -235,9 +248,7 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
           performedBy: profile.id,
         });
 
-        const { data: invoice, error: invoiceError } = await supabase
-          .from("invoices")
-          .insert({
+        const invoicePayload = {
             member_id: member.id,
             subscription_id: subscriptionId,
             branch_id: request.branchId,
@@ -257,16 +268,20 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
             status: paymentAmount >= total ? "paid" : paymentAmount > 0 ? "partial" : "unpaid",
             line_items: [{ description: plan.name, amount: total, taxable_amount: gst.taxableAmount, gst_amount: gst.gstAmount }],
             notes: candidate.notes,
-          })
-          .select("id")
-          .single();
+        };
+
+        const { data: invoice, error: invoiceError } = await insertWithSchemaFallback<{ id: string }>(
+          (payload) => supabase.from("invoices").insert(payload).select("id").single(),
+          invoicePayload,
+          invoiceSchemaFallbackKeys,
+        );
 
         if (invoiceError || !invoice) {
           throw new Error(invoiceError?.message ?? "Unable to create invoice.");
         }
 
         if (paymentAmount > 0) {
-          const { error: paymentError } = await supabase.from("payments").insert({
+          const paymentPayload = {
             invoice_id: invoice.id,
             member_id: member.id,
             subscription_id: subscriptionId,
@@ -284,10 +299,16 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
             status: "completed",
             paid_at: `${candidate.membershipStartDate}T00:00:00`,
             collected_by: profile.id,
-          });
+          };
+
+          const { error: paymentError } = await insertWithSchemaFallback<null>(
+            (payload) => supabase.from("payments").insert(payload),
+            paymentPayload,
+            paymentSchemaFallbackKeys,
+          );
 
           if (paymentError) {
-            throw new Error(paymentError.message);
+            throw new Error(paymentError.message ?? "Unable to create payment.");
           }
         }
 

@@ -640,6 +640,7 @@ export async function deactivateMember(id: string, performedBy: string): Promise
 export interface RenewInput {
   memberId: string;
   branchId: string;
+  tenantId?: string | null;
   planId: string;
   startDate: string;
   price: number;
@@ -654,6 +655,7 @@ export async function renewMembership(input: RenewInput): Promise<string> {
   const data = await createSubscriptionWithHistory({
     memberId: input.memberId,
     branchId: input.branchId,
+    tenantId: input.tenantId ?? null,
     planId: input.planId,
     startDate: input.startDate,
     status: "active",

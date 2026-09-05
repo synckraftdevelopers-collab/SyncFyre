@@ -1,4 +1,5 @@
 import { addCalendarMonthsToDateOnly } from "@/lib/membership-dates";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { ResourceName } from "@/lib/validations/resources";
 
@@ -30,6 +31,7 @@ export async function createSubscriptionWithHistory(input: {
   memberId: string;
   planId: string;
   branchId: string;
+  tenantId?: string | null;
   startDate: string;
   endDate?: string | null;
   status?: "pending" | "active" | "expired" | "cancelled" | "paused";
@@ -43,6 +45,31 @@ export async function createSubscriptionWithHistory(input: {
   remarks?: string | null;
 }) {
   const supabase = await createClient();
+  const { data: branch, error: branchError } = await supabase
+    .from("branches")
+    .select("id, tenant_id")
+    .eq("id", input.branchId)
+    .maybeSingle();
+  if (branchError) throw new Error(branchError.message);
+  if (!branch) throw new Error("Branch not found.");
+
+  if (input.tenantId && branch.tenant_id && branch.tenant_id !== input.tenantId) {
+    throw new Error("Selected branch does not belong to your organization.");
+  }
+
+  const resolvedTenantId = branch.tenant_id ?? input.tenantId ?? null;
+  if (!resolvedTenantId) throw new Error("Selected branch is missing tenant ownership.");
+
+  if (!branch.tenant_id && input.tenantId) {
+    const admin = createAdminClient();
+    const { error: backfillError } = await admin
+      .from("branches")
+      .update({ tenant_id: input.tenantId })
+      .eq("id", branch.id)
+      .is("tenant_id", null);
+    if (backfillError) throw new Error(backfillError.message);
+  }
+
   let resolvedEndDate = input.endDate ?? null;
 
   if (!resolvedEndDate) {
@@ -56,24 +83,54 @@ export async function createSubscriptionWithHistory(input: {
     resolvedEndDate = addCalendarMonthsToDateOnly(input.startDate, Number(plan.duration_months));
   }
 
-  const { data, error } = await supabase.rpc("create_subscription_with_history", {
-    p_member_id: input.memberId,
-    p_plan_id: input.planId,
-    p_branch_id: input.branchId,
-    p_start_date: input.startDate,
-    p_end_date: resolvedEndDate,
-    p_status: input.status ?? "pending",
-    p_auto_renew: input.autoRenew ?? false,
-    p_price: input.price,
-    p_discount_amount: input.discountAmount ?? 0,
-    p_gst_amount: input.gstAmount ?? 0,
-    p_total_amount: input.totalAmount,
-    p_created_by: input.performedBy,
-    p_action: input.action ?? "created",
-    p_remarks: input.remarks ?? null,
+  const { data: subscription, error: subscriptionError } = await supabase
+    .from("subscriptions")
+    .insert({
+      member_id: input.memberId,
+      plan_id: input.planId,
+      branch_id: input.branchId,
+      tenant_id: resolvedTenantId,
+      start_date: input.startDate,
+      end_date: resolvedEndDate,
+      status: input.status ?? "pending",
+      auto_renew: input.autoRenew ?? false,
+      price: input.price,
+      discount_amount: input.discountAmount ?? 0,
+      gst_amount: input.gstAmount ?? 0,
+      total_amount: input.totalAmount,
+      created_by: input.performedBy,
+    })
+    .select("id, member_id, branch_id, tenant_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, created_by")
+    .single();
+  if (subscriptionError || !subscription) throw new Error(subscriptionError?.message ?? "Unable to create subscription.");
+
+  const { error: historyError } = await supabase.from("subscription_history").insert({
+    subscription_id: subscription.id,
+    member_id: input.memberId,
+    previous_end_date: null,
+    new_start_date: input.startDate,
+    new_end_date: resolvedEndDate,
+    action: input.action ?? "created",
+    notes: input.remarks ?? null,
+    performed_by: input.performedBy,
+    previous_status: null,
+    new_status: input.status ?? "pending",
+    performed_at: new Date().toISOString(),
+    remarks: input.remarks ?? null,
   });
-  if (error) throw new Error(error.message);
-  return data;
+  if (historyError) throw new Error(historyError.message);
+
+  await logActivity({
+    performedBy: input.performedBy,
+    branchId: branch.id,
+    action: input.action === "renewed" ? "membership_renewed" : "membership_created",
+    entityType: "subscription",
+    entityId: subscription.id,
+    description: "Membership lifecycle event",
+    metadata: { action: input.action ?? "created", member_id: input.memberId, status: input.status ?? "pending" },
+  });
+
+  return subscription;
 }
 
 export async function updateSubscriptionWithHistory(input: {

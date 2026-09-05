@@ -50,9 +50,10 @@ export async function renewMembershipAction(
 
   try {
     await renewMembership({
-      memberId,
-      branchId,
-      planId,
+        memberId,
+        branchId,
+        tenantId: profile.tenant_id,
+        planId,
       startDate,
       price,
       discountAmount: discount,
