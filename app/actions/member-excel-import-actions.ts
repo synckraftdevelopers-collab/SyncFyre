@@ -43,6 +43,7 @@ async function authorize(branchId: string) {
     .from("branches")
     .select("id")
     .eq("id", branchId)
+    .eq("tenant_id", profile.tenant_id)
     .eq("status", "active")
     .maybeSingle();
 
@@ -325,6 +326,8 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
         });
       }
     }
+
+    if (profile.tenant_id) await supabase.from("member_import_batches").insert({ tenant_id: profile.tenant_id, branch_id: request.branchId, file_name: "Excel import", total_rows: request.candidates.length + request.validationErrors.length, imported_rows: imported, rejected_rows: errors.length, rejection_details: errors.slice(0, 100), imported_by: profile.id });
 
     await logActivity({
       performedBy: profile.id,

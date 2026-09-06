@@ -185,7 +185,7 @@ export async function importMembersAction(
   });
 
   const supabase = await createClient();
-  const { data: branch } = await supabase.from("branches").select("id").eq("id", branchId).eq("status", "active").maybeSingle();
+  const { data: branch } = await supabase.from("branches").select("id").eq("id", branchId).eq("tenant_id", profile.tenant_id).eq("status", "active").maybeSingle();
   if (!branch) return { error: "Choose an active branch." };
 
   const existingPhones = new Set<string>();
@@ -212,6 +212,8 @@ export async function importMembersAction(
     }
     imported += batch.length;
   }
+
+  await supabase.from("member_import_batches").insert({ tenant_id: profile.tenant_id, branch_id: branchId, file_name: file.name, total_rows: rows.length, imported_rows: imported, rejected_rows: rows.length - imported, rejection_details: errors.slice(0, 100), imported_by: profile.id });
 
   revalidatePath("/admin/members");
   revalidatePath("/reception/members");

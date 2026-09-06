@@ -1,0 +1,29 @@
+import { createLeadAction } from "@/app/actions/lead-actions";
+import { LeadActions } from "@/components/leads/lead-actions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getPortalContext } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { listLeadActivities, listLeads } from "@/services/lead.service";
+
+export const metadata = { title: "Leads" };
+
+function formatDate(value: string | null) {
+  return value ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
+}
+
+export default async function LeadsPage() {
+  const profile = await getPortalContext();
+  if (!profile?.tenant_id || !profile.branch_id) return <p className="text-sm text-muted-foreground">Your account is not assigned to a branch.</p>;
+  const supabase = await createClient();
+  const [leads, activities, membersResult] = await Promise.all([
+    listLeads(profile.tenant_id, profile.branch_id),
+    listLeadActivities(profile.tenant_id, profile.branch_id),
+    supabase.from("members").select("id, full_name, member_code").eq("tenant_id", profile.tenant_id).eq("branch_id", profile.branch_id).eq("status", "active").order("full_name").limit(300),
+  ]);
+  const activitiesByLead = new Map<string, any[]>();
+  for (const activity of activities as any[]) { const current = activitiesByLead.get(activity.lead_id) ?? []; if (current.length < 5) current.push(activity); activitiesByLead.set(activity.lead_id, current); }
+  const members = membersResult.data ?? [];
+  const overdue = leads.filter((lead: any) => lead.follow_up_at && new Date(lead.follow_up_at).getTime() < Date.now() && !["won", "lost"].includes(lead.stage)).length;
+
+  return <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold">Leads</h1><p className="text-sm text-muted-foreground">Capture enquiries, schedule follow-ups, and track conversions.</p></div><p className={overdue ? "rounded-full bg-destructive/10 px-3 py-1 text-sm font-medium text-destructive" : "rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground"}>{overdue ? `${overdue} overdue follow-up${overdue === 1 ? "" : "s"}` : "No overdue follow-ups"}</p></div><div className="grid gap-6 xl:grid-cols-[350px_1fr]"><Card><CardHeader><CardTitle>New lead</CardTitle></CardHeader><CardContent><form action={async (formData) => { "use server"; await createLeadAction(formData); }} className="space-y-3"><input name="full_name" required placeholder="Full name" className="h-10 w-full rounded-lg border bg-background px-3 text-sm" /><input name="phone" placeholder="Phone" className="h-10 w-full rounded-lg border bg-background px-3 text-sm" /><input name="email" type="email" placeholder="Email" className="h-10 w-full rounded-lg border bg-background px-3 text-sm" /><select name="source" defaultValue="walk_in" className="h-10 w-full rounded-lg border bg-background px-3 text-sm"><option value="walk_in">Walk-in</option><option value="referral">Referral</option><option value="website">Website</option><option value="social">Social media</option><option value="phone">Phone enquiry</option></select><input name="plan_interest" placeholder="Plan interest" className="h-10 w-full rounded-lg border bg-background px-3 text-sm" /><label className="block text-sm font-medium">Follow-up<input name="follow_up_at" type="datetime-local" className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm" /></label><textarea name="notes" maxLength={2000} placeholder="Notes" className="min-h-24 w-full rounded-lg border bg-background p-3 text-sm" /><button className="h-10 w-full rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground">Create lead</button></form></CardContent></Card><Card><CardHeader><CardTitle>Pipeline</CardTitle></CardHeader><CardContent className="overflow-x-auto"><table className="w-full min-w-[980px] text-sm"><thead className="border-b text-left text-xs uppercase text-muted-foreground"><tr><th className="p-3">Lead</th><th className="p-3">Stage / follow-up</th><th className="p-3">History</th><th className="p-3">Actions</th></tr></thead><tbody className="divide-y">{leads.map((lead: any) => { const leadActivities = activitiesByLead.get(lead.id) ?? []; const isOverdue = lead.follow_up_at && new Date(lead.follow_up_at).getTime() < Date.now() && !["won", "lost"].includes(lead.stage); return <tr key={lead.id}><td className="p-3 align-top"><p className="font-medium">{lead.full_name}</p><p className="text-xs text-muted-foreground">{lead.phone ?? lead.email ?? "No contact"}</p><p className="mt-1 text-xs text-muted-foreground">{lead.source} · {lead.plan_interest ?? "No plan selected"}</p></td><td className="p-3 align-top"><p className="capitalize">{lead.stage.replace(/_/g, " ")}</p><p className={isOverdue ? "mt-1 text-xs font-medium text-destructive" : "mt-1 text-xs text-muted-foreground"}>{isOverdue ? "Overdue: " : "Follow-up: "}{formatDate(lead.follow_up_at)}</p></td><td className="p-3 align-top"><details><summary className="cursor-pointer text-xs font-medium text-primary">{leadActivities.length ? `${leadActivities.length} recent activit${leadActivities.length === 1 ? "y" : "ies"}` : "No activity yet"}</summary><div className="mt-2 space-y-2 text-xs">{leadActivities.map((activity: any) => <div key={activity.id} className="rounded border p-2"><p>{activity.description}</p><p className="mt-1 text-muted-foreground">{activity.activity_type.replace(/_/g, " ")} · {activity.performer?.full_name ?? "Staff"} · {formatDate(activity.created_at)}</p></div>)}</div></details></td><td className="p-3 align-top"><LeadActions lead={{ id: lead.id, stage: lead.stage }} members={members} /></td></tr>; })}{leads.length === 0 ? <tr><td colSpan={4} className="p-10 text-center text-muted-foreground">No leads yet.</td></tr> : null}</tbody></table></CardContent></Card></div></div>;
+}

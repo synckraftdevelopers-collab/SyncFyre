@@ -1,4 +1,4 @@
-﻿import { notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { Member360 } from "@/components/members/member-360";
@@ -6,6 +6,7 @@ import { MemberEditForm } from "@/components/members/member-edit-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { getMemberFormConfiguration } from "@/services/member-form-config.service";
 import { BackButton } from "@/components/ui/back-button";
+import { getMemberDocuments, getMemberNotes } from "@/services/member-notes.service";
 import {
   getBranchOptions,
   getDieticianOptions,
@@ -41,7 +42,7 @@ export default async function ReceptionMemberDetailPage({
   const profile = await requireUser(["reception", "admin", "manager"]);
   const supabase = await createClient();
 
-  const [member, subscriptions, payments, attendance, attendanceRecords, progress, workouts, dietPlans, notifications, plans, branches, trainers, dieticians, memberFormFields, receivablesRes, activityRes] = await Promise.all([
+  const [member, subscriptions, payments, attendance, attendanceRecords, progress, workouts, dietPlans, notifications, plans, branches, trainers, dieticians, memberFormFields, receivablesRes, activityRes, notes, documents] = await Promise.all([
     getMemberById(id),
     optionalData(getMemberSubscriptions(id), []),
     optionalData(getMemberPayments(id), []),
@@ -58,6 +59,8 @@ export default async function ReceptionMemberDetailPage({
     profile.tenant_id ? getMemberFormConfiguration(profile.tenant_id) : Promise.resolve([]),
     supabase.from("receivables").select("id, invoice_id, original_amount, paid_amount, balance_amount, due_date, status, receivable_type").eq("member_id", id).order("due_date", { ascending: true }),
     supabase.from("activity_logs").select("id, action, entity_type, description, created_at").eq("branch_id", profile.branch_id).or(`entity_id.eq.${id},description.ilike.%member%`).order("created_at", { ascending: false }).limit(20),
+    optionalData(getMemberNotes(id), []),
+    optionalData(getMemberDocuments(id), []),
   ]);
 
   if (!member) notFound();
@@ -92,6 +95,8 @@ export default async function ReceptionMemberDetailPage({
       notifications={notifications as any[]}
       receivables={receivablesRes.data ?? []}
       activity={activityRes.data ?? []}
+      notes={notes}
+      documents={documents}
       plans={plans}
       trainers={trainers}
       dieticians={dieticians}

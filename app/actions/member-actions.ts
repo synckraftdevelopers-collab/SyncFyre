@@ -1,8 +1,9 @@
-﻿"use server";
+"use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
+import { calculatePaymentBalance } from "@/lib/finance/payment-balance";
 import { insertWithSchemaFallback } from "@/lib/supabase/insert-fallback";
 import { parseDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
@@ -131,7 +132,7 @@ export async function createMemberAction(
   });
   const total = gst.grandTotal;
 
-  if (paymentAmount > total) return { error: "Payment completed cannot be greater than total amount." };
+  if (calculatePaymentBalance(total, paymentAmount).isOverpaid) return { error: "Payment completed cannot be greater than total amount." };
 
   try {
     const subscription = await createSubscriptionWithHistory({

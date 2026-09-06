@@ -8,10 +8,12 @@ import { cn } from "@/lib/utils";
 const navigation = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Members", href: "/members", icon: UsersRound },
+  { label: "Leads", href: "/leads", icon: UsersRound },
   { label: "Memberships", href: "/memberships", icon: ShieldCheck },
   { label: "Attendance", href: "/attendance", icon: Activity },
   { label: "Appointments", href: "/appointments", icon: CalendarDays },
   { label: "Trainers", href: "/trainers", icon: UserRoundCog },
+  { label: "Personal Training", href: "/pt", icon: Dumbbell },
   { label: "Workouts", href: "/workouts", icon: Dumbbell },
   { label: "Diet Plans", href: "/diet-plans", icon: Utensils },
   { label: "Progress", href: "/progress", icon: Gauge },

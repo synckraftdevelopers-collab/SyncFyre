@@ -60,6 +60,15 @@ export async function createSubscriptionWithHistory(input: {
   const resolvedTenantId = branch.tenant_id ?? input.tenantId ?? null;
   if (!resolvedTenantId) throw new Error("Selected branch is missing tenant ownership.");
 
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, branch_id, tenant_id")
+    .eq("id", input.memberId)
+    .eq("tenant_id", resolvedTenantId)
+    .maybeSingle();
+  if (memberError) throw new Error(memberError.message);
+  if (!member || member.branch_id !== input.branchId) throw new Error("Member does not belong to the selected branch.");
+
   if (!branch.tenant_id && input.tenantId) {
     const admin = createAdminClient();
     const { error: backfillError } = await admin

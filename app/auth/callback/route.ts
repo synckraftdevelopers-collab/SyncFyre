@@ -5,7 +5,10 @@ import type { NextRequest } from "next/server";
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") || "/onboarding";
+  const requestedNext = url.searchParams.get("next");
+  const next = requestedNext && requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+    ? requestedNext
+    : "/onboarding";
   const response = NextResponse.redirect(new URL(next, request.url));
 
   if (!code) return NextResponse.redirect(new URL("/login?error=account_not_configured", request.url));

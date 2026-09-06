@@ -35,7 +35,7 @@ export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { mem
   const [customPrice, setCustomPrice] = useState("");
   const [discount, setDiscount] = useState("0");
   const [gstPercent, setGstPercent] = useState("18");
-  const [method, setMethod] = useState<"cash" | "upi" | "card" | "online">("cash");
+  const [method, setMethod] = useState<"cash" | "upi" | "card" | "online" | "check">("cash");
   const [txRef, setTxRef] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
@@ -249,6 +249,7 @@ export function InvoiceForm({ members, plans, initialMemberId, returnTo }: { mem
               <option value="upi">UPI</option>
               <option value="card">Card</option>
               <option value="online">Online</option>
+              <option value="check">Check</option>
             </select>
           </label>
           <label className={fieldClass}>

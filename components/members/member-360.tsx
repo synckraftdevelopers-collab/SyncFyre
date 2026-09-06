@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { Apple, Bell, CreditCard, Dumbbell, FileUp, MessageCircle, Phone, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
 import type { UserRole } from "@/types";
@@ -11,6 +11,7 @@ import { AssignTrainerDialog } from "@/components/members/assign-trainer-dialog"
 import { DeleteMemberDialog } from "@/components/members/delete-member-dialog";
 import { PhotoUpload } from "@/components/members/photo-upload";
 import { RenewMembershipDialog } from "@/components/members/renew-membership-dialog";
+import { MemberDocumentsAndNotes } from "@/components/members/member-documents-and-notes";
 import {
   AttendanceTodayBadge,
   MemberStatusBadge,
@@ -135,6 +136,7 @@ const paymentModeLabels: Record<string, string> = {
   upi: "UPI",
   card: "Card",
   online: "Net Banking",
+  check: "Check",
   wallet: "Wallet",
 };
 
@@ -207,6 +209,8 @@ export function Member360({
   notifications,
   receivables,
   activity,
+  notes,
+  documents,
   plans,
   trainers,
   dieticians,
@@ -229,6 +233,8 @@ export function Member360({
   notifications: NotificationRecord[];
   receivables: ReceivableRecord[];
   activity: ActivityRecord[];
+  notes: { id: string; body: string; created_at: string; author_name: string | null }[];
+  documents: { id: string; file_name: string; content_type: string; file_size_bytes: number; created_at: string; download_url: string | null }[];
   plans: PlanOption[];
   trainers: Option[];
   dieticians: Option[];
@@ -363,7 +369,7 @@ export function Member360({
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href="/reception/attendance" className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignTrainerDialog memberId={member.id} currentTrainerId={member.assigned_trainer_id} trainers={trainers} /> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignDieticianDialog memberId={member.id} currentDieticianId={member.assigned_dietician_id} dieticians={dieticians} /> : null}
-                    <div className={buttonVariants({ variant: "outline", size: "sm", className: "pointer-events-none opacity-60" })}><FileUp className="size-4" />Upload Document</div>
+                    <Link href={`${basePath}/${member.id}?tab=documents`} className={buttonVariants({ variant: "outline", size: "sm" })}><FileUp className="size-4" />Documents & Notes</Link>
                   </div>
                 </CardContent>
               </Card>
@@ -385,7 +391,7 @@ export function Member360({
               <div className="grid gap-4 md:grid-cols-3">
                 <InfoCard title="Total Amount Paid" rows={[["Collected", formatCurrency(totalPaid)]]} />
                 <InfoCard title="Outstanding" rows={[["Pending", outstanding ? formatCurrency(outstanding) : 'Cleared']]} />
-                <InfoCard title="Support Modes" rows={[["Accepted", 'Cash / UPI / Card / Net Banking / Wallet']]} />
+                <InfoCard title="Support Modes" rows={[["Accepted", 'Cash / Check / UPI / Card / Net Banking / Wallet']]} />
               </div>
               <ResponsiveTable headers={["Date", "Invoice", "Amount", "Payment Mode", "Status", "Created By"]} rows={payments.map((item) => [formatDate(item.payment_date), item.invoice_number ?? '-', formatCurrency(item.net_amount), paymentModeLabels[item.payment_method] ?? item.payment_method, <PaymentStatusBadge key={item.payment_id} status={item.payment_status} />, item.collected_by ?? '-'])} empty="No payment history." />
             </div>
@@ -451,7 +457,7 @@ export function Member360({
           ) : null}
 
           {activeTab === "documents" ? (
-            <EmptyState text="No documents uploaded yet." actionLabel="Upload Document" />
+            <MemberDocumentsAndNotes memberId={member.id} notes={notes} documents={documents} canManage={canUse(role, ["admin", "manager", "reception"])} />
           ) : null}
 
           {activeTab === "activity" ? (
