@@ -173,19 +173,11 @@ begin
   );
 end $$;
 
-create or replace view public.member_machine_mappings as
-select
-  bmm.id,
-  m.branch_id,
-  bmm.member_id,
-  bmm.machine_user_id as matched_machine_user_id,
-  m.machine_user_id as existing_machine_user_id,
-  bmm.machine_name,
-  bmm.match_status as match_type,
-  bmm.verified as is_confident_match,
-  m.full_name as member_name,
-  bmm.created_at
-from public.biometric_member_mapping bmm
-join public.members m on m.id = bmm.member_id;
+-- member_machine_mappings view skipped: a table with this name already exists
+-- in the remote database as a biometric import reconciliation table.
+-- The existing table contains real import reconciliation data and must not
+-- be dropped, altered, replaced, truncated, or deleted.
+-- The view is not referenced by application code or by the remaining
+-- objects in this migration.
 
 commit;

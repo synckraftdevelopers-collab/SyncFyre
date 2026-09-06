@@ -17,6 +17,22 @@ type SheetRow = Record<string, unknown>;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const INSERT_CHUNK_SIZE = 500;
+const ALLOWED_EXTENSIONS = new Set([".xlsx", ".xls", ".csv"]);
+const ALLOWED_MIME_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+]);
+
+function isAllowedSpreadsheetFile(file: File) {
+  const fileName = file.name.toLowerCase();
+  const extension = fileName.slice(fileName.lastIndexOf("."));
+  return (
+    ALLOWED_EXTENSIONS.has(extension) &&
+    ALLOWED_MIME_TYPES.has(file.type.toLowerCase())
+  );
+}
+
 
 function normalizedHeader(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -114,6 +130,7 @@ export async function importMembersAction(
   if (!(file instanceof File) || file.size === 0) return { error: "Choose an Excel or CSV file to import." };
   if (file.size > MAX_FILE_SIZE) return { error: "The file must be 10 MB or smaller." };
   if (!branchId) return { error: "Choose the branch that these members belong to." };
+  if (!isAllowedSpreadsheetFile(file)) return { error: "Upload an .xlsx, .xls, or .csv spreadsheet with a valid file type." };
   if (profile.role?.slug === "reception" && branchId !== profile.branch_id) {
     return { error: "You can only import members into your assigned branch." };
   }

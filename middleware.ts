@@ -49,6 +49,17 @@ const PORTAL_ROLES: Record<string, string[]> = {
 };
 
 const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
+function isOwnerOnboardingSetupRoute(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
+  if (pathname === "/admin/settings") return searchParams.get("tab") === "application";
+  return [
+    "/admin/memberships/new",
+    "/admin/trainers/new",
+    "/admin/staff/new",
+    "/admin/machines",
+  ].includes(pathname);
+}
+
 
 function isMachineHost(request: NextRequest) {
   const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "")
@@ -142,7 +153,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const ownerNeedsOnboarding = roleSlug === "owner" && !onboardingCompletedAt;
-  if (ownerNeedsOnboarding && pathname.startsWith("/admin")) {
+  if (ownerNeedsOnboarding && pathname.startsWith("/admin") && !isOwnerOnboardingSetupRoute(request)) {
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
