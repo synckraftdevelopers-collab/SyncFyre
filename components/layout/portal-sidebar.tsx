@@ -5,20 +5,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navByPortal, portalLabel, type PortalKey } from "@/lib/nav";
+import { getPortalNavItems, portalLabel, type PortalKey } from "@/lib/nav";
+import type { UserRole } from "@/types";
 
 interface PortalSidebarProps {
   mobileOpen: boolean;
   onMobileClose: () => void;
   desktopExpanded: boolean;
   portal: PortalKey;
+  userRole?: UserRole | null;
 }
 
 export function PortalSidebar({
-  mobileOpen, onMobileClose, desktopExpanded, portal,
+  mobileOpen, onMobileClose, desktopExpanded, portal, userRole,
 }: PortalSidebarProps) {
   const pathname = usePathname();
-  const navigation = navByPortal[portal];
+  const navigation = getPortalNavItems(portal, userRole);
   const label = portalLabel[portal];
 
   return (

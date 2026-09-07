@@ -10,10 +10,11 @@
 --
 -- Usage: `npx supabase start` then `npx supabase db reset` (runs every
 -- migration, then this file) to get a working local dev environment with
--- one tenant, one branch, and four logins:
+-- one tenant, one branch, and five logins:
 --   owner@devgym.local     / DevPassword123!   (owner)
 --   reception@devgym.local / DevPassword123!   (reception)
---   trainer@devgym.local   / DevPassword123!   (trainer / dietician)
+--   trainer@devgym.local   / DevPassword123!   (trainer)
+--   dietician@devgym.local / DevPassword123!   (dietician)
 --   member@devgym.local    / DevPassword123!   (member)
 --
 -- Safe to re-run: every insert is guarded so `db reset` (which drops and
@@ -60,7 +61,8 @@ from (values
   ('de000000-0000-0000-0000-0000000000a1'::uuid, 'owner@devgym.local', 'Dev Owner', 'owner'),
   ('de000000-0000-0000-0000-0000000000a2'::uuid, 'reception@devgym.local', 'Dev Reception', 'reception'),
   ('de000000-0000-0000-0000-0000000000a3'::uuid, 'trainer@devgym.local', 'Dev Trainer', 'trainer'),
-  ('de000000-0000-0000-0000-0000000000a4'::uuid, 'member@devgym.local', 'Dev Member', 'member')
+  ('de000000-0000-0000-0000-0000000000a4'::uuid, 'dietician@devgym.local', 'Dev Dietician', 'dietician'),
+  ('de000000-0000-0000-0000-0000000000a5'::uuid, 'member@devgym.local', 'Dev Member', 'member')
 ) as u(id, email, full_name, role_slug)
 where not exists (select 1 from auth.users where id = u.id);
 
@@ -71,7 +73,8 @@ where id in (
   'de000000-0000-0000-0000-0000000000a1',
   'de000000-0000-0000-0000-0000000000a2',
   'de000000-0000-0000-0000-0000000000a3',
-  'de000000-0000-0000-0000-0000000000a4'
+  'de000000-0000-0000-0000-0000000000a4',
+  'de000000-0000-0000-0000-0000000000a5'
 );
 
 -- ---------------------------------------------------------------------
@@ -85,8 +88,16 @@ insert into public.trainers (id, user_id, staff_id, branch_id, specializations, 
 values ('de000000-0000-0000-0000-000000000c1', 'de000000-0000-0000-0000-0000000000a3', 'de000000-0000-0000-0000-000000000b1', 'de000000-0000-0000-0000-000000000002', array['Strength training', 'Weight loss'], 3, array['Certified Personal Trainer'], 'active')
 on conflict (id) do nothing;
 
+insert into public.staff (id, user_id, branch_id, employee_code, designation, joining_date, salary, status)
+values ('de000000-0000-0000-0000-000000000b2', 'de000000-0000-0000-0000-0000000000a4', 'de000000-0000-0000-0000-000000000002', 'DEV-EMP-002', 'Dietician', current_date, 30000, 'active')
+on conflict (id) do nothing;
+
+insert into public.trainers (id, user_id, staff_id, branch_id, specializations, experience_years, certifications, status)
+values ('de000000-0000-0000-0000-000000000c2', 'de000000-0000-0000-0000-0000000000a4', 'de000000-0000-0000-0000-000000000b2', 'de000000-0000-0000-0000-000000000002', array['Nutrition planning', 'Diet coaching'], 2, array['Certified Dietician'], 'active')
+on conflict (id) do nothing;
+
 insert into public.members (id, user_id, branch_id, member_code, full_name, phone, status, created_at)
-values ('de000000-0000-0000-0000-000000000e1', 'de000000-0000-0000-0000-0000000000a4', 'de000000-0000-0000-0000-000000000002', 'DEV-MEM-001', 'Dev Member', '9000000001', 'active', current_date)
+values ('de000000-0000-0000-0000-000000000e1', 'de000000-0000-0000-0000-0000000000a5', 'de000000-0000-0000-0000-000000000002', 'DEV-MEM-001', 'Dev Member', '9000000001', 'active', current_date)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------

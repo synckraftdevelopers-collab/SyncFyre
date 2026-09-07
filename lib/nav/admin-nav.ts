@@ -21,6 +21,7 @@ export const adminNav: NavItem[] = [
   { label: "Finance",       href: "/admin/finance",                icon: IndianRupee, exact: true },
   { label: "Accounting",    href: "/admin/finance/accounting",     icon: BookOpen },
   { label: "Equipment",     href: "/admin/equipment",              icon: Wrench },
+  { label: "Customization", href: "/admin/customization",          icon: Settings },
   { label: "Reports",       href: "/admin/reports",                icon: ChartNoAxesCombined },
   { label: "Notifications", href: "/admin/notifications",          icon: Bell },
   { label: "Settings",      href: "/admin/settings",               icon: Settings },

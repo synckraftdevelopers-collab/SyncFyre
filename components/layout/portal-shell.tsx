@@ -41,6 +41,7 @@ function PortalShellFrame({
   notificationsHref,
   tenantTimezone,
   branchTimezone,
+  userRole,
 }: {
   children: React.ReactNode;
   name: string;
@@ -50,6 +51,7 @@ function PortalShellFrame({
   notificationsHref?: string;
   tenantTimezone?: string | null;
   branchTimezone?: string | null;
+  userRole?: UserRole | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopExpanded, setDesktopExpanded] = useState(false);
@@ -66,7 +68,13 @@ function PortalShellFrame({
   return (
     <div className="min-h-screen bg-background">
       <LoginWelcomeDialog />
-      <PortalSidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} desktopExpanded={desktopExpanded} portal={portal} />
+      <PortalSidebar
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+        desktopExpanded={desktopExpanded}
+        portal={portal}
+        userRole={userRole}
+      />
       <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
           name={name}
@@ -83,7 +91,7 @@ function PortalShellFrame({
           branchTimezone={branchTimezone}
         />
         <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
-        <MobileBottomNav portal={portal} onMore={handleMenu} />
+        <MobileBottomNav portal={portal} userRole={userRole} onMore={handleMenu} />
       </div>
     </div>
   );
@@ -133,6 +141,7 @@ export function PortalShell({
         notificationsHref={notificationsHref}
         tenantTimezone={tenantTimezone}
         branchTimezone={branchTimezone}
+        userRole={userRole}
       >
         {children}
       </PortalShellFrame>
