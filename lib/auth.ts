@@ -78,11 +78,18 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
   };
 });
 
+function roleMatchesAllowedRole(role: UserRole, allowedRoles: UserRole[]) {
+  if (allowedRoles.includes(role)) return true;
+  if (role === "owner" && allowedRoles.includes("admin")) return true;
+  if (role === "admin" && allowedRoles.includes("owner")) return true;
+  return false;
+}
+
 export async function requireUser(allowedRoles?: UserRole[]) {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
   if (profile.status !== "active") redirect("/unauthorized");
-  if (allowedRoles && (!profile.role || !allowedRoles.includes(profile.role.slug))) redirect("/unauthorized");
+  if (allowedRoles && (!profile.role || !roleMatchesAllowedRole(profile.role.slug, allowedRoles))) redirect("/unauthorized");
   return profile;
 }
 
@@ -90,6 +97,6 @@ export async function requirePortalContext(allowedRoles?: UserRole[]) {
   const profile = await getPortalContext();
   if (!profile) redirect("/login");
   if (profile.status !== "active") redirect("/unauthorized");
-  if (allowedRoles && (!profile.role || !allowedRoles.includes(profile.role.slug))) redirect("/unauthorized");
+  if (allowedRoles && (!profile.role || !roleMatchesAllowedRole(profile.role.slug, allowedRoles))) redirect("/unauthorized");
   return profile;
 }

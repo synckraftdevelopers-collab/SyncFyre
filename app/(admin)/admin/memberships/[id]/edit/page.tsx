@@ -13,7 +13,7 @@ export default async function EditMembershipPlanPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
 
   const supabase = await createClient();
   const { data: plan } = await supabase

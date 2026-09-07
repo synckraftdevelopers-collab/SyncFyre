@@ -97,7 +97,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ resource: string; id: string }> }) {
   const { resource, id } = await params;
   const profile = await authorize(resource);
-  if (!profile || !isResourceName(resource) || (!["admin", "manager"].includes(profile.role?.slug ?? "") && !(resource === "progress" || resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const role = profile?.role?.slug ?? "";
+  const canDeleteMembershipPlans = resource === "membership-plans" && ["owner", "admin", "manager"].includes(role);
+  if (!profile || !isResourceName(resource) || (!["admin", "manager"].includes(role) && !canDeleteMembershipPlans && !(resource === "progress" || resource === "diet-plans" && ["trainer", "dietician"].includes(role)))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   if (resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")) {
     const supabase = await createClient(); const { data: trainer } = await supabase.from("trainers").select("staff_id").eq("user_id", profile.id).eq("branch_id", profile.branch_id ?? "").maybeSingle();

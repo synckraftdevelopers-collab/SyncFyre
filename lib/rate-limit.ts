@@ -96,6 +96,12 @@ export function rateLimitExceededResponse(result: RateLimitResult) {
   );
 }
 
+/** Clears a single local bucket. Intended for post-auth cleanup. */
+export function resetRateLimitKey(key: string) {
+  if (!key) return;
+  buckets.delete(key);
+}
+
 /** Clears all local buckets. Intended for deterministic tests. */
 export function resetRateLimitStore() {
   buckets.clear();

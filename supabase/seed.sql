@@ -10,10 +10,11 @@
 --
 -- Usage: `npx supabase start` then `npx supabase db reset` (runs every
 -- migration, then this file) to get a working local dev environment with
--- one tenant, one branch, and three logins:
---   admin@devgym.local     / DevPassword123!   (admin)
+-- one tenant, one branch, and four logins:
+--   owner@devgym.local     / DevPassword123!   (owner)
 --   reception@devgym.local / DevPassword123!   (reception)
---   trainer@devgym.local   / DevPassword123!   (trainer)
+--   trainer@devgym.local   / DevPassword123!   (trainer / dietician)
+--   member@devgym.local    / DevPassword123!   (member)
 --
 -- Safe to re-run: every insert is guarded so `db reset` (which drops and
 -- recreates the local database from scratch every time) never collides
@@ -28,7 +29,7 @@ create extension if not exists pgcrypto;
 -- Tenant + branch
 -- ---------------------------------------------------------------------
 insert into public.tenants (id, name, slug, owner_email, city, state, plan, status)
-values ('de000000-0000-0000-0000-000000000001', 'Dev Gym', 'dev-gym', 'admin@devgym.local', 'Pune', 'Maharashtra', 'professional', 'active')
+values ('de000000-0000-0000-0000-000000000001', 'Dev Gym', 'dev-gym', 'owner@devgym.local', 'Pune', 'Maharashtra', 'professional', 'active')
 on conflict (id) do nothing;
 
 insert into public.branches (id, name, code, city, state, phone, email, status)
@@ -56,9 +57,10 @@ select
   jsonb_build_object('full_name', u.full_name),
   now(), now(), '', '', '', ''
 from (values
-  ('de000000-0000-0000-0000-0000000000a1'::uuid, 'admin@devgym.local', 'Dev Admin', 'admin'),
+  ('de000000-0000-0000-0000-0000000000a1'::uuid, 'owner@devgym.local', 'Dev Owner', 'owner'),
   ('de000000-0000-0000-0000-0000000000a2'::uuid, 'reception@devgym.local', 'Dev Reception', 'reception'),
-  ('de000000-0000-0000-0000-0000000000a3'::uuid, 'trainer@devgym.local', 'Dev Trainer', 'trainer')
+  ('de000000-0000-0000-0000-0000000000a3'::uuid, 'trainer@devgym.local', 'Dev Trainer', 'trainer'),
+  ('de000000-0000-0000-0000-0000000000a4'::uuid, 'member@devgym.local', 'Dev Member', 'member')
 ) as u(id, email, full_name, role_slug)
 where not exists (select 1 from auth.users where id = u.id);
 
@@ -68,7 +70,8 @@ update public.users set tenant_id = 'de000000-0000-0000-0000-000000000001', bran
 where id in (
   'de000000-0000-0000-0000-0000000000a1',
   'de000000-0000-0000-0000-0000000000a2',
-  'de000000-0000-0000-0000-0000000000a3'
+  'de000000-0000-0000-0000-0000000000a3',
+  'de000000-0000-0000-0000-0000000000a4'
 );
 
 -- ---------------------------------------------------------------------
@@ -80,6 +83,10 @@ on conflict (id) do nothing;
 
 insert into public.trainers (id, user_id, staff_id, branch_id, specializations, experience_years, certifications, status)
 values ('de000000-0000-0000-0000-000000000c1', 'de000000-0000-0000-0000-0000000000a3', 'de000000-0000-0000-0000-000000000b1', 'de000000-0000-0000-0000-000000000002', array['Strength training', 'Weight loss'], 3, array['Certified Personal Trainer'], 'active')
+on conflict (id) do nothing;
+
+insert into public.members (id, user_id, branch_id, member_code, full_name, phone, status, created_at)
+values ('de000000-0000-0000-0000-000000000e1', 'de000000-0000-0000-0000-0000000000a4', 'de000000-0000-0000-0000-000000000002', 'DEV-MEM-001', 'Dev Member', '9000000001', 'active', current_date)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------

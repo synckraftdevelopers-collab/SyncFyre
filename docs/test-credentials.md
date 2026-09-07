@@ -25,34 +25,26 @@ Replace `<role-slug>` and `<email>` with the values from the table below.
 
 | Role | Email | Password | Portal URL | role-slug |
 |---|---|---|---|---|
-| Admin | admin@syncfyre.test | Admin@1234 | /admin/dashboard | admin |
-| Manager | manager@syncfyre.test | Manager@1234 | /admin/dashboard | manager |
+| Owner | owner@syncfyre.test | Owner@1234 | /admin/dashboard | owner |
 | Reception | reception@syncfyre.test | Reception@1234 | /reception/dashboard | reception |
-| Trainer | trainer@syncfyre.test | Trainer@1234 | /trainer/dashboard | trainer |
-| Dietician | dietician@syncfyre.test | Dietician@1234 | /trainer/dashboard | dietician |
+| Trainer / Dietician | trainer@syncfyre.test | Trainer@1234 | /trainer/dashboard | trainer |
 | Member | member@syncfyre.test | Member@1234 | /member/dashboard | member |
 
 ---
 
 ## Quick SQL — create all roles at once
 
-Run this after creating all 6 users in Supabase Auth:
+Run this after creating all 4 users in Supabase Auth:
 
 ```sql
-UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'admin')
-WHERE email = 'admin@syncfyre.test';
-
-UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'manager')
-WHERE email = 'manager@syncfyre.test';
+UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'owner')
+WHERE email = 'owner@syncfyre.test';
 
 UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'reception')
 WHERE email = 'reception@syncfyre.test';
 
 UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'trainer')
 WHERE email = 'trainer@syncfyre.test';
-
-UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'dietician')
-WHERE email = 'dietician@syncfyre.test';
 
 UPDATE public.users SET role_id = (SELECT id FROM public.roles WHERE slug = 'member')
 WHERE email = 'member@syncfyre.test';
@@ -64,7 +56,7 @@ WHERE email = 'member@syncfyre.test';
 
 | Portal | URL prefix | Allowed roles |
 |---|---|---|
-| Admin | /admin | admin, manager |
+| Owner | /admin | owner |
 | Reception | /reception | reception |
 | Trainer | /trainer | trainer, dietician |
 | Member | /member | member |

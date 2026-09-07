@@ -39,7 +39,7 @@ export default async function MembershipsPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status = "active" } = await searchParams;
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
   const branchId = profile.branch_id;
 
   // membership_plans.status is record_status enum: only "active" | "inactive"

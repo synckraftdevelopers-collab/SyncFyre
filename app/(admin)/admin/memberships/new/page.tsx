@@ -6,7 +6,7 @@ import { MembershipPlanForm } from "@/components/memberships/membership-plan-for
 export const metadata = { title: "Create Membership Plan" };
 
 export default async function NewMembershipPlanPage() {
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div className="flex items-center gap-3">

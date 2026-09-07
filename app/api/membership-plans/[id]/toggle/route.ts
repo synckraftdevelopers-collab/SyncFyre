@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     const profile = await getCurrentProfile();
-    if (!profile || !["admin", "manager"].includes(profile.role?.slug ?? "")) {
+    if (!profile || !["owner", "admin", "manager"].includes(profile.role?.slug ?? "")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
