@@ -8,6 +8,7 @@ import type { NavItem } from "@/lib/nav/types";
 export const adminNav: NavItem[] = [
   { label: "Dashboard",     href: "/admin/dashboard",              icon: LayoutDashboard },
   { label: "Members",       href: "/admin/members",                icon: UsersRound },
+  { label: "Plans",         href: "/admin/memberships",            icon: ShieldCheck },
   { label: "Memberships",   href: "/admin/memberships",            icon: ShieldCheck },
   { label: "Subscriptions", href: "/admin/subscriptions",           icon: ShieldCheck },
   { label: "Attendance",    href: "/admin/attendance",             icon: Activity },

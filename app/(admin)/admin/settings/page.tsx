@@ -2,6 +2,7 @@ import { Building2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { deleteBranchAction } from "@/app/actions/settings-actions";
 import { BiometricSettingsCard } from "@/components/settings/biometric-settings-card";
+import { DeviceStatusCard } from "@/components/settings/device-status-card";
 import { AccountSecurityCard } from "@/components/settings/account-security-card";
 import { PersonalSettingsForm } from "@/components/settings/personal-settings-form";
 import { CustomizationSettingsPanel } from "@/components/settings/customization-settings-panel";
@@ -287,7 +288,12 @@ export default async function AdminSettingsPage({ searchParams }: { searchParams
         />
       ) : null}
 
-      {activeTab === "biometric" ? <BiometricSettingsCard devices={biometricDevices} mappings={memberMappings ?? []} mockEnabled={process.env.BIOMETRIC_MOCK_MODE === "true"} search={memberSearch} /> : null}
+      {activeTab === "biometric" ? (
+        <div className="space-y-5">
+          <DeviceStatusCard devices={biometricDevices} mockEnabled={process.env.BIOMETRIC_MOCK_MODE === "true"} />
+          <BiometricSettingsCard devices={biometricDevices} mappings={memberMappings ?? []} mockEnabled={process.env.BIOMETRIC_MOCK_MODE === "true"} search={memberSearch} />
+        </div>
+      ) : null}
     </div>
   );
 }

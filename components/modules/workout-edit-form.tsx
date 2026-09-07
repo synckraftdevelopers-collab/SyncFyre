@@ -3,10 +3,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { AssignedMember } from "@/services/trainer-portal.service";
 
 type Workout = { id: string; name: string; exercise_name: string; sets: number | null; reps: number | null; weight_kg: number | null; cardio_minutes: number | null; rest_seconds: number | null; trainer_notes: string | null; scheduled_date: string | null; status: string; member_id: string };
-export function WorkoutEditForm({ workout, members, returnTo = "/trainer/workouts" }: { workout: Workout; members: AssignedMember[]; returnTo?: string }) {
+type WorkoutMemberOption = { id: string; full_name: string; member_code: string };
+export function WorkoutEditForm({ workout, members, returnTo = "/trainer/workouts" }: { workout: Workout; members: WorkoutMemberOption[]; returnTo?: string }) {
   const router = useRouter(); const [pending, setPending] = useState(false); const [error, setError] = useState("");
   async function submit(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); setPending(true); setError(""); const form = new FormData(event.currentTarget); const payload: Record<string, unknown> = {}; for (const [key, value] of form.entries()) { if (value !== "") payload[key] = ["sets","reps","weight_kg","cardio_minutes","rest_seconds"].includes(key) ? Number(value) : value; } try { const response = await fetch(`/api/workouts/${workout.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Unable to update workout"); router.push(returnTo); router.refresh(); } catch (e) { setError(e instanceof Error ? e.message : "Unable to update workout"); } finally { setPending(false); } }
   async function archive() { if (!window.confirm("Archive this workout? It will no longer appear as active.")) return; setPending(true); const response = await fetch(`/api/workouts/${workout.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "inactive" }) }); if (!response.ok) setError((await response.json()).error ?? "Unable to archive workout"); else { router.push(returnTo); router.refresh(); } setPending(false); }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { assertSafeDeviceUrl, UnsafeUrlError } from "@/lib/ssrf-guard";
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getCurrentProfile();
@@ -14,8 +15,14 @@ export async function POST(_: NextRequest, { params }: { params: Promise<{ id: s
   if (error || !machine) return NextResponse.json({ error: "Machine not found" }, { status: 404 });
   if (!machine.machine_api_url) return NextResponse.json({ error: "Configure the machine API URL first" }, { status: 422 });
 
-  const url = new URL(machine.machine_api_url);
-  if (!["http:", "https:"].includes(url.protocol)) return NextResponse.json({ error: "Unsupported machine API protocol" }, { status: 422 });
+  let url: URL;
+  try {
+    url = await assertSafeDeviceUrl(machine.machine_api_url);
+  } catch (guardError) {
+    const message = guardError instanceof UnsafeUrlError ? guardError.message : "Unsupported machine API URL";
+    await supabase.from("face_machine_settings").update({ connection_status: "error", last_error: message }).eq("id", id);
+    return NextResponse.json({ error: message }, { status: 422 });
+  }
 
   try {
     const response = await fetch(url, { headers: machine.api_key_encrypted ? { "x-api-key": machine.api_key_encrypted } : {}, signal: AbortSignal.timeout(10000), cache: "no-store" });

@@ -10,7 +10,8 @@
         "start": "next start",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit --preserveSymlinks",
-        "test": "node --experimental-strip-types --test tests/*.test.mts"
+        "test": "node --experimental-strip-types --test tests/*.test.mts",
+        "e2e": "playwright test"
     },
     "dependencies": {
         "@hookform/resolvers": "^3.10.0",
@@ -35,6 +36,7 @@
         "zod": "^3.24.2"
     },
     "devDependencies": {
+        "@playwright/test": "^1.63.0",
         "@tailwindcss/postcss": "^4.0.14",
         "@types/node": "^22.13.10",
         "@types/react": "^19.0.10",

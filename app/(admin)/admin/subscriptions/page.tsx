@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { Pause, Play, Search, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Eye, Pause, Play, Plus, Search, XCircle } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,12 +7,9 @@ import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatCurrency } from "@/lib/utils";
 import { updateSubscriptionStatusAction } from "@/app/actions/subscription-actions";
+import { SubscriptionExpiryBadge, SubscriptionStatusBadge } from "@/components/modules/subscription-status-badge";
 
 export const metadata = { title: "Subscriptions" };
-
-const statusVariant: Record<string, "success" | "warning" | "danger" | "outline"> = {
-  active: "success", paused: "warning", cancelled: "danger", expired: "outline", pending: "warning",
-};
 
 export default async function AdminSubscriptionsPage({
   searchParams,
@@ -42,9 +38,15 @@ export default async function AdminSubscriptionsPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Subscriptions</h1>
-        <p className="text-sm text-muted-foreground">Review, pause, resume, or cancel member memberships.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Subscriptions</h1>
+          <p className="text-sm text-muted-foreground">Review, pause, resume, or cancel member memberships.</p>
+        </div>
+        <Link href="/admin/subscriptions/new" className={buttonVariants({ size: "sm" })}>
+          <Plus className="size-4" />
+          New sale
+        </Link>
       </div>
       <Card>
         <form className="flex flex-col gap-3 border-b p-4 sm:flex-row">
@@ -52,7 +54,7 @@ export default async function AdminSubscriptionsPage({
           <select name="status" defaultValue={params.status ?? "all"} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="all">All statuses</option><option value="active">Active</option><option value="paused">Paused</option><option value="pending">Pending</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></select>
           <button className={buttonVariants({ variant: "outline" })}>Apply</button>
         </form>
-        {subscriptions.length ? <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-sm"><thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground"><tr>{["Member", "Plan", "Period", "Amount", "Auto renew", "Status", "Actions"].map((heading) => <th className="px-4 py-3 font-medium" key={heading}>{heading}</th>)}</tr></thead><tbody className="divide-y">{subscriptions.map((subscription) => { const member = subscription.members as unknown as { full_name: string | null; member_code: string | null } | null; const plan = subscription.membership_plans as unknown as { name: string | null } | null; return <tr key={subscription.id} className="hover:bg-muted/30"><td className="px-4 py-3"><Link href={`/admin/members/${subscription.member_id}`} className="font-medium hover:text-primary hover:underline">{member?.full_name ?? "—"}</Link><p className="text-xs text-muted-foreground">{member?.member_code ?? ""}</p></td><td className="px-4 py-3">{plan?.name ?? "—"}</td><td className="px-4 py-3 whitespace-nowrap">{subscription.start_date} → {subscription.end_date}</td><td className="px-4 py-3">{formatCurrency(Number(subscription.total_amount))}</td><td className="px-4 py-3">{subscription.auto_renew ? "Yes" : "No"}</td><td className="px-4 py-3"><Badge variant={statusVariant[subscription.status] ?? "outline"}>{subscription.status}</Badge></td><td className="px-4 py-3"><div className="flex gap-2">{subscription.status === "active" && <><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "paused")}><button className={buttonVariants({ variant: "outline", size: "sm" })}><Pause className="size-3.5" />Pause</button></form><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "cancelled")}><button className={buttonVariants({ variant: "destructive", size: "sm" })}><XCircle className="size-3.5" />Cancel</button></form></>}{subscription.status === "paused" && <><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "active")}><button className={buttonVariants({ size: "sm" })}><Play className="size-3.5" />Resume</button></form><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "cancelled")}><button className={buttonVariants({ variant: "destructive", size: "sm" })}><XCircle className="size-3.5" />Cancel</button></form></>}{["pending", "expired", "cancelled"].includes(subscription.status) && <span className="text-xs text-muted-foreground">No action available</span>}</div></td></tr>; })}</tbody></table></div> : <CardContent className="grid min-h-64 place-items-center text-center"><div><p className="font-medium">No subscriptions found</p><p className="text-sm text-muted-foreground">Adjust the filters or create a membership from a member profile.</p></div></CardContent>}
+        {subscriptions.length ? <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-sm"><thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground"><tr>{["Member", "Plan", "Period", "Amount", "Auto renew", "Status", "Actions"].map((heading) => <th className="px-4 py-3 font-medium" key={heading}>{heading}</th>)}</tr></thead><tbody className="divide-y">{subscriptions.map((subscription) => { const member = subscription.members as unknown as { full_name: string | null; member_code: string | null } | null; const plan = subscription.membership_plans as unknown as { name: string | null } | null; return <tr key={subscription.id} className="hover:bg-muted/30"><td className="px-4 py-3"><Link href={`/admin/members/${subscription.member_id}`} className="font-medium hover:text-primary hover:underline">{member?.full_name ?? "—"}</Link><p className="text-xs text-muted-foreground">{member?.member_code ?? ""}</p></td><td className="px-4 py-3">{plan?.name ?? "—"}</td><td className="px-4 py-3"><div className="space-y-1 whitespace-nowrap">{subscription.start_date} → {subscription.end_date}<div><SubscriptionExpiryBadge endDate={subscription.end_date} /></div></div></td><td className="px-4 py-3">{formatCurrency(Number(subscription.total_amount))}</td><td className="px-4 py-3">{subscription.auto_renew ? "Yes" : "No"}</td><td className="px-4 py-3"><SubscriptionStatusBadge status={subscription.status} /></td><td className="px-4 py-3"><div className="flex gap-2"><Link href={`/admin/subscriptions/${subscription.id}`} className={buttonVariants({ variant: "ghost", size: "sm" })}><Eye className="size-3.5" />View</Link>{subscription.status === "active" && <><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "paused")}><button className={buttonVariants({ variant: "outline", size: "sm" })}><Pause className="size-3.5" />Pause</button></form><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "cancelled")}><button className={buttonVariants({ variant: "destructive", size: "sm" })}><XCircle className="size-3.5" />Cancel</button></form></>}{subscription.status === "paused" && <><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "active")}><button className={buttonVariants({ size: "sm" })}><Play className="size-3.5" />Resume</button></form><form action={updateSubscriptionStatusAction.bind(null, subscription.id, "cancelled")}><button className={buttonVariants({ variant: "destructive", size: "sm" })}><XCircle className="size-3.5" />Cancel</button></form></>}{["pending", "expired", "cancelled"].includes(subscription.status) && <span className="text-xs text-muted-foreground">No action available</span>}</div></td></tr>; })}</tbody></table></div> : <CardContent className="grid min-h-64 place-items-center text-center"><div><p className="font-medium">No subscriptions found</p><p className="text-sm text-muted-foreground">Adjust the filters or create a membership sale.</p><Link href="/admin/subscriptions/new" className={buttonVariants({ className: "mt-4" })}><Plus className="size-4" />New sale</Link></div></CardContent>}
       </Card>
     </div>
   );

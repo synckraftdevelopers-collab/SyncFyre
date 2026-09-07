@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { attendanceBatchSchema } from "@/lib/validations/attendance";
 import { processBiometricPayload } from "@/services/biometric.service";
+import { checkRateLimit, getClientIp, rateLimitExceededResponse } from "@/lib/rate-limit";
 
 function validSecret(provided: string | null) {
   const expected = process.env.ATTENDANCE_SYNC_SECRET;
@@ -11,7 +12,16 @@ function validSecret(provided: string | null) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+// Generous but bounded: real machines sync frequently, but this stops a
+// misconfigured/compromised device (or someone guessing the sync secret)
+// from hammering the endpoint from one IP.
+const ATTENDANCE_SYNC_LIMIT = 120;
+const ATTENDANCE_SYNC_WINDOW_MS = 60_000;
+
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(`attendance-sync:${getClientIp(request)}`, ATTENDANCE_SYNC_LIMIT, ATTENDANCE_SYNC_WINDOW_MS);
+  if (!rateLimit.allowed) return rateLimitExceededResponse(rateLimit);
+
   if (!validSecret(request.headers.get("x-sync-secret"))) {
     return NextResponse.json({ error: "Unauthorized machine" }, { status: 401 });
   }
