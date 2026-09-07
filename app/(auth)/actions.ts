@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from "@/lib/validations/auth";
 import { PORTAL_DASHBOARD } from "@/lib/portals";
+import { rateLimit, resetRateLimitKey } from "@/lib/rate-limit";
 import type { UserRole } from "@/types";
 
 export type AuthState = { error?: string; success?: string; redirectTo?: string };
@@ -77,10 +78,17 @@ export async function loginAction(_: AuthState, formData: FormData): Promise<Aut
     const parsed = loginSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { error: "Enter a valid email and password (minimum 8 characters)." };
 
+    const rateLimitKey = "login:" + parsed.data.email.toLowerCase();
+    const attempt = rateLimit({ key: rateLimitKey, limit: 5, windowMs: 15 * 60 * 1000 });
+    if (!attempt.allowed) {
+      return { error: "Too many sign-in attempts. Try again in " + attempt.retryAfterSeconds + " seconds." };
+    }
+
     const supabase = await createClient();
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
     if (error) return { error: error.message };
 
+    resetRateLimitKey(rateLimitKey);
     const dest = await getRedirectForCurrentUser();
     if (dest) {
       (await cookies()).set("syncfyre_login_welcome", "1", { path: "/", sameSite: "lax" });

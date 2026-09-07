@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getDefaultMemberFormConfiguration, type MemberFormFieldConfiguration } from "@/lib/members/member-form-config";
+import { getDefaultMemberFormConfiguration, type MemberFormFieldConfiguration } from "../members/member-form-config.ts";
 
 const phonePattern = /^(?:\+91)?[6-9]\d{9}$/;
 const optionalPhone = z

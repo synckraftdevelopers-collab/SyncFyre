@@ -1,39 +1,59 @@
 import { NextResponse } from "next/server";
 
-/**
- * dev-task-split.md Phase 1 (#10): rate limiting for machine/cron endpoints.
- *
- * Best-effort, in-memory, fixed-window limiter scoped to a single serverless
- * instance. It stops a single misbehaving/compromised device or a naive
- * secret-guessing script from hammering an endpoint from one connection, but
- * it does NOT provide a hard global limit across a horizontally scaled
- * deployment (each instance keeps its own counters). If SyncFyre later runs
- * many concurrent instances behind these endpoints, swap the store below for
- * a shared one (Upstash Redis, Supabase table, etc.) without changing the
- * call sites.
- */
+export type RateLimitOptions = {
+  key: string;
+  limit: number;
+  windowMs: number;
+};
 
-interface Bucket {
+export type RateLimitResult = {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  resetAt: number;
+  retryAfterSeconds: number;
+};
+
+type Bucket = {
   count: number;
   resetAt: number;
-}
+};
 
 const buckets = new Map<string, Bucket>();
-let lastPrune = 0;
 
-function pruneExpired(now: number) {
-  if (now - lastPrune < 60_000) return;
-  lastPrune = now;
+function pruneExpiredBuckets(now: number) {
   for (const [key, bucket] of buckets) {
     if (bucket.resetAt <= now) buckets.delete(key);
   }
 }
 
-export interface RateLimitResult {
-  allowed: boolean;
-  remaining: number;
-  resetAt: number;
-  limit: number;
+function applyRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
+  if (!key) throw new Error("A rate-limit key is required.");
+  if (!Number.isInteger(limit) || limit < 1) throw new Error("Rate-limit limit must be a positive integer.");
+  if (!Number.isFinite(windowMs) || windowMs <= 0) throw new Error("Rate-limit windowMs must be greater than zero.");
+
+  const now = Date.now();
+  pruneExpiredBuckets(now);
+
+  const current = buckets.get(key);
+  const bucket = current && current.resetAt > now
+    ? current
+    : { count: 0, resetAt: now + windowMs };
+
+  bucket.count += 1;
+  buckets.set(key, bucket);
+
+  const allowed = bucket.count <= limit;
+  const remaining = Math.max(0, limit - bucket.count);
+  const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+
+  return {
+    allowed,
+    limit,
+    remaining,
+    resetAt: bucket.resetAt,
+    retryAfterSeconds,
+  };
 }
 
 /**
@@ -41,22 +61,18 @@ export interface RateLimitResult {
  * so different endpoints don't share a bucket for the same client.
  */
 export function checkRateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
-  const now = Date.now();
-  pruneExpired(now);
+  return applyRateLimit(key, limit, windowMs);
+}
 
-  const existing = buckets.get(key);
-  if (!existing || existing.resetAt <= now) {
-    const resetAt = now + windowMs;
-    buckets.set(key, { count: 1, resetAt });
-    return { allowed: true, remaining: limit - 1, resetAt, limit };
-  }
-
-  if (existing.count >= limit) {
-    return { allowed: false, remaining: 0, resetAt: existing.resetAt, limit };
-  }
-
-  existing.count += 1;
-  return { allowed: true, remaining: limit - existing.count, resetAt: existing.resetAt, limit };
+/**
+ * Applies an in-memory fixed-window rate limit.
+ *
+ * This is appropriate for a single process or local development. Deployments
+ * that run multiple instances should back this with shared storage (for
+ * example, Redis) to enforce a global limit.
+ */
+export function rateLimit({ key, limit, windowMs }: RateLimitOptions): RateLimitResult {
+  return applyRateLimit(key, limit, windowMs);
 }
 
 /** Best-effort client identifier for unauthenticated machine/cron traffic. */
@@ -67,16 +83,20 @@ export function getClientIp(request: Request): string {
 }
 
 export function rateLimitExceededResponse(result: RateLimitResult) {
-  const retryAfterSeconds = Math.max(1, Math.ceil((result.resetAt - Date.now()) / 1000));
   return NextResponse.json(
     { error: "Too many requests. Please slow down and try again shortly." },
     {
       status: 429,
       headers: {
-        "Retry-After": String(retryAfterSeconds),
+        "Retry-After": String(result.retryAfterSeconds),
         "X-RateLimit-Limit": String(result.limit),
-        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Remaining": String(result.remaining),
       },
     },
   );
+}
+
+/** Clears all local buckets. Intended for deterministic tests. */
+export function resetRateLimitStore() {
+  buckets.clear();
 }
