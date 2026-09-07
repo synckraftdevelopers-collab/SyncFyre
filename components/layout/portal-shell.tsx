@@ -42,6 +42,7 @@ function PortalShellFrame({
   tenantTimezone,
   branchTimezone,
   userRole,
+  visibleNavHrefs,
 }: {
   children: React.ReactNode;
   name: string;
@@ -52,6 +53,7 @@ function PortalShellFrame({
   tenantTimezone?: string | null;
   branchTimezone?: string | null;
   userRole?: UserRole | null;
+  visibleNavHrefs?: string[] | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopExpanded, setDesktopExpanded] = useState(false);
@@ -74,6 +76,7 @@ function PortalShellFrame({
         desktopExpanded={desktopExpanded}
         portal={portal}
         userRole={userRole}
+        visibleNavHrefs={visibleNavHrefs}
       />
       <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
@@ -91,7 +94,7 @@ function PortalShellFrame({
           branchTimezone={branchTimezone}
         />
         <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
-        <MobileBottomNav portal={portal} userRole={userRole} onMore={handleMenu} />
+        <MobileBottomNav portal={portal} userRole={userRole} visibleNavHrefs={visibleNavHrefs} onMore={handleMenu} />
       </div>
     </div>
   );
@@ -111,6 +114,7 @@ export function PortalShell({
   tenantTimezone,
   branchTimezone,
   userRole,
+  visibleNavHrefs,
 }: {
   children: React.ReactNode;
   name: string;
@@ -125,6 +129,7 @@ export function PortalShell({
   tenantTimezone?: string | null;
   branchTimezone?: string | null;
   userRole?: UserRole | null;
+  visibleNavHrefs?: string[] | null;
 }) {
   return (
     <NotificationProvider
@@ -142,6 +147,7 @@ export function PortalShell({
         tenantTimezone={tenantTimezone}
         branchTimezone={branchTimezone}
         userRole={userRole}
+        visibleNavHrefs={visibleNavHrefs}
       >
         {children}
       </PortalShellFrame>

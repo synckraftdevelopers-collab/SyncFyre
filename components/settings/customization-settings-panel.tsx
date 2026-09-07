@@ -20,12 +20,14 @@ import {
   saveMemberCustomFieldAction,
   saveMemberCustomFieldValueAction,
   saveMemberFormSettingsAction,
+  saveSidebarNavigationAction,
   saveNotificationPreferencesAction,
   savePaymentVisibilityAction,
   saveTenantFeatureAction,
   toggleCustomizationEngineAction,
   type CustomizationActionState,
 } from "@/app/actions/customization-actions";
+import { adminNav } from "@/lib/nav/admin-nav";
 import { getAllowedTemplateVariables, getSupportedTemplateKeys } from "@/lib/config/template-variables";
 import { MEMBER_FORM_FIELDS, resolveMemberFormFields } from "@/lib/members/form-config";
 import type { CommunicationChannel, ConfigKey, FeatureKey } from "@/lib/config/schema";
@@ -116,9 +118,12 @@ export function CustomizationSettingsPanel({
   const [fieldDeleteState, fieldDeleteAction] = useActionState<CustomizationActionState, FormData>(deleteMemberCustomFieldAction, {});
   const [valueState, valueAction, valuePending] = useActionState<CustomizationActionState, FormData>(saveMemberCustomFieldValueAction, {});
   const [valueDeleteState, valueDeleteAction] = useActionState<CustomizationActionState, FormData>(deleteMemberCustomFieldValueAction, {});
+  const [sidebarState, sidebarAction] = useActionState<CustomizationActionState, FormData>(saveSidebarNavigationAction, {});
   const [resetState, resetAction] = useActionState<CustomizationActionState, FormData>(resetBranchSettingAction, {});
   const [memberFormState, memberFormAction, memberFormPending] = useActionState<CustomizationActionState, FormData>(saveMemberFormSettingsAction, {});
   const memberFormFields = resolveMemberFormFields(resolved["members.form_fields"]?.value);
+  const sidebarSource = resolved["sidebar.admin_items"]?.source ?? "default";
+  const selectedSidebarItems = selectedArray(resolved["sidebar.admin_items"]?.value);
 
   const engineFeature = features.find((feature) => feature.key === "customization_engine_enabled");
   const manageableFeatures = features.filter((feature) => feature.key !== "customization_engine_enabled");
@@ -294,6 +299,35 @@ export function CustomizationSettingsPanel({
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Sidebar Navigation</CardTitle>
+              <p className="text-sm text-muted-foreground">Choose which admin items appear in the sidebar. If no override exists, the full role-based sidebar stays visible.</p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ConfigMeta item={resolved["sidebar.admin_items"]} label="Current sidebar source" />
+              <form action={sidebarAction} className="space-y-4">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {adminNav.map((item) => (
+                    <label key={item.href} className="flex items-center gap-2 rounded-lg border p-3 text-sm">
+                      <input type="checkbox" name="nav_items" value={item.href} defaultChecked={sidebarSource === "default" || selectedSidebarItems.includes(item.href)} />
+                      <span className="flex flex-col">
+                        <span className="font-medium">{item.label}</span>
+                        <span className="text-xs text-muted-foreground">{item.href}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <Message state={sidebarState} />
+                <Button type="submit">Save sidebar</Button>
+              </form>
+              <form action={resetTenantSettingAction} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="setting_key" value="sidebar.admin_items" />
+                <Button type="submit" variant="ghost">Reset sidebar</Button>
+              </form>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

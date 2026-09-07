@@ -163,6 +163,19 @@ export async function saveBrandingAction(_: CustomizationActionState, formData: 
   return { success: "Branding settings saved." };
 }
 
+export async function saveSidebarNavigationAction(_: CustomizationActionState, formData: FormData): Promise<CustomizationActionState> {
+  try {
+    const profile = await requireCustomizationProfile();
+    const hrefs = Array.from(new Set(formData.getAll("nav_items").map(String).map((item) => item.trim()).filter(Boolean)));
+    await upsertTenantSetting(profile, "sidebar.admin_items", hrefs);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to save sidebar navigation." };
+  }
+  revalidatePath("/admin", "layout");
+  revalidatePath("/admin/settings");
+  return { success: "Sidebar navigation saved." };
+}
+
 export async function resetTenantSettingAction(_: CustomizationActionState, formData: FormData): Promise<CustomizationActionState> {
   try {
     const profile = await requireCustomizationProfile();

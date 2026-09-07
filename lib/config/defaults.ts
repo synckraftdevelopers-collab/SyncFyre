@@ -9,6 +9,7 @@ export const CONFIG_DEFAULTS: ConfigValueMap = {
   "branding.theme": "light",
   "branding.login_title": null,
   "branding.member_portal_title": null,
+  "sidebar.admin_items": [],
   "payments.visible_modes": [],
   "payments.allow_partial_payments": true,
   "payments.require_approval": false,

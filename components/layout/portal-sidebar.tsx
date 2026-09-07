@@ -14,13 +14,17 @@ interface PortalSidebarProps {
   desktopExpanded: boolean;
   portal: PortalKey;
   userRole?: UserRole | null;
+  visibleNavHrefs?: string[] | null;
 }
 
 export function PortalSidebar({
-  mobileOpen, onMobileClose, desktopExpanded, portal, userRole,
+  mobileOpen, onMobileClose, desktopExpanded, portal, userRole, visibleNavHrefs,
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const navigation = getPortalNavItems(portal, userRole);
+  const filteredNavigation = visibleNavHrefs === undefined || visibleNavHrefs === null
+    ? navigation
+    : navigation.filter((item) => visibleNavHrefs.includes(item.href));
   const label = portalLabel[portal];
 
   return (
@@ -91,7 +95,7 @@ export function PortalSidebar({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-2 py-3">
-          {navigation.map(({ label: navLabel, href, icon: Icon, exact }) => {
+          {filteredNavigation.map(({ label: navLabel, href, icon: Icon, exact }) => {
             const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
             return (
               <Link

@@ -41,6 +41,7 @@ export type ConfigValueMap = {
   "branding.theme": "light" | "dark" | "system";
   "branding.login_title": string | null;
   "branding.member_portal_title": string | null;
+  "sidebar.admin_items": string[];
   "payments.visible_modes": string[];
   "payments.allow_partial_payments": boolean;
   "payments.require_approval": boolean;
@@ -82,6 +83,7 @@ export const CONFIG_DEFINITIONS: Record<ConfigKey, ConfigDefinition> = {
   "branding.theme": { key: "branding.theme", dataType: "string", scope: "tenant", overridable: false },
   "branding.login_title": { key: "branding.login_title", dataType: "string", scope: "tenant", overridable: false },
   "branding.member_portal_title": { key: "branding.member_portal_title", dataType: "string", scope: "tenant", overridable: false },
+  "sidebar.admin_items": { key: "sidebar.admin_items", dataType: "string_array", scope: "tenant", overridable: false },
   "payments.visible_modes": { key: "payments.visible_modes", dataType: "string_array", scope: "tenant_branch", overridable: true },
   "payments.allow_partial_payments": { key: "payments.allow_partial_payments", dataType: "boolean", scope: "tenant", overridable: true },
   "payments.require_approval": { key: "payments.require_approval", dataType: "boolean", scope: "tenant", overridable: true },
