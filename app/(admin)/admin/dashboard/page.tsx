@@ -45,8 +45,10 @@ export const metadata = { title: "Dashboard" };
 const quickActions = [
   { label: "Add Member",         href: "/admin/members/new",      icon: UserPlus,          tone: "primary" },
   { label: "Record Payment",     href: "/admin/payments",          icon: IndianRupee,       tone: "green" },
+  { label: "Renew Membership",   href: "/admin/renewals",           icon: ShieldCheck,       tone: "green" },
   { label: "Mark Attendance",    href: "/admin/attendance",        icon: Activity,          tone: "blue" },
-  { label: "Create Appointment", href: "/admin/appointments/new",  icon: CalendarDays,      tone: "purple" },
+  { label: "Appointments",       href: "/admin/appointments",        icon: CalendarDays,      tone: "purple" },
+  { label: "Search Member",      href: "/admin/members",            icon: UsersRound,        tone: "primary" },
   { label: "Add Trainer",        href: "/admin/trainers/new",      icon: UserRoundCog,      tone: "orange" },
   { label: "Add Staff",          href: "/admin/staff/new",         icon: UsersRound,        tone: "primary" },
   { label: "Add Expense",        href: "/admin/finance/expenses/new", icon: CircleDollarSign, tone: "red" },

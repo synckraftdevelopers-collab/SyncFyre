@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 import {
   createIncome,
   createExpense,
@@ -88,6 +89,7 @@ export async function createIncomeAction(
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   const raw = Object.fromEntries(formData.entries());
   const parsed = incomeSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -136,6 +138,7 @@ export async function createExpenseAction(
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   const raw = Object.fromEntries(formData.entries());
   const parsed = expenseSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -185,6 +188,7 @@ export async function approveExpenseAction(
   expenseId: string
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   if (!userId) return { error: "Unauthorized" };
   try {
     const record = await approveExpense(expenseId, userId);
@@ -208,6 +212,7 @@ export async function rejectExpenseAction(
   reason: string
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   if (!userId) return { error: "Unauthorized" };
   try {
     const record = await rejectExpense(expenseId, userId, reason);
@@ -233,6 +238,7 @@ export async function upsertVendorAction(
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   const raw = Object.fromEntries(formData.entries());
   const parsed = vendorSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -253,6 +259,7 @@ export async function createBankAccountAction(
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   const raw = Object.fromEntries(formData.entries());
   const parsed = bankAccountSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -293,6 +300,7 @@ export async function postJournalEntryAction(
   journalEntryId: string
 ): Promise<{ error?: string; success?: boolean }> {
   const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
   if (!userId) return { error: "Unauthorized" };
   try {
     const record = await postJournalEntry(journalEntryId, userId);
