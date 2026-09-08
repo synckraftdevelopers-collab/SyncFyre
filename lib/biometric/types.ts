@@ -14,6 +14,7 @@ export type BiometricProcessingResult =
   | "MEMBERSHIP_EXPIRED"
   | "MEMBERSHIP_FROZEN"
   | "WRONG_BRANCH"
+  | "PLAN_LOCKED"
   | "DUPLICATE_EVENT"
   | "DEVICE_NOT_REGISTERED"
   | "INVALID_PAYLOAD"

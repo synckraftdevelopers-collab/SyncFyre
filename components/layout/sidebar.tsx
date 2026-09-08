@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Activity, Bell, CalendarDays, ChartNoAxesCombined, CircleDollarSign, Dumbbell, Gauge, LayoutDashboard, Settings, ShieldCheck, UserRoundCog, UsersRound, Utensils, Wrench, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildCommercialUpgradeUrl, getCommercialRouteRule, type CommercialPlanTier } from "@/lib/entitlements";
 
 const navigation = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -25,7 +26,7 @@ const navigation = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function Sidebar({ open, onClose, commercialPlanTier = "paid" }: { open: boolean; onClose: () => void; commercialPlanTier?: CommercialPlanTier }) {
   const pathname = usePathname();
   return <>
     {open && <button aria-label="Close navigation" className="fixed inset-0 z-40 bg-[#061a31]/70 backdrop-blur-sm lg:hidden" onClick={onClose} />}
@@ -39,9 +40,11 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
       <div className="px-6 pb-3 pt-6 text-[10px] font-semibold uppercase tracking-[.22em] text-[#52c7ea]">Workspace</div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
         {navigation.map(({ label, href, icon: Icon }) => {
+          const lockedRule = commercialPlanTier === "free" ? getCommercialRouteRule(href) : null;
+          const targetHref = lockedRule ? buildCommercialUpgradeUrl(href, lockedRule.featureLabel) : href;
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`));
-          return <Link key={href} href={href} onClick={onClose} className={cn("group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/62 transition-all hover:bg-white/7 hover:text-white", active && "bg-primary text-white shadow-[0_8px_22px_rgba(255,48,36,.22)] hover:bg-primary")}>
-            <Icon className={cn("size-[18px] transition-colors group-hover:text-[#52c7ea]", active && "text-white group-hover:text-white")} />{label}
+          return <Link key={href} href={targetHref} onClick={onClose} className={cn("group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/62 transition-all hover:bg-white/7 hover:text-white", active && "bg-primary text-white shadow-[0_8px_22px_rgba(255,48,36,.22)] hover:bg-primary")}>
+            <Icon className={cn("size-[18px] transition-colors group-hover:text-[#52c7ea]", active && "text-white group-hover:text-white")} />{label}{lockedRule ? <span className="ml-auto rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70">Paid Plan</span> : null}
           </Link>;
         })}
       </nav>

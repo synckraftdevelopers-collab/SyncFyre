@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createMachineSession, hashMachineSecret, setMachineSessionCookie } from "@/lib/machine/auth";
+import { ensurePaidCommercialPlanForBranch } from "@/services/entitlements.service";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null) as { machineId?: unknown; secret?: unknown } | null;
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
   if (!machine || machine.status !== "active" || !actualHash || !timingSafeEqual(actualHash, providedHash)) {
     return NextResponse.json({ error: "Invalid or inactive machine credentials." }, { status: 401 });
   }
+
+  const entitlement = await ensurePaidCommercialPlanForBranch(machine.branch_id, "Biometric / Face Attendance");
+  if (!entitlement.allowed) return NextResponse.json({ error: entitlement.error }, { status: 403 });
 
   const response = NextResponse.json({ ok: true });
   setMachineSessionCookie(response, await createMachineSession(machine.id, machine.branch_id));

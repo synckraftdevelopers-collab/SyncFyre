@@ -11,6 +11,8 @@ import {
   createBankAccount,
   postJournalEntry,
 } from "@/services/finance.service";
+import { requireUser } from "@/lib/auth";
+import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
 import { logActivity } from "@/services/workflow.service";
 import { z } from "zod";
 
@@ -75,10 +77,12 @@ const bankAccountSchema = z.object({
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
-async function getCurrentUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
+async function getPaidFinanceProfile() {
+  const profile = await requireUser(["owner", "admin", "manager"]);
+  if (!profile.tenant_id) return { profile, error: "Tenant context is required." } as const;
+  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Finance Management");
+  if (!entitlement.allowed) return { profile, error: entitlement.error } as const;
+  return { profile, error: null } as const;
 }
 
 // ─── Income Actions ───────────────────────────────────────────────────────────
@@ -87,7 +91,9 @@ export async function createIncomeAction(
   _state: { error?: string; success?: boolean },
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   const raw = Object.fromEntries(formData.entries());
   const parsed = incomeSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -135,7 +141,9 @@ export async function createExpenseAction(
   _state: { error?: string; success?: boolean },
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   const raw = Object.fromEntries(formData.entries());
   const parsed = expenseSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -184,8 +192,9 @@ export async function createExpenseAction(
 export async function approveExpenseAction(
   expenseId: string
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
-  if (!userId) return { error: "Unauthorized" };
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   try {
     const record = await approveExpense(expenseId, userId);
     await logActivity({
@@ -207,8 +216,9 @@ export async function rejectExpenseAction(
   expenseId: string,
   reason: string
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
-  if (!userId) return { error: "Unauthorized" };
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   try {
     const record = await rejectExpense(expenseId, userId, reason);
     await logActivity({
@@ -232,7 +242,9 @@ export async function upsertVendorAction(
   _state: { error?: string; success?: boolean },
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   const raw = Object.fromEntries(formData.entries());
   const parsed = vendorSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -252,7 +264,9 @@ export async function createBankAccountAction(
   _state: { error?: string; success?: boolean },
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   const raw = Object.fromEntries(formData.entries());
   const parsed = bankAccountSchema.safeParse(raw);
   if (!parsed.success) return { error: parsed.error.errors[0].message };
@@ -292,8 +306,9 @@ export async function createBankAccountAction(
 export async function postJournalEntryAction(
   journalEntryId: string
 ): Promise<{ error?: string; success?: boolean }> {
-  const userId = await getCurrentUserId();
-  if (!userId) return { error: "Unauthorized" };
+  const { profile, error: entitlementError } = await getPaidFinanceProfile();
+  if (entitlementError) return { error: entitlementError };
+  const userId = profile.id;
   try {
     const record = await postJournalEntry(journalEntryId, userId);
     await logActivity({

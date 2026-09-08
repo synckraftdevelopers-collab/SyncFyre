@@ -1,5 +1,6 @@
 import { timingSafeEqual, createHash } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensurePaidCommercialPlanForBranch } from "@/services/entitlements.service";
 import { getMemberByMachineUserId } from "@/services/biometric-mapping.service";
 import {
   extractRequestDeviceCandidates,
@@ -579,6 +580,34 @@ export async function processBiometricPayload(input: {
     matchedBy: identified.matchedBy,
     branchId: device.branch_id,
   });
+
+  const entitlement = await ensurePaidCommercialPlanForBranch(device.branch_id, "Biometric / Face Attendance");
+  if (!entitlement.allowed) {
+    const message = entitlement.error;
+    await markDeviceSeen(device, message);
+    await insertSyncLog({
+      device,
+      event: null,
+      status: "rejected",
+      processingResult: "PLAN_LOCKED",
+      requestMetadata: input.metadata,
+      requestPayload: input.payload,
+      errorMessage: message,
+      normalizedPayload: { planLocked: true },
+    });
+    return {
+      device,
+      requestId: buildRequestFingerprint(input.metadata, input.payload),
+      results: [
+        {
+          eventId: buildRequestFingerprint(input.metadata, input.payload),
+          status: "PLAN_LOCKED" as const,
+          message,
+        },
+      ],
+      protocolResponse: protocolResponse("OK"),
+    };
+  }
 
   const security = await validateDeviceSecurity(device, input.metadata);
   if (!security.ok) {

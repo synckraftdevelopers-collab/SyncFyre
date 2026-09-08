@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
 
 const reports = {
   members: {
@@ -49,6 +50,8 @@ function csv(value: unknown) {
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Advanced Reports & Exports");
+  if (!entitlement.allowed) return NextResponse.json({ error: entitlement.error }, { status: 403 });
 
   const name = request.nextUrl.searchParams.get("resource") ?? "members";
   if (!(name in reports)) return NextResponse.json({ error: "Unknown report" }, { status: 404 });

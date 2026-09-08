@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { isResourceName, resourceSchemas, tableForResource } from "@/lib/validations/resources";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
+import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ resource: string }> }) {
   const profile = await getCurrentProfile();
@@ -10,6 +11,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const resource = (await params).resource;
   if (!isResourceName(resource)) return NextResponse.json({ error: "Unknown resource" }, { status: 404 });
+  if (resource === "face-machines") {
+    const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Biometric / Face Attendance");
+    if (!entitlement.allowed) return NextResponse.json({ error: entitlement.error }, { status: 403 });
+  }
 
   const queryParams = request.nextUrl.searchParams;
   const page = Math.max(1, Number(queryParams.get("page") ?? 1));
@@ -39,6 +44,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!isResourceName(resource)) return NextResponse.json({ error: "Unknown resource" }, { status: 404 });
   if (resource === "notifications") {
     return NextResponse.json({ error: "Notifications are generated from real business events and cannot be created manually." }, { status: 403 });
+  }
+  if (resource === "face-machines") {
+    const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Biometric / Face Attendance");
+    if (!entitlement.allowed) return NextResponse.json({ error: entitlement.error }, { status: 403 });
   }
 
   const requestBody = await request.json() as Record<string, unknown>;

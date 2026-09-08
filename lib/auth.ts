@@ -7,6 +7,7 @@ import type { UserProfile, UserRole } from "@/types";
 export type PortalContext = UserProfile & {
   onboarding_completed_at?: string | null;
   tenant_name?: string | null;
+  tenant_plan?: string | null;
   tenant_timezone?: string | null;
   branch_timezone?: string | null;
 };
@@ -35,6 +36,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
   if (error || !data) return null;
 
   let tenantName: string | null = null;
+  let tenantPlan: string | null = null;
   let onboardingCompletedAt: string | null = null;
   let tenantTimezone: string | null = null;
   let branchTimezone: string | null = null;
@@ -42,7 +44,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
   if (data.tenant_id) {
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
-      .select("name, onboarding_completed_at, timezone")
+      .select("name, plan, onboarding_completed_at, timezone")
       .eq("id", data.tenant_id)
       .maybeSingle();
 
@@ -50,6 +52,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
       console.error("[getPortalContext] Unable to load tenant context", tenantError);
     } else {
       tenantName = tenant?.name ?? null;
+      tenantPlan = tenant?.plan ?? null;
       onboardingCompletedAt = tenant?.onboarding_completed_at ?? null;
       tenantTimezone = tenant?.timezone ?? null;
     }
@@ -73,6 +76,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
     ...(data as unknown as UserProfile),
     onboarding_completed_at: onboardingCompletedAt,
     tenant_name: tenantName,
+    tenant_plan: tenantPlan,
     tenant_timezone: tenantTimezone,
     branch_timezone: branchTimezone,
   };

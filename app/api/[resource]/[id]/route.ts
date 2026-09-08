@@ -3,6 +3,7 @@ import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { isResourceName, resourceSchemas, tableForResource } from "@/lib/validations/resources";
 import { logActivity, softDeleteById, supportsSoftDelete, tableForSoftDelete, updateSubscriptionWithHistory } from "@/services/workflow.service";
+import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
 
 async function verifyMemberPlanScope(resource: string, id: string, payload: Record<string, unknown>, profile: NonNullable<Awaited<ReturnType<typeof getCurrentProfile>>>) {
   if (resource !== "workouts" && resource !== "diet-plans") return;
@@ -33,6 +34,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { resource, id } = await params;
   const profile = await authorize(resource);
   if (!profile || !isResourceName(resource)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (resource === "face-machines") {
+    const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Biometric / Face Attendance");
+    if (!entitlement.allowed) return NextResponse.json({ error: entitlement.error }, { status: 403 });
+  }
 
   const requestBody = await request.json() as Record<string, unknown>;
   const workflowAction = typeof requestBody.workflow_action === "string" ? requestBody.workflow_action : undefined;
@@ -100,6 +105,10 @@ export async function DELETE(_: NextRequest, { params }: { params: Promise<{ res
   const role = profile?.role?.slug ?? "";
   const canDeleteMembershipPlans = resource === "membership-plans" && ["owner", "admin", "manager"].includes(role);
   if (!profile || !isResourceName(resource) || (!["admin", "manager"].includes(role) && !canDeleteMembershipPlans && !(resource === "progress" || resource === "diet-plans" && ["trainer", "dietician"].includes(role)))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (resource === "face-machines") {
+    const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Biometric / Face Attendance");
+    if (!entitlement.allowed) return NextResponse.json({ error: entitlement.error }, { status: 403 });
+  }
 
   if (resource === "diet-plans" && ["trainer", "dietician"].includes(profile.role?.slug ?? "")) {
     const supabase = await createClient(); const { data: trainer } = await supabase.from("trainers").select("staff_id").eq("user_id", profile.id).eq("branch_id", profile.branch_id ?? "").maybeSingle();

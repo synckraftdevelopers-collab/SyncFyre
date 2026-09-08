@@ -6,7 +6,10 @@ import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPortalNavItems, portalLabel, type PortalKey } from "@/lib/nav";
+import { buildCommercialUpgradeUrl, getCommercialRouteRule, type CommercialPlanTier } from "@/lib/entitlements";
 import type { UserRole } from "@/types";
+import { PhaseLockedMenuItem } from "@/components/phase/phase-locked-menu-item";
+import type { PhaseSnapshot } from "@/services/phase.service";
 
 interface PortalSidebarProps {
   mobileOpen: boolean;
@@ -15,10 +18,14 @@ interface PortalSidebarProps {
   portal: PortalKey;
   userRole?: UserRole | null;
   visibleNavHrefs?: string[] | null;
+  commercialPlanTier?: CommercialPlanTier;
+  phaseSnapshot?: PhaseSnapshot;
 }
 
 export function PortalSidebar({
   mobileOpen, onMobileClose, desktopExpanded, portal, userRole, visibleNavHrefs,
+  commercialPlanTier = "paid",
+  phaseSnapshot,
 }: PortalSidebarProps) {
   const pathname = usePathname();
   const navigation = getPortalNavItems(portal, userRole);
@@ -95,12 +102,35 @@ export function PortalSidebar({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-2 py-3">
-          {filteredNavigation.map(({ label: navLabel, href, icon: Icon, exact }) => {
+          {filteredNavigation.map(({ label: navLabel, href, icon: Icon, exact, featureKey }) => {
+            const phaseFeature = featureKey && phaseSnapshot ? phaseSnapshot.featureMap[featureKey] : null;
+            const phaseLocked = phaseFeature?.status === "locked" && commercialPlanTier === "free";
+            const lockedRule = !phaseLocked && commercialPlanTier === "free" ? getCommercialRouteRule(href) : null;
+            const targetHref = phaseLocked
+              ? `/phase-locked?feature=${encodeURIComponent(featureKey ?? "")}&name=${encodeURIComponent(navLabel)}&phase=${encodeURIComponent(phaseFeature?.phase ?? "PHASE_1")}`
+              : lockedRule
+                ? buildCommercialUpgradeUrl(href, lockedRule.featureLabel)
+                : href;
             const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
+            if (phaseLocked) {
+              return (
+                <PhaseLockedMenuItem
+                  key={href}
+                  href={href}
+                  label={navLabel}
+                  active={active}
+                  icon={Icon}
+                  featureKey={featureKey}
+                  phaseSnapshot={phaseSnapshot}
+                  desktopExpanded={desktopExpanded}
+                  onClick={onMobileClose}
+                />
+              );
+            }
             return (
               <Link
                 key={href}
-                href={href}
+                href={targetHref}
                 onClick={onMobileClose}
                 title={navLabel}
                 aria-label={navLabel}
@@ -135,6 +165,11 @@ export function PortalSidebar({
                 >
                   {navLabel}
                 </span>
+                {lockedRule ? (
+                  <span className="ml-auto rounded-full border border-white/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70">
+                    Paid Plan
+                  </span>
+                ) : null}
               </Link>
             );
           })}

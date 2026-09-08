@@ -17,7 +17,6 @@ export type EditableTenant = {
   state: string | null;
   tenant_type: string;
   purpose: string | null;
-  plan: string;
   status: string;
   trial_starts_at: string | null;
   trial_ends_at: string | null;
@@ -31,13 +30,6 @@ export type EditableTenant = {
 const tenantTypeOptions = [
   { value: "customer", label: "Customer" },
   { value: "demo", label: "Demo" },
-];
-
-const planOptions = [
-  { value: "trial", label: "Free Trial" },
-  { value: "standard", label: "Standard" },
-  { value: "professional", label: "Professional" },
-  { value: "enterprise", label: "Enterprise" },
 ];
 
 const statusOptions = [
@@ -62,7 +54,7 @@ export function EditTenantDialog({ tenant }: { tenant: EditableTenant }) {
     <DialogContent className="max-w-3xl">
       <DialogHeader>
         <DialogTitle>Edit Gym / Tenant</DialogTitle>
-        <DialogDescription>Update gym, owner, branch, plan, and trial details from the existing SuperAdmin tenant screen.</DialogDescription>
+        <DialogDescription>Update gym, owner, branch, and trial details from the existing SuperAdmin tenant screen.</DialogDescription>
       </DialogHeader>
       <form action={action} className="grid gap-4">
         <input type="hidden" name="tenant_id" value={tenant.id} />
@@ -79,7 +71,6 @@ export function EditTenantDialog({ tenant }: { tenant: EditableTenant }) {
           <label className="text-sm font-medium">State<Input name="state" defaultValue={tenant.state ?? ""} className="mt-1.5" /></label>
           <label className="text-sm font-medium">Tenant type<select name="tenant_type" defaultValue={tenant.tenant_type} className="mt-1.5 flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">{tenantTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="text-sm font-medium">Purpose<Input name="purpose" defaultValue={tenant.purpose ?? ""} className="mt-1.5" placeholder="CLIENT DEMONSTRATION" /></label>
-          <label className="text-sm font-medium">Plan<select name="plan" defaultValue={tenant.plan} className="mt-1.5 flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">{planOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="text-sm font-medium">Status<select name="status" defaultValue={tenant.status} className="mt-1.5 flex h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">{statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           <label className="text-sm font-medium">Trial start<Input name="trial_starts_at" type="date" defaultValue={toDateInput(tenant.trial_starts_at)} className="mt-1.5" /></label>
           <label className="text-sm font-medium">Trial end<Input name="trial_ends_at" type="date" defaultValue={toDateInput(tenant.trial_ends_at)} className="mt-1.5" /></label>

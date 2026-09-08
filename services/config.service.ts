@@ -349,7 +349,11 @@ export async function listCommunicationTemplates(tenantId: string, branchId?: st
     .eq("tenant_id", tenantId)
     .order("template_key")
     .order("channel");
-  if (branchId) query = query.in("branch_id", [branchId, null]);
+  if (branchId && branchId !== "null") {
+    query = query.or(`branch_id.is.null,branch_id.eq.${branchId}`);
+  } else {
+    query = query.is("branch_id", null);
+  }
   const { data, error } = await query;
   if (error) {
     if (isMissingSchemaError(error.message)) return [];

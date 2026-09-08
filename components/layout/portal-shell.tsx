@@ -7,7 +7,9 @@ import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { NotificationProvider, useNotifications } from "@/components/notifications/notification-provider";
 import { LoginWelcomeDialog } from "@/components/layout/login-welcome-dialog";
 import type { PortalKey } from "@/lib/nav";
+import type { CommercialPlanTier } from "@/lib/entitlements";
 import type { UserRole } from "@/types";
+import type { PhaseSnapshot } from "@/services/phase.service";
 
 export type { PortalKey };
 
@@ -43,6 +45,8 @@ function PortalShellFrame({
   branchTimezone,
   userRole,
   visibleNavHrefs,
+  commercialPlanTier,
+  phaseSnapshot,
 }: {
   children: React.ReactNode;
   name: string;
@@ -54,6 +58,8 @@ function PortalShellFrame({
   branchTimezone?: string | null;
   userRole?: UserRole | null;
   visibleNavHrefs?: string[] | null;
+  commercialPlanTier?: CommercialPlanTier;
+  phaseSnapshot?: PhaseSnapshot;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopExpanded, setDesktopExpanded] = useState(false);
@@ -77,6 +83,8 @@ function PortalShellFrame({
         portal={portal}
         userRole={userRole}
         visibleNavHrefs={visibleNavHrefs}
+        commercialPlanTier={commercialPlanTier}
+        phaseSnapshot={phaseSnapshot}
       />
       <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
@@ -94,7 +102,7 @@ function PortalShellFrame({
           branchTimezone={branchTimezone}
         />
         <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
-        <MobileBottomNav portal={portal} userRole={userRole} visibleNavHrefs={visibleNavHrefs} onMore={handleMenu} />
+        <MobileBottomNav portal={portal} userRole={userRole} visibleNavHrefs={visibleNavHrefs} onMore={handleMenu} commercialPlanTier={commercialPlanTier} phaseSnapshot={phaseSnapshot} />
       </div>
     </div>
   );
@@ -115,6 +123,8 @@ export function PortalShell({
   branchTimezone,
   userRole,
   visibleNavHrefs,
+  commercialPlanTier,
+  phaseSnapshot,
 }: {
   children: React.ReactNode;
   name: string;
@@ -130,6 +140,8 @@ export function PortalShell({
   branchTimezone?: string | null;
   userRole?: UserRole | null;
   visibleNavHrefs?: string[] | null;
+  commercialPlanTier?: CommercialPlanTier;
+  phaseSnapshot?: PhaseSnapshot;
 }) {
   return (
     <NotificationProvider
@@ -148,6 +160,8 @@ export function PortalShell({
         branchTimezone={branchTimezone}
         userRole={userRole}
         visibleNavHrefs={visibleNavHrefs}
+        commercialPlanTier={commercialPlanTier}
+        phaseSnapshot={phaseSnapshot}
       >
         {children}
       </PortalShellFrame>
