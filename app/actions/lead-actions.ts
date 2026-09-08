@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
-import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { convertLead, createLead, LEAD_STAGES, recordLeadActivity, updateLeadStage } from "@/services/lead.service";
 
 const leadSchema = z.object({
@@ -18,9 +18,8 @@ const leadSchema = z.object({
 
 export async function createLeadAction(formData: FormData): Promise<{ error?: string; success?: string }> {
   const profile = await requireUser(["owner", "admin", "manager", "reception"]);
+  if (!(await hasCurrentFeature("crm"))) return { error: "CRM is not included in the current plan." };
   if (!profile.tenant_id || !profile.branch_id) return { error: "Your account must be assigned to an organization and branch." };
-  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "CRM & Lead Pipeline");
-  if (!entitlement.allowed) return { error: entitlement.error };
   const parsed = leadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Review the lead details." };
   try {
@@ -31,11 +30,11 @@ export async function createLeadAction(formData: FormData): Promise<{ error?: st
     return { error: error instanceof Error ? error.message : "Unable to create lead." };
   }
 }
+
 export async function updateLeadStageAction(formData: FormData): Promise<{ error?: string; success?: string }> {
   const profile = await requireUser(["owner", "admin", "manager", "reception"]);
+  if (!(await hasCurrentFeature("crm"))) return { error: "CRM is not included in the current plan." };
   if (!profile.tenant_id || !profile.branch_id) return { error: "Your account must be assigned to an organization and branch." };
-  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "CRM & Lead Pipeline");
-  if (!entitlement.allowed) return { error: entitlement.error };
   const leadId = String(formData.get("lead_id") ?? "");
   const stage = String(formData.get("stage") ?? "");
   const lostReason = String(formData.get("lost_reason") ?? "").trim();
@@ -46,17 +45,18 @@ export async function updateLeadStageAction(formData: FormData): Promise<{ error
     return { success: "Lead stage updated." };
   } catch (error) { return { error: error instanceof Error ? error.message : "Unable to update lead." }; }
 }
+
 export async function convertLeadAction(formData: FormData): Promise<{ error?: string; success?: string }> {
   const profile = await requireUser(["owner", "admin", "manager", "reception"]);
+  if (!(await hasCurrentFeature("crm"))) return { error: "CRM is not included in the current plan." };
   if (!profile.tenant_id || !profile.branch_id) return { error: "Your account must be assigned to an organization and branch." };
-  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "CRM & Lead Pipeline");
-  if (!entitlement.allowed) return { error: entitlement.error };
   const leadId = String(formData.get("lead_id") ?? "");
   const memberId = String(formData.get("member_id") ?? "");
   if (!leadId || !memberId) return { error: "Select a lead and member." };
   try { await convertLead({ leadId, memberId, tenantId: profile.tenant_id, branchId: profile.branch_id, performedBy: profile.id }); revalidatePath("/admin/leads"); return { success: "Lead converted." }; }
   catch (error) { return { error: error instanceof Error ? error.message : "Unable to convert lead." }; }
 }
+
 function normalizeDateTime(value: string | null | undefined) {
   if (!value) return null;
   const date = new Date(value);
@@ -65,9 +65,8 @@ function normalizeDateTime(value: string | null | undefined) {
 
 export async function recordLeadActivityAction(formData: FormData): Promise<{ error?: string; success?: string }> {
   const profile = await requireUser(["owner", "admin", "manager", "reception"]);
+  if (!(await hasCurrentFeature("crm"))) return { error: "CRM is not included in the current plan." };
   if (!profile.tenant_id || !profile.branch_id) return { error: "Your account must be assigned to an organization and branch." };
-  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "CRM & Lead Pipeline");
-  if (!entitlement.allowed) return { error: entitlement.error };
   const leadId = String(formData.get("lead_id") ?? "");
   const activityType = String(formData.get("activity_type") ?? "");
   const description = String(formData.get("description") ?? "").trim();

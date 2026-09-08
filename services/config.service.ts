@@ -1,4 +1,5 @@
-﻿import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
+import { evaluateFeature } from "@/lib/entitlements/evaluate";
 import { preferBranchThenGlobal, resolveConfigValue } from "@/services/config-resolver";
 import { CONFIG_DEFAULTS, COMMUNICATION_TEMPLATE_DEFAULTS, FEATURE_DEFAULTS } from "@/lib/config/defaults";
 import {
@@ -215,14 +216,15 @@ function isMissingSchemaError(message: string | undefined) {
 
 export async function isFeatureEnabled(tenantId: string, featureKey: FeatureKey) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("tenant_features").select("enabled").eq("tenant_id", tenantId).eq("feature_key", featureKey).maybeSingle();
-  if (error) {
-    if (isMissingRelationError(error.message)) return FEATURE_DEFAULTS[featureKey];
-    throw new Error(error.message);
-  }
-  return data ? data.enabled : FEATURE_DEFAULTS[featureKey];
+  const [{ data, error }, { data: tenant, error: tenantError }] = await Promise.all([
+    supabase.from("tenant_features").select("enabled").eq("tenant_id", tenantId).eq("feature_key", featureKey).maybeSingle(),
+    supabase.from("tenants").select("plan,status").eq("id", tenantId).maybeSingle(),
+  ]);
+  if (error && !isMissingRelationError(error.message)) throw new Error(error.message);
+  if (tenantError) throw new Error(tenantError.message);
+  const evaluation = evaluateFeature({ plan: tenant?.plan, status: tenant?.status, featureKey, override: data?.enabled ?? null });
+  return evaluation.allowed && (data?.enabled ?? FEATURE_DEFAULTS[featureKey]);
 }
-
 export async function getTenantFeatures(tenantId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

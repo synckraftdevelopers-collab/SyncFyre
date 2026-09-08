@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { assignMachineUserIdToMember, reprocessUnmatchedAttendanceForMember } from "@/services/biometric-mapping.service";
 import { logActivity } from "@/services/workflow.service";
 
@@ -14,8 +14,7 @@ function redirectWithMessage(path: string, type: "success" | "error", message: s
 
 export async function saveBiometricMappingAction(formData: FormData) {
   const profile = await requireUser(["admin", "manager", "reception"]);
-  const entitlement = await ensurePaidCommercialPlan(profile.tenant_id, "Biometric / Face Attendance");
-  if (!entitlement.allowed) redirectWithMessage(String(formData.get("return_to") ?? "/admin/attendance"), "error", entitlement.error);
+  if (!(await hasCurrentFeature("biometric"))) return { error: "Biometric attendance is not included in the current plan." };
   const memberId = String(formData.get("member_id") ?? "").trim();
   const machineUserId = String(formData.get("machine_user_id") ?? "").trim();
   const machineName = String(formData.get("machine_name") ?? "").trim() || null;

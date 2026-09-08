@@ -1,9 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
-import { getCommercialPlanTier, getCommercialRouteRule } from "@/lib/entitlements";
-import { getPhaseLockedTarget } from "@/lib/phases/path";
-import { SYSTEM_PHASE_NUMBERS, type SystemPhaseKey } from "@/lib/phases/registry";
+import { evaluateFeature, type SaaSFeatureKey, type TenantPlan, type SubscriptionState } from "@/lib/entitlements/evaluate";
 
 const PUBLIC_PATHS = [
   "/",
@@ -52,17 +50,29 @@ const PORTAL_ROLES: Record<string, string[]> = {
 };
 
 const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
+const FEATURE_ROUTE_PREFIXES: { prefix: string; feature: SaaSFeatureKey }[] = [
+  { prefix: "/admin/finance/accounting", feature: "advanced_accounting" },
+  { prefix: "/admin/leads", feature: "crm" },
+  { prefix: "/api/leads", feature: "crm" },
+  { prefix: "/admin/finance", feature: "finance" },
+  { prefix: "/admin/pt", feature: "pt" },
+  { prefix: "/api/finance", feature: "finance" },
+  { prefix: "/api/pt", feature: "pt" },
+  { prefix: "/admin/machines", feature: "biometric" },
+  { prefix: "/api/biometric", feature: "biometric" },
+  { prefix: "/admin/trainers", feature: "pt" },
+  { prefix: "/api/trainers", feature: "pt" },
+];
+
+function featureForPath(pathname: string): SaaSFeatureKey | null {
+  return FEATURE_ROUTE_PREFIXES.find(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.feature ?? null;
+}
+
 function isOwnerOnboardingSetupRoute(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   if (pathname === "/admin/settings") return searchParams.get("tab") === "application";
-  return [
-    "/admin/memberships/new",
-    "/admin/trainers/new",
-    "/admin/staff/new",
-    "/admin/machines",
-  ].includes(pathname);
+  return ["/admin/memberships/new", "/admin/trainers/new", "/admin/staff/new", "/admin/machines"].includes(pathname);
 }
-
 
 function isMachineHost(request: NextRequest) {
   const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? "")
@@ -132,7 +142,8 @@ export async function middleware(request: NextRequest) {
 
   let roleSlug = "";
   let onboardingCompletedAt: string | null = null;
-  let tenantPlan: string | null = null;
+  let tenantPlan: TenantPlan = null;
+  let tenantStatus: SubscriptionState = null;
   try {
     const { data: profile } = await supabase
       .from("users")
@@ -145,21 +156,33 @@ export async function middleware(request: NextRequest) {
 
     const tenantId = (profile as { tenant_id?: string | null } | null)?.tenant_id ?? null;
     if (tenantId) {
-      const { data: tenant, error: tenantError } = await supabase.from("tenants").select("onboarding_completed_at,plan").eq("id", tenantId).maybeSingle();
+      const { data: tenant, error: tenantError } = await supabase.from("tenants").select("onboarding_completed_at,plan,status").eq("id", tenantId).maybeSingle();
       if (tenantError && !isMissingSchemaError(tenantError)) {
         console.error("[middleware] Unable to load tenant onboarding status", tenantError);
       } else {
         onboardingCompletedAt = tenant?.onboarding_completed_at ?? null;
         tenantPlan = tenant?.plan ?? null;
+        tenantStatus = tenant?.status ?? null;
       }
     }
   } catch (error) {
     console.error("[middleware] Unable to load user profile", error);
   }
 
+  const requestedFeature = featureForPath(pathname);
+  if (requestedFeature) {
+    const entitlement = evaluateFeature({ plan: tenantPlan, status: tenantStatus, featureKey: requestedFeature });
+    if (!entitlement.allowed) {
+      if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Feature is not included in the current plan." }, { status: 403 });
+      const url = request.nextUrl.clone();
+      url.pathname = PORTAL_DASHBOARD[roleSlug] ?? "/login";
+      url.searchParams.set("error", "feature_locked");
+      url.searchParams.set("feature", requestedFeature);
+      return NextResponse.redirect(url);
+    }
+  }
+
   const ownerNeedsOnboarding = roleSlug === "owner" && !onboardingCompletedAt;
-  const isSuperAdmin = roleSlug === "super_admin";
-  const commercialPlanTier = getCommercialPlanTier(tenantPlan);
   if (ownerNeedsOnboarding && pathname.startsWith("/admin") && !isOwnerOnboardingSetupRoute(request)) {
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
@@ -181,63 +204,6 @@ export async function middleware(request: NextRequest) {
     if (ownerNeedsOnboarding) return NextResponse.redirect(new URL("/onboarding", request.url));
     const dest = PORTAL_DASHBOARD[roleSlug];
     if (dest) return NextResponse.redirect(new URL(dest, request.url));
-  }
-
-  const phaseGate = isSuperAdmin ? null : getPhaseLockedTarget(pathname, request.nextUrl.searchParams);
-  if (phaseGate) {
-    try {
-      const { data: phases, error: phaseError } = await supabase
-        .from("system_phases")
-        .select("phase_key,phase_number,status")
-        .order("phase_number", { ascending: true });
-
-      let currentPhase: SystemPhaseKey = "PHASE_1";
-      if (!phaseError && phases?.length) {
-        const active = phases
-          .filter((phase) => phase.status === "active")
-          .reduce<{ phase_key: string; phase_number: number } | null>((highest, phase) => {
-            if (!highest) return phase;
-            return phase.phase_number > highest.phase_number ? phase : highest;
-          }, null);
-        currentPhase = (active?.phase_key as SystemPhaseKey) ?? "PHASE_1";
-      } else if (phaseError && !isMissingSchemaError(phaseError)) {
-        console.error("[middleware] Unable to load system phases", phaseError);
-      }
-
-      if (commercialPlanTier === "free" && SYSTEM_PHASE_NUMBERS[currentPhase] < SYSTEM_PHASE_NUMBERS[phaseGate.requiredPhase as SystemPhaseKey]) {
-        if (pathname.startsWith("/api/")) {
-          return NextResponse.json(
-            {
-              error: "PHASE_NOT_ACTIVE",
-              feature: phaseGate.featureKey,
-              required_phase: phaseGate.requiredPhase,
-              current_phase: currentPhase,
-            },
-            { status: 403 },
-          );
-        }
-        const url = request.nextUrl.clone();
-        url.pathname = "/phase-locked";
-        url.searchParams.set("feature", phaseGate.featureKey);
-        url.searchParams.set("name", phaseGate.featureName);
-        url.searchParams.set("phase", phaseGate.requiredPhase);
-        return NextResponse.redirect(url, 303);
-      }
-    } catch (error) {
-      console.error("[middleware] Phase gate evaluation failed", error);
-    }
-  }
-
-  const commercialRule = user && !isSuperAdmin ? getCommercialRouteRule(pathname) : null;
-  if (commercialRule && commercialPlanTier === "free") {
-    if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: `${commercialRule.featureLabel} is available on the Paid Plan.` }, { status: 403 });
-    }
-    const url = request.nextUrl.clone();
-    url.pathname = "/admin/upgrade";
-    url.searchParams.set("feature", commercialRule.featureLabel);
-    url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(url);
   }
 
   const matchedPortal = PROTECTED_PREFIXES.find((prefix) => pathname.startsWith(prefix));

@@ -6,7 +6,8 @@ import { LoaderCircle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { calculateMembershipPlanTotals, type MembershipPlanSummary } from "@/services/plan.service";
+import { calculateMembershipPlanTotals } from "@/lib/membership-plan-calculations";
+import type { MembershipPlanSummary } from "@/services/plan.service";
 import { formatCurrency } from "@/lib/utils";
 
 type MemberOption = {
