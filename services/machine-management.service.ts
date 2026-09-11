@@ -3,7 +3,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { MachineDeviceSummary, MachineMemberMapping } from "@/lib/machine/types";
 
 /** Shared read model for the admin machine-management surfaces. */
-export async function getMachineManagementData(branchId: string | null, memberSearch = "") {
+export async function getMachineManagementData(
+  branchId: string | null,
+  memberSearch = "",
+  /** Tenant ID for cross-branch admin users who have branch_id = null.
+   *  Always scopes the machine query to a single tenant, never returns
+   *  machines from other tenants regardless of RLS state. */
+  tenantId?: string | null,
+) {
   const supabase = await createClient();
   let mappingsQuery = supabase.from("members").select("id,full_name,member_code,machine_user_id,status").order("created_at", { ascending: false }).limit(20);
   if (branchId) mappingsQuery = mappingsQuery.eq("branch_id", branchId);
@@ -13,7 +20,24 @@ export async function getMachineManagementData(branchId: string | null, memberSe
   }
 
   const [{ data: devices }, { data: syncLogs }, { data: mappings }] = await Promise.all([
-    (() => { let query = supabase.from("face_machine_settings").select("id,machine_name,device_id,device_identifier,manufacturer,model,serial_number,connection_mode,allowed_ip,status,connection_status,last_seen_at,last_sync_at,last_error,machine_api_url,branches(name)").order("created_at", { ascending: false }); if (branchId) query = query.eq("branch_id", branchId); return query; })(),
+    (() => {
+      let query = supabase
+        .from("face_machine_settings")
+        .select("id,machine_name,device_id,device_identifier,manufacturer,model,serial_number,connection_mode,allowed_ip,status,connection_status,last_seen_at,last_sync_at,last_error,machine_api_url,branches(name)")
+        .order("created_at", { ascending: false });
+      // Always prefer the most specific filter available.
+      // branch_id is more specific than tenant_id; use whichever is available.
+      if (branchId) {
+        query = query.eq("branch_id", branchId);
+      } else if (tenantId) {
+        // Admin user with no branch assignment — scope to tenant to prevent
+        // cross-tenant leakage (defence-in-depth alongside RLS).
+        query = query.eq("tenant_id", tenantId);
+      }
+      // If both are null the RLS policy is the last line of defence;
+      // in practice this means a misconfigured user account with no tenant.
+      return query;
+    })(),
     (() => { let query = supabase.from("attendance_sync_logs").select("device_id,event_received_at").gte("event_received_at", `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`); if (branchId) query = query.eq("branch_id", branchId); return query; })(),
     mappingsQuery,
   ]);
@@ -30,8 +54,8 @@ export async function getMachineManagementData(branchId: string | null, memberSe
 }
 
 /** Terminal-safe device information. Configuration secrets are intentionally excluded. */
-export async function getMachineTerminalDevices(branchId: string | null) {
-  const { devices } = await getMachineManagementData(branchId);
+export async function getMachineTerminalDevices(branchId: string | null, tenantId?: string | null) {
+  const { devices } = await getMachineManagementData(branchId, "", tenantId);
   return devices.filter((device) => device.status === "active").map(({ id, machine_name, device_id, connection_status, last_seen_at }) => ({ id, machine_name, device_id, connection_status, last_seen_at }));
 }
 

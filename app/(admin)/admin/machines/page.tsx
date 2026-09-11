@@ -16,7 +16,11 @@ export default async function MachinesPage({
 }) {
   const { memberSearch = "" } = await searchParams;
   const profile = await requireUser(["admin", "manager"]);
-  const { devices, mappings } = await getMachineManagementData(profile.branch_id, memberSearch);
+  const { devices, mappings } = await getMachineManagementData(
+    profile.branch_id,
+    memberSearch,
+    profile.tenant_id,
+  );
 
   return (
     <div className="space-y-5">

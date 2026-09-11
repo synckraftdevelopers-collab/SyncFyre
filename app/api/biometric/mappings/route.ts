@@ -22,7 +22,22 @@ export async function GET(request: NextRequest) {
       getBiometricMappings({ branchId: profile.branch_id, status, search }),
       getUnifiedMappedMembers(profile.branch_id, search),
       includeUnidentified ? getUnidentifiedMachineUsers(profile.branch_id, from, to) : Promise.resolve([]),
-      includeDevices ? (() => { let query = createAdminClient().from("face_machine_settings").select("device_id,machine_name").eq("status", "active").order("machine_name"); if (profile.branch_id) query = query.eq("branch_id", profile.branch_id); return query; })() : Promise.resolve({ data: [], error: null }),
+      includeDevices ? (() => {
+        let query = createAdminClient()
+          .from("face_machine_settings")
+          .select("device_id,machine_name")
+          .eq("status", "active")
+          .order("machine_name");
+        // Always scope by branch first (most specific), then tenant as fallback.
+        // This uses the admin client (service role) so we must enforce isolation
+        // in the query itself — RLS is bypassed for service role.
+        if (profile.branch_id) {
+          query = query.eq("branch_id", profile.branch_id);
+        } else if (profile.tenant_id) {
+          query = query.eq("tenant_id", profile.tenant_id);
+        }
+        return query;
+      })() : Promise.resolve({ data: [], error: null }),
     ]);
     if (devicesResult.error) throw new Error(devicesResult.error.message);
     return NextResponse.json({ data: mappings, mappedMembers, unidentified, devices: devicesResult.data ?? [] });
