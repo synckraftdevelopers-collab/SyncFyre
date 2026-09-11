@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Lock, CheckCircle2, ArrowRight } from "lucide-react";
+import { Lock, CheckCircle2, ArrowRight, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +13,12 @@ import {
 } from "@/components/ui/dialog";
 import type { CommercialPlanConfig, PlanDisplayFeature } from "@/lib/plans/config";
 
+/**
+ * The single upgrade destination used across all upgrade CTAs.
+ * Opens the SyncFyre pricing/demo-request section. No tenant data in URL.
+ */
+export const UPGRADE_DESTINATION_URL = "https://syncfyre.com/#pricing";
+
 type FeatureUpgradeModalProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,12 +28,18 @@ type FeatureUpgradeModalProps = {
   requiredPlan: CommercialPlanConfig;
   /** Current plan name */
   currentPlanName: string;
-  /** URL to navigate to when "View Plan" is clicked */
-  upgradeHref: string;
+  /**
+   * @deprecated No longer used — the primary CTA opens syncfyre.com/#pricing directly.
+   * Kept for API compatibility; will be removed in a future cleanup.
+   */
+  upgradeHref?: string;
 };
 
 /**
  * Contextual upgrade modal shown when a locked feature is clicked.
+ *
+ * "Upgrade to [Plan]" opens syncfyre.com/#pricing in a new tab — no internal
+ * navigation, no mailto, no about:blank.
  *
  * On mobile it anchors to the bottom of the viewport via CSS.
  * On desktop it centers as a standard dialog.
@@ -39,13 +50,10 @@ export function FeatureUpgradeModal({
   feature,
   requiredPlan,
   currentPlanName,
-  upgradeHref,
 }: FeatureUpgradeModalProps) {
-  const router = useRouter();
-
-  const handleViewPlan = () => {
+  const handleUpgrade = () => {
+    window.open(UPGRADE_DESTINATION_URL, "_blank", "noopener,noreferrer");
     onOpenChange(false);
-    router.push(upgradeHref);
   };
 
   return (
@@ -59,7 +67,6 @@ export function FeatureUpgradeModal({
           "max-sm:w-full max-sm:max-w-none max-sm:rounded-t-2xl max-sm:rounded-b-none",
           "overflow-hidden p-0",
         )}
-        // Remove default close-icon padding to use our own layout
         aria-describedby="feature-modal-desc"
       >
         <DialogHeader className="sr-only">
@@ -139,11 +146,19 @@ export function FeatureUpgradeModal({
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               Maybe Later
             </Button>
-            <Button size="sm" onClick={handleViewPlan}>
-              View {requiredPlan.name} Plan
-              <ArrowRight className="ml-1.5 size-3.5" />
+            <Button
+              size="sm"
+              onClick={handleUpgrade}
+              aria-label={`Upgrade to ${requiredPlan.name} — opens SyncFyre pricing page`}
+            >
+              Upgrade to {requiredPlan.name}
+              <ExternalLink className="ml-1.5 size-3.5 opacity-80" />
             </Button>
           </div>
+
+          <p className="text-center text-[11px] text-muted-foreground">
+            Opens syncfyre.com — no plan change until our team activates it
+          </p>
         </div>
       </DialogContent>
     </Dialog>

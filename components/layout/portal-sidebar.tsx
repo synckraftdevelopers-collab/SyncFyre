@@ -141,6 +141,50 @@ export function PortalSidebar({
     : navigation.filter((item) => visibleNavHrefs.includes(item.href));
   const label = portalLabel[portal];
 
+  /**
+   * For Essential users (commercialPlanTier === "free"), split nav into two groups:
+   *   1. Available items (Phase 1 / no phase key / not locked)
+   *   2. Locked items (Phase 2 / locked by commercial rule)
+   * This gives a clean "Your features → Growth features" ordering.
+   * For paid users all items render in their natural order with no separator.
+   */
+  type NavGroup =
+    | { type: "item"; item: (typeof filteredNavigation)[number] }
+    | { type: "separator" };
+
+  const navGroups: NavGroup[] = (() => {
+    if (commercialPlanTier !== "free") {
+      return filteredNavigation.map((item) => ({ type: "item" as const, item }));
+    }
+
+    const available: (typeof filteredNavigation)[number][] = [];
+    const locked: (typeof filteredNavigation)[number][] = [];
+
+    for (const item of filteredNavigation) {
+      const phaseFeature = item.featureKey && phaseSnapshot
+        ? phaseSnapshot.featureMap[item.featureKey]
+        : null;
+      const phaseLocked = phaseFeature?.status === "locked";
+      const hasLockedRule = !phaseLocked ? Boolean(getCommercialRouteRule(item.href)) : false;
+
+      if (phaseLocked || hasLockedRule) {
+        locked.push(item);
+      } else {
+        available.push(item);
+      }
+    }
+
+    if (!locked.length) {
+      return available.map((item) => ({ type: "item" as const, item }));
+    }
+
+    return [
+      ...available.map((item) => ({ type: "item" as const, item })),
+      { type: "separator" as const },
+      ...locked.map((item) => ({ type: "item" as const, item })),
+    ];
+  })();
+
   return (
     <>
       {mobileOpen && (
@@ -209,7 +253,28 @@ export function PortalSidebar({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-2 py-3">
-          {filteredNavigation.map(({ label: navLabel, href, icon: Icon, exact, featureKey }) => {
+          {navGroups.map((group) => {
+            if (group.type === "separator") {
+              return (
+                <div key="growth-separator" className="px-3 pb-1 pt-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-px flex-1 bg-white/10" />
+                    <span
+                      className={cn(
+                        "whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.22em] text-white/35",
+                        desktopExpanded ? "block" : "hidden lg:hidden",
+                        "block",
+                      )}
+                    >
+                      Growth features
+                    </span>
+                    <div className="h-px flex-1 bg-white/10" />
+                  </div>
+                </div>
+              );
+            }
+
+            const { label: navLabel, href, icon: Icon, exact, featureKey } = group.item;
             const phaseFeature = featureKey && phaseSnapshot ? phaseSnapshot.featureMap[featureKey] : null;
             const phaseLocked = phaseFeature?.status === "locked" && commercialPlanTier === "free";
             const lockedRule = !phaseLocked && commercialPlanTier === "free" ? getCommercialRouteRule(href) : null;
@@ -248,11 +313,10 @@ export function PortalSidebar({
               );
             }
 
-            const targetHref = href;
             return (
               <Link
                 key={href}
-                href={targetHref}
+                href={href}
                 onClick={onMobileClose}
                 title={navLabel}
                 aria-label={navLabel}

@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, Lock, ArrowRight, Star, Zap } from "lucide-react";
+import { CheckCircle2, Lock, ArrowRight, Star, Zap, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   COMMERCIAL_PLANS,
   COMMERCIAL_PLAN_ORDER,
@@ -14,11 +12,19 @@ import {
   type CommercialPlanConfig,
 } from "@/lib/plans/config";
 
+/**
+ * The real SyncFyre upgrade/demo-request destination.
+ *
+ * Opens the pricing & demo-request section on the SyncFyre landing page.
+ * No sensitive tenant data is embedded in this URL.
+ */
+const SYNCFYRE_PRICING_URL = "https://syncfyre.com/#pricing";
+
 type UpgradeCenterProps = {
   currentPlanKey: CommercialPlanKey;
   /** Feature that triggered the upgrade flow, if any */
   featureLabel?: string;
-  /** URL to return to after upgrade/request */
+  /** URL to return to after upgrade is activated (kept for display context only) */
   nextHref?: string;
 };
 
@@ -27,24 +33,27 @@ function PlanCard({
   isCurrent,
   isRecommended,
   currentPlanKey,
-  onRequestUpgrade,
 }: {
   plan: CommercialPlanConfig;
   isCurrent: boolean;
   isRecommended: boolean;
   currentPlanKey: CommercialPlanKey;
-  onRequestUpgrade: (plan: CommercialPlanConfig) => void;
 }) {
   const planOrder = COMMERCIAL_PLAN_ORDER;
   const currentIdx = planOrder.indexOf(currentPlanKey);
   const planIdx = planOrder.indexOf(plan.key);
   const isHigher = planIdx > currentIdx;
 
+  const handleUpgradeClick = () => {
+    window.open(SYNCFYRE_PRICING_URL, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <div
       className={cn(
         "relative rounded-2xl border bg-card transition-all",
-        isRecommended && "border-primary shadow-[0_0_0_2px_hsl(var(--primary))] shadow-primary/20",
+        isRecommended &&
+          "border-primary shadow-[0_0_0_2px_hsl(var(--primary))] shadow-primary/20",
         isCurrent && "border-emerald-500/50 bg-emerald-500/5",
       )}
     >
@@ -64,7 +73,10 @@ function PlanCard({
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-lg font-bold">{plan.name}</h3>
             {isCurrent && (
-              <Badge variant="outline" className="border-emerald-500/60 text-emerald-600 text-xs">
+              <Badge
+                variant="outline"
+                className="border-emerald-500/60 text-emerald-600 text-xs"
+              >
                 Current Plan
               </Badge>
             )}
@@ -90,17 +102,19 @@ function PlanCard({
             <Button
               className="w-full"
               variant={isRecommended ? "default" : "outline"}
-              onClick={() => onRequestUpgrade(plan)}
+              onClick={handleUpgradeClick}
+              aria-label={`Upgrade to ${plan.name} — opens SyncFyre pricing page`}
             >
               {isRecommended ? (
                 <>
                   <Zap className="mr-2 size-4" />
                   Upgrade to {plan.name}
+                  <ExternalLink className="ml-1.5 size-3 opacity-70" />
                 </>
               ) : (
                 <>
                   Explore {plan.name}
-                  <ArrowRight className="ml-2 size-4" />
+                  <ExternalLink className="ml-1.5 size-3 opacity-70" />
                 </>
               )}
             </Button>
@@ -110,6 +124,13 @@ function PlanCard({
             </Button>
           )}
         </div>
+
+        {/* Upgrade clarification — only shown for higher plans */}
+        {isHigher && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Opens syncfyre.com/#pricing
+          </p>
+        )}
 
         {/* Feature delta */}
         <div className="mt-5 space-y-2">
@@ -145,7 +166,7 @@ function PlanCard({
               </li>
             ))}
             {plan.deltaFeatures.length > 7 && (
-              <li className="text-xs text-muted-foreground pl-6">
+              <li className="pl-6 text-xs text-muted-foreground">
                 + {plan.deltaFeatures.length - 7} more features
               </li>
             )}
@@ -156,107 +177,24 @@ function PlanCard({
   );
 }
 
-function UpgradeRequestPanel({
-  plan,
-  featureLabel,
-  nextHref,
-  onBack,
-}: {
-  plan: CommercialPlanConfig;
-  featureLabel?: string;
-  nextHref?: string;
-  onBack: () => void;
-}) {
-  return (
-    <div className="mx-auto max-w-xl space-y-6 py-6 text-center">
-      <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-primary/10 text-primary">
-        <Zap className="size-8" />
-      </div>
-      <div className="space-y-2">
-        <h2 className="text-2xl font-bold">Upgrade to {plan.name}</h2>
-        <p className="text-muted-foreground">
-          {featureLabel
-            ? `To access ${featureLabel}, your gym needs the ${plan.name} plan.`
-            : `Upgrade to ${plan.name} to unlock more features for your gym.`}
-        </p>
-      </div>
-
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="flex items-baseline justify-center gap-1">
-            <span className="text-4xl font-extrabold">{plan.price}</span>
-            <span className="text-muted-foreground">{plan.period}</span>
-          </div>
-          <p className="text-sm text-muted-foreground">{plan.tagline}</p>
-
-          <div className="rounded-xl border bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/40 p-4 text-left text-sm">
-            <p className="font-semibold text-amber-800 dark:text-amber-400">
-              How upgrades work
-            </p>
-            <p className="mt-1 text-amber-700 dark:text-amber-500">
-              Plan upgrades are processed by our team. Click the button below to
-              initiate your upgrade request. Our team will contact you within 24 hours
-              to complete the process and activate your {plan.name} plan.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 pt-2">
-            <Button
-              size="default"
-              className="w-full"
-              onClick={() => {
-                const subject = encodeURIComponent(`Upgrade request — ${plan.name} plan`);
-                const body = encodeURIComponent(
-                  `Hi SyncFyre team,\n\nI'd like to upgrade my gym to the ${plan.name} plan (${plan.price}/year).\n\nPlease contact me to complete the upgrade.\n\nThank you.`,
-                );
-                window.open(`mailto:support@syncfyre.com?subject=${subject}&body=${body}`, "_blank");
-              }}
-            >
-              <Zap className="mr-2 size-4" />
-              Request Upgrade to {plan.name}
-            </Button>
-            <Button variant="outline" size="default" className="w-full" onClick={onBack}>
-              Back to plans
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {nextHref && nextHref !== "/admin/dashboard" && (
-        <p className="text-xs text-muted-foreground">
-          After your upgrade is activated, you&apos;ll be taken directly to your requested feature.
-        </p>
-      )}
-    </div>
-  );
-}
-
 /**
  * Professional SaaS Upgrade Center component.
  *
  * Shows current plan, recommended next plan, and higher plan with feature lists.
- * Handles the "request upgrade" flow without fake payment simulation.
+ *
+ * The "Upgrade to [Plan]" CTA opens the real SyncFyre pricing page on the
+ * public landing site (syncfyre.com/#pricing) in a new tab.
+ *
+ * No plan change is made automatically — activation only happens after the
+ * customer contacts the SyncFyre team and a SuperAdmin runs assignTenantPlan().
  */
 export function UpgradeCenter({
   currentPlanKey,
   featureLabel,
   nextHref,
 }: UpgradeCenterProps) {
-  const [requestingPlan, setRequestingPlan] = useState<CommercialPlanConfig | null>(null);
-
   const currentPlan = COMMERCIAL_PLANS[currentPlanKey];
   const nextPlan = getNextPlan(currentPlanKey);
-
-  if (requestingPlan) {
-    return (
-      <UpgradeRequestPanel
-        plan={requestingPlan}
-        featureLabel={featureLabel}
-        nextHref={nextHref}
-        onBack={() => setRequestingPlan(null)}
-      />
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -274,13 +212,30 @@ export function UpgradeCenter({
 
       {/* Current plan summary */}
       <div className="flex items-center gap-3 rounded-xl border bg-muted/30 px-4 py-3">
-        <CheckCircle2 className="size-5 text-emerald-500" />
+        <CheckCircle2 className="size-5 shrink-0 text-emerald-500" />
         <div>
           <p className="text-sm font-medium">
-            You&apos;re on the <span className="font-bold">{currentPlan.name}</span> plan
+            You&apos;re on the{" "}
+            <span className="font-bold">{currentPlan.name}</span> plan
           </p>
-          <p className="text-xs text-muted-foreground">{currentPlan.price}{currentPlan.period}</p>
+          <p className="text-xs text-muted-foreground">
+            {currentPlan.price}
+            {currentPlan.period}
+          </p>
         </div>
+      </div>
+
+      {/* How upgrades work — honest notice */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+        <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">
+          How upgrades work
+        </p>
+        <p className="mt-1 text-sm text-amber-700 dark:text-amber-500">
+          Clicking &ldquo;Upgrade to {nextPlan?.name ?? "Growth"}&rdquo; opens the
+          SyncFyre pricing page. Our team will contact you to complete the upgrade and
+          activate your new plan. Your current{" "}
+          <strong>{currentPlan.name}</strong> plan stays active until then.
+        </p>
       </div>
 
       {/* Plan cards grid */}
@@ -296,11 +251,18 @@ export function UpgradeCenter({
               isCurrent={isCurrent}
               isRecommended={isRecommended}
               currentPlanKey={currentPlanKey}
-              onRequestUpgrade={(p) => setRequestingPlan(p)}
             />
           );
         })}
       </div>
+
+      {/* Context note when there's a next destination */}
+      {nextHref && nextHref !== "/admin/dashboard" && (
+        <p className="text-center text-xs text-muted-foreground">
+          After your upgrade is activated, you&apos;ll be able to access the feature
+          you requested.
+        </p>
+      )}
     </div>
   );
 }
