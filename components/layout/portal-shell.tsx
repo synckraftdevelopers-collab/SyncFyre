@@ -8,6 +8,7 @@ import { NotificationProvider, useNotifications } from "@/components/notificatio
 import { LoginWelcomeDialog } from "@/components/layout/login-welcome-dialog";
 import type { PortalKey } from "@/lib/nav";
 import type { CommercialPlanTier } from "@/lib/entitlements";
+import type { CommercialPlanKey } from "@/lib/plans/config";
 import type { UserRole } from "@/types";
 import type { PhaseSnapshot } from "@/services/phase.service";
 
@@ -47,6 +48,7 @@ function PortalShellFrame({
   visibleNavHrefs,
   commercialPlanTier,
   phaseSnapshot,
+  currentPlanKey,
 }: {
   children: React.ReactNode;
   name: string;
@@ -60,6 +62,7 @@ function PortalShellFrame({
   visibleNavHrefs?: string[] | null;
   commercialPlanTier?: CommercialPlanTier;
   phaseSnapshot?: PhaseSnapshot;
+  currentPlanKey?: CommercialPlanKey;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopExpanded, setDesktopExpanded] = useState(false);
@@ -85,6 +88,7 @@ function PortalShellFrame({
         visibleNavHrefs={visibleNavHrefs}
         commercialPlanTier={commercialPlanTier}
         phaseSnapshot={phaseSnapshot}
+        currentPlanKey={currentPlanKey}
       />
       <div className={desktopExpanded ? "transition-[padding] duration-300 ease-in-out lg:pl-[272px] print:p-0" : "transition-[padding] duration-300 ease-in-out lg:pl-16 print:p-0"}>
         <PortalHeader
@@ -125,6 +129,7 @@ export function PortalShell({
   visibleNavHrefs,
   commercialPlanTier,
   phaseSnapshot,
+  currentPlanKey,
 }: {
   children: React.ReactNode;
   name: string;
@@ -142,6 +147,7 @@ export function PortalShell({
   visibleNavHrefs?: string[] | null;
   commercialPlanTier?: CommercialPlanTier;
   phaseSnapshot?: PhaseSnapshot;
+  currentPlanKey?: CommercialPlanKey;
 }) {
   return (
     <NotificationProvider
@@ -162,6 +168,7 @@ export function PortalShell({
         visibleNavHrefs={visibleNavHrefs}
         commercialPlanTier={commercialPlanTier}
         phaseSnapshot={phaseSnapshot}
+        currentPlanKey={currentPlanKey}
       >
         {children}
       </PortalShellFrame>

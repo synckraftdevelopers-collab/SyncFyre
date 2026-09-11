@@ -145,6 +145,10 @@ drop policy if exists storage_authenticated_read on storage.objects;
 drop policy if exists storage_staff_write on storage.objects;
 drop policy if exists storage_staff_update on storage.objects;
 
+drop policy if exists tenant_scoped_photos_receipts_read   on storage.objects;
+drop policy if exists tenant_scoped_photos_receipts_write  on storage.objects;
+drop policy if exists tenant_scoped_photos_receipts_update on storage.objects;
+
 create policy storage_authenticated_read on storage.objects for select to authenticated
   using (bucket_id = 'member-photos');
 create policy storage_staff_write on storage.objects for insert to authenticated
@@ -158,6 +162,9 @@ create policy storage_staff_update on storage.objects for update to authenticate
 -- these buckets it must key objects as `${tenantId}/...`. Any tenant user
 -- may read (members can view their own progress photos/receipts); only
 -- staff may write.
+drop policy if exists tenant_scoped_photos_receipts_read   on storage.objects;
+drop policy if exists tenant_scoped_photos_receipts_write  on storage.objects;
+drop policy if exists tenant_scoped_photos_receipts_update on storage.objects;
 create policy tenant_scoped_photos_receipts_read on storage.objects for select to authenticated
   using (
     bucket_id in ('progress-photos', 'receipts')

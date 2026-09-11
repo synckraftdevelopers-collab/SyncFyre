@@ -51,7 +51,6 @@ const PORTAL_ROLES: Record<string, string[]> = {
 
 const PROTECTED_PREFIXES = Object.keys(PORTAL_ROLES);
 const FEATURE_ROUTE_PREFIXES: { prefix: string; feature: SaaSFeatureKey }[] = [
-  { prefix: "/admin/finance/accounting", feature: "advanced_accounting" },
   { prefix: "/admin/leads", feature: "crm" },
   { prefix: "/api/leads", feature: "crm" },
   { prefix: "/admin/finance", feature: "finance" },
@@ -62,6 +61,9 @@ const FEATURE_ROUTE_PREFIXES: { prefix: string; feature: SaaSFeatureKey }[] = [
   { prefix: "/api/biometric", feature: "biometric" },
   { prefix: "/admin/trainers", feature: "pt" },
   { prefix: "/api/trainers", feature: "pt" },
+  // Revenue report is an advanced/Growth feature; other /admin/reports/* are basic (Essential)
+  { prefix: "/admin/reports/revenue", feature: "advanced_reports" },
+  { prefix: "/api/reports", feature: "advanced_reports" },
 ];
 
 function featureForPath(pathname: string): SaaSFeatureKey | null {
@@ -174,11 +176,18 @@ export async function middleware(request: NextRequest) {
     const entitlement = evaluateFeature({ plan: tenantPlan, status: tenantStatus, featureKey: requestedFeature });
     if (!entitlement.allowed) {
       if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Feature is not included in the current plan." }, { status: 403 });
-      const url = request.nextUrl.clone();
-      url.pathname = PORTAL_DASHBOARD[roleSlug] ?? "/login";
-      url.searchParams.set("error", "feature_locked");
-      url.searchParams.set("feature", requestedFeature);
-      return NextResponse.redirect(url);
+      // Redirect to the upgrade page with the feature name and return URL.
+      // NOTE: only portal routes reach here — the role check below already
+      // handles unauthorized role access separately. This is purely a
+      // commercial-plan denial and must never fire for role mismatches.
+      const portalDashboard = PORTAL_DASHBOARD[roleSlug] ?? "/login";
+      const backHref = pathname.startsWith("/admin")
+        ? pathname
+        : portalDashboard;
+      const upgradeUrl = new URL("/admin/upgrade", request.url);
+      upgradeUrl.searchParams.set("feature", entitlement.feature?.label ?? requestedFeature);
+      upgradeUrl.searchParams.set("next", backHref);
+      return NextResponse.redirect(upgradeUrl);
     }
   }
 
