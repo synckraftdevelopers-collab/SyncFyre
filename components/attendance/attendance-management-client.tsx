@@ -141,19 +141,28 @@ export function AttendanceManagementClient() {
     try {
       setError(null);
       const encoded = encodeURIComponent(query);
-      const [summaryRes, mappedRes, unmappedRes, verifiedRes, pendingRes, unmappedMembersRes, unidentifiedRes] = await Promise.all([
+
+      // Attendance data calls — always required, must succeed.
+      const [summaryRes, mappedRes, unmappedRes] = await Promise.all([
         fetchJson<Summary>("/api/attendance?summary=true"),
         fetchJson<{ data: AttendanceItem[] }>(`/api/attendance?status=mapped&search=${encoded}&from=${from}&to=${to}`),
         fetchJson<{ data: AttendanceItem[] }>(`/api/attendance?status=unmapped&search=${encoded}&from=${from}&to=${to}`),
-        fetchJson<{ data: MappingItem[]; mappedMembers: CurrentMappedMember[]; devices: DeviceItem[] }>(`/api/biometric/mappings?status=verified&search=${encoded}&includeDevices=true`),
-        fetchJson<{ data: MappingItem[] }>(`/api/biometric/mappings?status=pending&search=${encoded}`),
-        fetchJson<{ data: MemberItem[] }>(`/api/biometric/unmapped-members?search=${encoded}`),
-        fetchJson<{ unidentified: UnidentifiedItem[] }>(`/api/biometric/mappings?status=all&includeUnidentified=true&from=${from}&to=${to}`),
       ]);
 
       setSummary(summaryRes);
       setMappedAttendance(mappedRes.data);
       setUnmappedAttendance(unmappedRes.data);
+
+      // Biometric mapping calls — Growth feature only.
+      // On Essential (plan_1/standard) the /api/biometric/* endpoints return 403.
+      // Fail gracefully so the attendance section still loads.
+      const [verifiedRes, pendingRes, unmappedMembersRes, unidentifiedRes] = await Promise.all([
+        fetchJson<{ data: MappingItem[]; mappedMembers: CurrentMappedMember[]; devices: DeviceItem[] }>(`/api/biometric/mappings?status=verified&search=${encoded}&includeDevices=true`).catch(() => ({ data: [], mappedMembers: [], devices: [] })),
+        fetchJson<{ data: MappingItem[] }>(`/api/biometric/mappings?status=pending&search=${encoded}`).catch(() => ({ data: [] })),
+        fetchJson<{ data: MemberItem[] }>(`/api/biometric/unmapped-members?search=${encoded}`).catch(() => ({ data: [] })),
+        fetchJson<{ unidentified: UnidentifiedItem[] }>(`/api/biometric/mappings?status=all&includeUnidentified=true&from=${from}&to=${to}`).catch(() => ({ unidentified: [] })),
+      ]);
+
       setVerifiedMappings(verifiedRes.data);
       setCurrentMappedMembers(verifiedRes.mappedMembers ?? []);
       setDevices(verifiedRes.devices ?? []);
