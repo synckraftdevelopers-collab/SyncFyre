@@ -43,7 +43,17 @@ test("Growth phase_2 features are locked on Essential, available on Growth and S
 });
 
 test("Scale phase_3 features are locked on Essential and Growth, available on Scale", () => {
-  const scaleKeys = ["multi_branch", "enterprise_rbac", "advanced_automation", "ai_insights", "api_webhooks"] as const;
+  // All 8 canonical phase_3 registry keys must be explicitly covered here.
+  const scaleKeys = [
+    "multi_branch",
+    "enterprise_rbac",
+    "advanced_automation",
+    "retention_intelligence",
+    "revenue_intelligence",
+    "advanced_crm",
+    "ai_insights",
+    "api_webhooks",
+  ] as const;
   for (const key of scaleKeys) {
     assert.equal(evaluateFeature({ plan: "plan_1", status: "active", featureKey: key }).allowed, false, `${key} must be locked on Essential`);
     assert.equal(evaluateFeature({ plan: "plan_2", status: "active", featureKey: key }).allowed, false, `${key} must be locked on Growth`);

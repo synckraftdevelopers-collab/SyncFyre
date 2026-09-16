@@ -241,6 +241,18 @@ const SCALE_DELTA_FEATURES: PlanDisplayFeature[] = [
     description: "Connect SyncFyre with your other tools",
     bullets: ["REST API access", "Webhook support", "Premium member self-service portal"],
   },
+  {
+    featureKey: "revenue_intelligence",
+    label: "Revenue Intelligence",
+    description: "Deep revenue analytics and forecasting",
+    bullets: ["Revenue trend analysis", "Forecasting & projections", "Collection performance insights"],
+  },
+  {
+    featureKey: "advanced_crm",
+    label: "Advanced CRM Analytics",
+    description: "AI-assisted lead and member pipeline analytics",
+    bullets: ["Lead conversion analytics", "Lifetime value scoring", "Pipeline performance dashboards"],
+  },
 ];
 
 const SCALE_FEATURES: PlanDisplayFeature[] = [...GROWTH_FEATURES, ...SCALE_DELTA_FEATURES];

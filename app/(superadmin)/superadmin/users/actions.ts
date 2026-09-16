@@ -71,6 +71,6 @@ export async function createGymAdminAction(_: CreateGymState, formData: FormData
   revalidatePath("/superadmin/audit-logs");
 
   return {
-    success: `Gym, owner, main branch, and free trial created. Trial: ${tenantInfo.trial_start_date ?? "today"} to ${tenantInfo.trial_end_date ?? "1 year"}. Owner signs in and continues onboarding.`
+    success: `Gym, owner, and main branch created. Active period: ${tenantInfo.trial_start_date ?? "today"} to ${tenantInfo.trial_end_date ?? "1 year"}. Owner signs in and continues onboarding.`
   };
 }

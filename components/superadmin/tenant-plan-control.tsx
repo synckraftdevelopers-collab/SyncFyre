@@ -1,11 +1,25 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { LoaderCircle, ShieldCheck } from "lucide-react";
+import { CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
 import { assignTenantPlanAction, type PlanActionState } from "@/app/(superadmin)/superadmin/tenants/plan-actions";
-import { getCommercialPlanTier } from "@/lib/entitlements";
+import { normalizePlan } from "@/lib/entitlements/evaluate";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+/** Maps the stored DB value to a display-friendly plan name. */
+const PLAN_LABELS: Record<string, { name: string; planId: "plan_1" | "plan_2" | "plan_3" }> = {
+  plan_1: { name: "Essential", planId: "plan_1" },
+  plan_2: { name: "Growth", planId: "plan_2" },
+  plan_3: { name: "Scale", planId: "plan_3" },
+};
+
+const ALL_PLANS: Array<{ planId: "plan_1" | "plan_2" | "plan_3"; name: string; tagline: string }> = [
+  { planId: "plan_1", name: "Essential", tagline: "Phase 1" },
+  { planId: "plan_2", name: "Growth", tagline: "Phase 1 + 2" },
+  { planId: "plan_3", name: "Scale", tagline: "Phase 1 + 2 + 3" },
+];
 
 type TenantPlanControlProps = {
   tenantId: string;
@@ -14,74 +28,139 @@ type TenantPlanControlProps = {
   locked?: boolean;
 };
 
-export function TenantPlanControl({ tenantId, tenantName, storedPlan, locked = false }: TenantPlanControlProps) {
-  const isPaidPlan = getCommercialPlanTier(storedPlan) === "paid";
-  const [currentPaid, setCurrentPaid] = useState(isPaidPlan);
-  const [submittedPlan, setSubmittedPlan] = useState<"plan_1" | "plan_2" | null>(null);
-  const [state, action, pending] = useActionState<PlanActionState, FormData>(assignTenantPlanAction, {});
+export function TenantPlanControl({
+  tenantId,
+  tenantName,
+  storedPlan,
+  locked = false,
+}: TenantPlanControlProps) {
+  // Normalize the stored DB value (handles trial/standard/professional/enterprise aliases)
+  const resolvedPlanId = normalizePlan(storedPlan as Parameters<typeof normalizePlan>[0]) ?? "plan_1";
+  const [activePlanId, setActivePlanId] = useState<"plan_1" | "plan_2" | "plan_3">(resolvedPlanId);
+  const [pendingPlanId, setPendingPlanId] = useState<"plan_1" | "plan_2" | "plan_3" | null>(null);
+  const [state, formAction, isSubmitting] = useActionState<PlanActionState, FormData>(
+    assignTenantPlanAction,
+    {},
+  );
 
+  // Sync back if a successful assignment was confirmed by the server
   useEffect(() => {
-    if (!pending && !submittedPlan) setCurrentPaid(isPaidPlan);
-  }, [isPaidPlan, pending, submittedPlan]);
-
-  useEffect(() => {
-    if (state.success && submittedPlan) {
-      setCurrentPaid(submittedPlan === "plan_2");
-      setSubmittedPlan(null);
-      return;
+    if (state.success && pendingPlanId) {
+      setActivePlanId(pendingPlanId);
+      setPendingPlanId(null);
     }
-    if (state.error && submittedPlan) {
-      setCurrentPaid(isPaidPlan);
-      setSubmittedPlan(null);
+    if (state.error && pendingPlanId) {
+      // Revert optimistic update on error
+      setPendingPlanId(null);
     }
-  }, [isPaidPlan, state.error, state.success, submittedPlan]);
+  }, [state.success, state.error, pendingPlanId]);
 
-  const nextPlanId = currentPaid ? "plan_1" : "plan_2";
-  const label = currentPaid ? "Phase 2 / Paid" : "Phase 1 / Free";
-  const statusLabel = currentPaid ? "Plan 2 active" : "Plan 1 active";
+  async function handleSelect(planId: "plan_1" | "plan_2" | "plan_3") {
+    if (locked || isSubmitting || planId === activePlanId) return;
 
-  async function submit(formData: FormData) {
-    if (!window.confirm(`Change ${tenantName} to ${currentPaid ? "Phase 1 / Free" : "Phase 2 / Paid"}?`)) return;
-    setSubmittedPlan(nextPlanId);
-    await action(formData);
+    const targetName = PLAN_LABELS[planId]?.name ?? planId;
+    const confirmed = window.confirm(
+      `Change ${tenantName} to the ${targetName} plan?\n\nThis updates the tenant's plan immediately. Feature access changes take effect on next page load.`,
+    );
+    if (!confirmed) return;
+
+    setPendingPlanId(planId);
+
+    const formData = new FormData();
+    formData.set("tenant_id", tenantId);
+    formData.set("plan_id", planId);
+    await formAction(formData);
   }
 
-  return (
-    <div className="min-w-[280px] space-y-2">
-      <form action={submit} className="space-y-2">
-        <input type="hidden" name="tenant_id" value={tenantId} />
-        <input type="hidden" name="plan_id" value={nextPlanId} />
-        <Button
-          type="submit"
-          variant="outline"
-          disabled={pending || locked}
-          className={`relative h-auto w-full justify-start overflow-hidden rounded-2xl border px-3 py-3 text-left transition-colors ${
-            currentPaid ? "border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15" : "border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15"
-          }`}
-        >
-          <span className={`inline-flex size-12 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tracking-[0.24em] ${currentPaid ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"}`}>
-            {pending ? <LoaderCircle className="size-4 animate-spin" /> : currentPaid ? "ON" : "OFF"}
-          </span>
-          <span className="ml-3 flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">Plan</span>
-            <span className="text-xs text-muted-foreground">{label}</span>
-            <span className="truncate text-sm font-semibold">{statusLabel}</span>
-          </span>
-          <span className="ml-3 inline-flex shrink-0 items-center rounded-full bg-background/80 px-3 py-1 text-xs font-semibold text-foreground ring-1 ring-border">
-            {pending ? "Updating plan..." : locked ? "Protected tenant" : currentPaid ? "Switch to Free" : "Switch to Paid"}
-          </span>
-        </Button>
-      </form>
+  const displayPlanId = pendingPlanId ?? activePlanId;
 
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">{currentPaid ? "Toggle is ON" : "Toggle is OFF"}</p>
-        {locked ? <Badge variant="outline">Protected</Badge> : <Badge variant={currentPaid ? "success" : "secondary"}>{label}</Badge>}
+  return (
+    <div className="min-w-[260px] space-y-2">
+      {/* Plan selector buttons */}
+      <div className="flex flex-col gap-1.5">
+        {ALL_PLANS.map((plan) => {
+          const isActive = plan.planId === displayPlanId;
+          const isPending = isSubmitting && pendingPlanId === plan.planId;
+
+          return (
+            <button
+              key={plan.planId}
+              type="button"
+              disabled={locked || isSubmitting}
+              onClick={() => void handleSelect(plan.planId)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-colors",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+                isActive
+                  ? "border-primary/40 bg-primary/10 font-semibold text-primary"
+                  : "border-border hover:bg-muted/60 text-muted-foreground hover:text-foreground",
+              )}
+              aria-pressed={isActive}
+              aria-label={`Set plan to ${plan.name}`}
+            >
+              <span
+                className={cn(
+                  "grid size-5 shrink-0 place-items-center rounded-full border-2 text-[10px]",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground/30 bg-transparent",
+                )}
+              >
+                {isPending ? (
+                  <LoaderCircle className="size-3 animate-spin" />
+                ) : isActive ? (
+                  <CheckCircle2 className="size-3.5" />
+                ) : null}
+              </span>
+              <span className="flex-1">
+                <span className="block leading-none">{plan.name}</span>
+                <span className="block text-[11px] text-muted-foreground leading-tight mt-0.5">
+                  {plan.tagline}
+                </span>
+              </span>
+              {isActive && (
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-primary/40 text-primary text-[10px] px-1.5 py-0"
+                >
+                  Active
+                </Badge>
+              )}
+            </button>
+          );
+        })}
       </div>
-      {state.success ? <p className="text-xs text-emerald-700">{state.success}</p> : null}
-      {state.error ? <p className="text-xs text-red-600">{state.error}</p> : null}
+
+      {/* Status / feedback */}
+      <div className="flex items-center justify-between gap-2 pt-0.5">
+        <p className="text-xs text-muted-foreground">
+          {isSubmitting
+            ? "Updating plan..."
+            : `${PLAN_LABELS[displayPlanId]?.name ?? displayPlanId} active`}
+        </p>
+        {locked ? (
+          <Badge variant="outline">Protected</Badge>
+        ) : (
+          <Badge variant={displayPlanId === "plan_1" ? "secondary" : "success"}>
+            {PLAN_LABELS[displayPlanId]?.name ?? displayPlanId}
+          </Badge>
+        )}
+      </div>
+
+      {state.success ? (
+        <p className="text-xs text-emerald-700">{state.success}</p>
+      ) : null}
+      {state.error ? (
+        <p className="text-xs text-red-600">{state.error}</p>
+      ) : null}
+
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <ShieldCheck className="size-3.5" />
-        <span>{locked ? "Talwalkar Gym is protected." : "SuperAdmin-only plan control."}</span>
+        <ShieldCheck className="size-3.5 shrink-0" />
+        <span>
+          {locked
+            ? "Talwalkar Gym is protected — plan cannot be changed."
+            : "SuperAdmin-only plan control."}
+        </span>
       </div>
     </div>
   );

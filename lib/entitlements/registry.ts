@@ -41,7 +41,11 @@ export const FEATURE_REGISTRY = {
   advanced_crm: { phase: "phase_3", label: "Advanced CRM analytics" },
   ai_insights: { phase: "phase_3", label: "AI business intelligence" },
   api_webhooks: { phase: "phase_3", label: "APIs and webhooks" },
-  member_portal: { phase: "phase_3", label: "Premium member self-service" },
+  // member_portal: the /member portal is fully built and available on all plans.
+  // System B (lib/phases/registry.ts), migration 0043, and lib/config/defaults.ts
+  // all classify it as PHASE_1. The "premium" self-service tier (in-app upgrades,
+  // group bookings, etc.) does not exist yet — when built it will use a separate key.
+  member_portal: { phase: "phase_1", label: "Member self-service portal" },
 } as const satisfies Record<string, { phase: PhaseId; label: string }>;
 
 export type SaaSFeatureKey = keyof typeof FEATURE_REGISTRY;

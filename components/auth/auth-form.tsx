@@ -23,7 +23,7 @@ export function AuthForm({ action, mode }: { action: (state: AuthState, data: Fo
     login: ["Welcome back", "Sign in to your account"],
     forgot: ["Forgot password?", "We'll email you a secure reset link"],
     reset: ["Create a new password", "Choose a strong password for your account"],
-    register: ["Create Your Gym / Business Account", "Start your 1-year free trial. No payment required."],
+    register: ["Create Your Gym / Business Account", "Set up your gym on SyncFyre. No payment required to get started."],
   }[mode];
 
   return <div className="w-full max-w-md">
@@ -40,7 +40,7 @@ export function AuthForm({ action, mode }: { action: (state: AuthState, data: Fo
       {state.redirectTo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" />Redirecting...</p>}
       {mode === "login" && <Link className="block text-sm font-medium text-primary hover:underline" href="/forgot-password">Forgot password?</Link>}
       <Button className="h-11 w-full" disabled={pending || Boolean(state.redirectTo)}>{(pending || state.redirectTo) && <LoaderCircle className="size-4 animate-spin" />}{mode === "login" ? "Sign In" : mode === "forgot" ? "Send reset link" : mode === "reset" ? "Update password" : "Create account"}</Button>
-      {mode === "login" && <div className="pt-3 text-center text-sm"><p className="text-muted-foreground">Don&apos;t have an account?</p><Link href="/register" className="mt-2 inline-block font-semibold text-primary hover:underline">Start your free trial</Link></div>}
+      {mode === "login" && <div className="pt-3 text-center text-sm"><p className="text-muted-foreground">Don&apos;t have an account?</p><a href="https://syncfyre.com/book-demo" target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-semibold text-primary hover:underline">Book a demo</a></div>}
       {mode === "register" && <div className="pt-3 text-center text-sm"><p className="text-muted-foreground">Already have an account?</p><Link href="/login" className="mt-2 inline-block font-semibold text-primary hover:underline">Sign in</Link></div>}
       {mode === "login" && <section aria-label="Legal agreements" className="mx-auto max-w-sm px-2 pt-4 text-center text-xs leading-5 text-muted-foreground">
         <p>

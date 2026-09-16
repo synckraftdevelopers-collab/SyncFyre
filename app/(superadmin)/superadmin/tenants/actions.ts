@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { getCommercialPlanTier } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type UpdateTenantState = { error?: string; success?: string };
@@ -20,7 +19,12 @@ function normalizePlanValue(value: string | null | undefined, fallback?: string 
 }
 
 function describePlan(plan: string | null | undefined) {
-  return getCommercialPlanTier(plan) === "free" ? "Phase 1 / Free" : "Phase 2 / Paid";
+  // Normalize to canonical plan_1/2/3 so legacy aliases (trial, standard, professional, enterprise) are handled
+  const p = String(plan ?? "").trim().toLowerCase();
+  if (p === "plan_3" || p === "enterprise") return "Scale (Plan 3)";
+  if (p === "plan_2" || p === "professional") return "Growth (Plan 2)";
+  // trial, standard, plan_1, or unknown → Essential
+  return "Essential (Plan 1)";
 }
 
 export async function updateTenantAction(stateOrFormData: UpdateTenantState | FormData, maybeFormData?: FormData): Promise<UpdateTenantState> {
