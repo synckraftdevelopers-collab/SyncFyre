@@ -4,7 +4,7 @@ import { generateMachineIdForMember } from "@/services/biometric-admin.service";
 
 export async function POST(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !["admin", "manager", "reception"].includes(profile.role?.slug ?? "")) {
+  if (!profile || !["owner", "admin", "manager", "reception"].includes(profile.role?.slug ?? "")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

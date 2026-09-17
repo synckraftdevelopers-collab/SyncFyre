@@ -810,10 +810,10 @@ export async function getRetentionIntelligence(params: {
 
   let attQuery = supabase
     .from("attendance")
-    .select("member_id,check_in_time")
+    .select("member_id,entry_time")
     .in("member_id", memberIds)
-    .gte("check_in_time", thirtyDaysAgo.toISOString())
-    .order("check_in_time", { ascending: false });
+    .gte("entry_time", thirtyDaysAgo.toISOString())
+    .order("entry_time", { ascending: false });
 
   if (branchId) attQuery = attQuery.eq("branch_id", branchId);
   else if (tenantId) attQuery = attQuery.eq("tenant_id", tenantId);
@@ -823,7 +823,7 @@ export async function getRetentionIntelligence(params: {
   const lastAttendance = new Map<string, Date>();
   for (const att of attendance ?? []) {
     if (!lastAttendance.has(att.member_id)) {
-      lastAttendance.set(att.member_id, new Date(att.check_in_time as string));
+      lastAttendance.set(att.member_id, new Date(att.entry_time as string));
     }
   }
 

@@ -93,7 +93,7 @@ export async function getRecentAttendance(branchId?: string | null, limit = 5) {
   const supabase = await createClient();
   let q = supabase
     .from("attendance")
-    .select("id, attendance_date, entry_time_ist, member_id, members(full_name, member_code)")
+    .select("id, attendance_date, entry_time, member_id, members(full_name, member_code)")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (branchId) q = q.eq("branch_id", branchId);
@@ -101,7 +101,7 @@ export async function getRecentAttendance(branchId?: string | null, limit = 5) {
   return (data ?? []) as unknown as Array<{
     id: string;
     attendance_date: string;
-    entry_time_ist: string | null;
+    entry_time: string | null;
     member_id: string;
     members: { full_name: string; member_code: string } | null;
   }>;

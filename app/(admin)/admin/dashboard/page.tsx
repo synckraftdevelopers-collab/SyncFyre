@@ -363,8 +363,10 @@ export default async function AdminDashboardPage() {
                         {a.members?.member_code} · {format(parseISO(a.attendance_date), "dd MMM yyyy")}
                       </p>
                     </div>
-                    {a.entry_time_ist && (
-                      <span className="text-xs text-muted-foreground">{a.entry_time_ist}</span>
+                    {a.entry_time && (
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(a.entry_time).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit" })}
+                      </span>
                     )}
                   </li>
                 ))}

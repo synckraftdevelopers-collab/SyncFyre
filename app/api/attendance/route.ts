@@ -4,7 +4,7 @@ import { getAttendanceSummary, listNormalizedAttendance } from "@/services/biome
 
 export async function GET(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !["admin", "manager", "reception"].includes(profile.role?.slug ?? "")) {
+  if (!profile || !["owner", "admin", "manager", "reception"].includes(profile.role?.slug ?? "")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -4,7 +4,7 @@ import { resolveAttendanceException } from "@/services/workflow.service";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getCurrentProfile();
-  if (!profile || !["admin", "manager", "reception"].includes(profile.role?.slug ?? "")) {
+  if (!profile || !["owner", "admin", "manager", "reception"].includes(profile.role?.slug ?? "")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

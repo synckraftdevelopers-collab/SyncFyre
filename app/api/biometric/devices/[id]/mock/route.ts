@@ -30,7 +30,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  await requireUser(["admin", "manager"]);
+  await requireUser(["owner", "admin", "manager"]);
   if (!biometricMockEnabled()) {
     return NextResponse.json({ error: "Biometric mock mode is disabled." }, { status: 403 });
   }

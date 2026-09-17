@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const profile = await getCurrentProfile();
-  if (!profile || !["admin", "manager", "reception"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!profile || !["owner", "admin", "manager", "reception"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const parsed = memberSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Validation failed", issues: parsed.error.flatten() }, { status: 422 });
   try { return NextResponse.json(await createMember(parsed.data, profile.id, profile.tenant_id), { status: 201 }); }
