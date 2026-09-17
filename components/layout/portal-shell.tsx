@@ -106,7 +106,7 @@ function PortalShellFrame({
           branchTimezone={branchTimezone}
         />
         <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
-        <MobileBottomNav portal={portal} userRole={userRole} visibleNavHrefs={visibleNavHrefs} onMore={handleMenu} commercialPlanTier={commercialPlanTier} phaseSnapshot={phaseSnapshot} />
+        <MobileBottomNav portal={portal} userRole={userRole} visibleNavHrefs={visibleNavHrefs} onMore={handleMenu} commercialPlanTier={commercialPlanTier} phaseSnapshot={phaseSnapshot} currentPlanKey={currentPlanKey} />
       </div>
     </div>
   );

@@ -64,6 +64,11 @@ const FEATURE_ROUTE_PREFIXES: { prefix: string; feature: SaaSFeatureKey }[] = [
   // Revenue report is an advanced/Growth feature; other /admin/reports/* are basic (Essential)
   { prefix: "/admin/reports/revenue", feature: "advanced_reports" },
   { prefix: "/api/reports", feature: "advanced_reports" },
+  // Phase 3 / Scale features
+  { prefix: "/admin/branches", feature: "multi_branch" },
+  { prefix: "/api/branches", feature: "multi_branch" },
+  { prefix: "/admin/audit-logs", feature: "enterprise_rbac" },
+  { prefix: "/admin/retention", feature: "retention_intelligence" },
 ];
 
 function featureForPath(pathname: string): SaaSFeatureKey | null {

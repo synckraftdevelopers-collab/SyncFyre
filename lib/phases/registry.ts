@@ -1,14 +1,16 @@
-export const SYSTEM_PHASE_KEYS = ["PHASE_1", "PHASE_2"] as const;
+export const SYSTEM_PHASE_KEYS = ["PHASE_1", "PHASE_2", "PHASE_3"] as const;
 export type SystemPhaseKey = (typeof SYSTEM_PHASE_KEYS)[number];
 
 export const SYSTEM_PHASE_NAMES: Record<SystemPhaseKey, string> = {
   PHASE_1: "Phase 1",
   PHASE_2: "Phase 2",
+  PHASE_3: "Phase 3",
 };
 
 export const SYSTEM_PHASE_NUMBERS: Record<SystemPhaseKey, number> = {
   PHASE_1: 1,
   PHASE_2: 2,
+  PHASE_3: 3,
 };
 
 export type PhaseRecordStatus = "active" | "locked";
@@ -44,7 +46,11 @@ export type PhaseFeatureKey =
   | "classes_management"
   | "member_portal"
   | "settings_biometric"
-  | "machine_access";
+  | "machine_access"
+  | "audit_logs"
+  | "revenue_intelligence"
+  | "advanced_crm"
+  | "retention_intelligence";
 
 export type PhaseFeatureDefinition = {
   feature_key: PhaseFeatureKey;
@@ -104,7 +110,7 @@ export const FEATURE_REGISTRY: Record<PhaseFeatureKey, PhaseFeatureDefinition> =
   },
   reports: { feature_key: "reports", name: "Reports", phase: "PHASE_1", pathnames: ["/admin/reports"], apiPrefixes: ["/api/reports"] },
   advanced_reports: { feature_key: "advanced_reports", name: "Advanced Reports", phase: "PHASE_2", pathnames: ["/admin/reports/attendance", "/admin/reports/members", "/admin/reports/payments", "/admin/reports/revenue"] },
-  multi_branch: { feature_key: "multi_branch", name: "Multi Branch", phase: "PHASE_2", pathnames: ["/superadmin/tenants"] },
+  multi_branch: { feature_key: "multi_branch", name: "Multi Branch", phase: "PHASE_3", pathnames: ["/admin/branches"] },
   advanced_analytics: { feature_key: "advanced_analytics", name: "Advanced Analytics", phase: "PHASE_2", pathnames: ["/superadmin/reports"] },
   whatsapp: { feature_key: "whatsapp", name: "WhatsApp", phase: "PHASE_2", pathnames: [], apiPrefixes: ["/api/whatsapp"] },
   api: { feature_key: "api", name: "API", phase: "PHASE_2", pathnames: [] },
@@ -116,6 +122,11 @@ export const FEATURE_REGISTRY: Record<PhaseFeatureKey, PhaseFeatureDefinition> =
   member_portal: { feature_key: "member_portal", name: "Member Portal", phase: "PHASE_1", pathnames: ["/member"] },
   settings_biometric: { feature_key: "settings_biometric", name: "Biometric Settings", phase: "PHASE_2", pathnames: [], apiPrefixes: [] },
   machine_access: { feature_key: "machine_access", name: "Machine Access", phase: "PHASE_2", pathnames: ["/machine", "/machine/connect", "/iclock"], apiPrefixes: ["/iclock"] },
+  // Phase 3 / Scale features
+  audit_logs: { feature_key: "audit_logs", name: "Audit Logs", phase: "PHASE_3", pathnames: ["/admin/audit-logs"] },
+  revenue_intelligence: { feature_key: "revenue_intelligence", name: "Revenue Intelligence", phase: "PHASE_3", pathnames: ["/admin/reports/revenue"] },
+  advanced_crm: { feature_key: "advanced_crm", name: "Advanced CRM Analytics", phase: "PHASE_3", pathnames: ["/admin/leads"] },
+  retention_intelligence: { feature_key: "retention_intelligence", name: "Retention Intelligence", phase: "PHASE_3", pathnames: ["/admin/retention"] },
 };
 
 export const SYSTEM_PHASE_ORDER = SYSTEM_PHASE_KEYS.reduce<Record<SystemPhaseKey, number>>((acc, phase) => {

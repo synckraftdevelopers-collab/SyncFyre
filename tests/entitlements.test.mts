@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { evaluateFeature, storedPlanForProduct } from "../lib/entitlements/evaluate.ts";
-import { FEATURE_REGISTRY as PHASE_REGISTRY } from "../lib/phases/registry.ts";
+import { FEATURE_REGISTRY as PHASE_REGISTRY, SYSTEM_PHASE_KEYS, SYSTEM_PHASE_NUMBERS } from "../lib/phases/registry.ts";
 
 // ─── System A (canonical backend) ──────────────────────────────────────────
 
@@ -111,4 +111,20 @@ test("System B: always-available base nav features are PHASE_1", () => {
     assert.ok(def, `${key} must exist in System B registry`);
     assert.equal(def.phase, "PHASE_1", `${key} must be PHASE_1 in System B`);
   }
+});
+
+// ─── System B Phase 3 ────────────────────────────────────────────────────────
+
+test("System B: multi_branch is PHASE_3 with correct admin pathname", () => {
+  const def = PHASE_REGISTRY["multi_branch"];
+  assert.ok(def, "multi_branch must exist in System B registry");
+  assert.equal(def.phase, "PHASE_3", "multi_branch must be PHASE_3 (not PHASE_2) in System B");
+  assert.ok(def.pathnames?.includes("/admin/branches"), "multi_branch pathnames must include /admin/branches");
+});
+
+test("System B: PHASE_3 exists as a valid system phase key", () => {
+  assert.ok((SYSTEM_PHASE_KEYS as readonly string[]).includes("PHASE_3"), "PHASE_3 must be in SYSTEM_PHASE_KEYS");
+  assert.equal(SYSTEM_PHASE_NUMBERS["PHASE_3"], 3, "PHASE_3 must have phase_number 3");
+  const allPhases = new Set(Object.values(PHASE_REGISTRY).map((def) => def.phase));
+  assert.ok(allPhases.has("PHASE_3"), "PHASE_3 must appear in at least one feature entry");
 });

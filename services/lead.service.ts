@@ -93,3 +93,156 @@ export async function listLeadActivities(tenantId: string, branchId: string) {
   if (error) throw new Error(error.message);
   return data ?? [];
 }
+
+
+// ─── Advanced CRM Analytics (Phase 3 / Scale) ────────────────────────────────
+
+export type StageConversionRate = {
+  stage: string;
+  count: number;
+  convertedCount: number;
+  conversionRate: number; // 0-100
+};
+
+export type AdvancedCrmAnalyticsResult = {
+  totalLeads: number;
+  wonLeads: number;
+  overallConversionRate: number;        // 0-100 percentage
+  avgDaysToConvert: number | null;      // null if no conversions yet
+  stageBreakdown: StageConversionRate[];
+  pipelineVelocity: Record<string, number>; // stage -> avg days spent there
+};
+
+/**
+ * Scale-exclusive CRM analytics.
+ *
+ * Computes:
+ *  - Overall lead-to-member conversion rate
+ *  - Average days to convert (created_at → converted_at)
+ *  - Per-stage breakdown with conversion counts
+ *  - Pipeline velocity (avg days a lead spends in each stage)
+ *
+ * Uses existing leads and lead_activities tables — no new DB tables.
+ */
+export async function getAdvancedCrmAnalytics(
+  tenantId: string,
+  branchId?: string | null,
+): Promise<AdvancedCrmAnalyticsResult> {
+  const supabase = await createClient();
+
+  // Fetch all leads for this tenant/branch
+  let leadsQuery = supabase
+    .from("leads")
+    .select("id,stage,created_at,converted_at,lost_reason")
+    .eq("tenant_id", tenantId);
+
+  if (branchId) leadsQuery = leadsQuery.eq("branch_id", branchId);
+
+  const { data: leads, error } = await leadsQuery;
+  if (error) throw new Error(error.message);
+
+  const allLeads = leads ?? [];
+  const totalLeads = allLeads.length;
+  const wonLeads = allLeads.filter((l) => l.stage === "won").length;
+  const overallConversionRate =
+    totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
+
+  // Average days to convert (only for won leads with converted_at)
+  const convertedWithTime = allLeads.filter(
+    (l) => l.stage === "won" && l.converted_at && l.created_at,
+  );
+  let avgDaysToConvert: number | null = null;
+  if (convertedWithTime.length > 0) {
+    const totalDays = convertedWithTime.reduce((sum, l) => {
+      const diff =
+        new Date(l.converted_at as string).getTime() -
+        new Date(l.created_at as string).getTime();
+      return sum + diff / (1000 * 60 * 60 * 24);
+    }, 0);
+    avgDaysToConvert = Math.round(totalDays / convertedWithTime.length);
+  }
+
+  // Per-stage breakdown
+  const stageCounts: Record<string, number> = {};
+  for (const l of allLeads) {
+    stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1;
+  }
+
+  const stageBreakdown: StageConversionRate[] = LEAD_STAGES.map((stage) => {
+    const count = stageCounts[stage] ?? 0;
+    // For conversion rate per stage: % of leads that reached this stage and later became "won"
+    const reachedStage = allLeads.filter((l) => {
+      const stageOrder = LEAD_STAGES.indexOf(l.stage as typeof LEAD_STAGES[number]);
+      const thisOrder = LEAD_STAGES.indexOf(stage);
+      return stageOrder >= thisOrder || l.stage === "won";
+    }).length;
+    const stageWon = allLeads.filter((l) => l.stage === "won").length;
+    const conversionRate =
+      reachedStage > 0 ? Math.round((stageWon / reachedStage) * 100) : 0;
+    return { stage, count, convertedCount: stageWon, conversionRate };
+  });
+
+  // Pipeline velocity: avg days spent in each stage (from lead_activities transitions)
+  let activitiesQuery = supabase
+    .from("lead_activities")
+    .select("lead_id,previous_stage,next_stage,created_at")
+    .eq("tenant_id", tenantId)
+    .eq("activity_type", "stage_changed")
+    .order("created_at", { ascending: true });
+
+  if (branchId) activitiesQuery = activitiesQuery.eq("branch_id", branchId);
+
+  const { data: activities } = await activitiesQuery;
+
+  // Group transitions by lead
+  const transitionsByLead = new Map<
+    string,
+    Array<{ prevStage: string | null; nextStage: string | null; at: Date }>
+  >();
+  for (const act of activities ?? []) {
+    const arr = transitionsByLead.get(act.lead_id) ?? [];
+    arr.push({
+      prevStage: act.previous_stage as string | null,
+      nextStage: act.next_stage as string | null,
+      at: new Date(act.created_at as string),
+    });
+    transitionsByLead.set(act.lead_id, arr);
+  }
+
+  // Calculate days per stage
+  const stageDaysTotal: Record<string, number> = {};
+  const stageDaysCount: Record<string, number> = {};
+
+  for (const [leadId, transitions] of transitionsByLead.entries()) {
+    const lead = allLeads.find((l) => l.id === leadId);
+    if (!lead) continue;
+    let prevTime = new Date(lead.created_at as string);
+    for (const t of transitions) {
+      if (t.prevStage) {
+        const days =
+          (t.at.getTime() - prevTime.getTime()) / (1000 * 60 * 60 * 24);
+        stageDaysTotal[t.prevStage] =
+          (stageDaysTotal[t.prevStage] ?? 0) + days;
+        stageDaysCount[t.prevStage] =
+          (stageDaysCount[t.prevStage] ?? 0) + 1;
+      }
+      prevTime = t.at;
+    }
+  }
+
+  const pipelineVelocity: Record<string, number> = {};
+  for (const stage of LEAD_STAGES) {
+    const total = stageDaysTotal[stage] ?? 0;
+    const count = stageDaysCount[stage] ?? 0;
+    pipelineVelocity[stage] = count > 0 ? Math.round(total / count) : 0;
+  }
+
+  return {
+    totalLeads,
+    wonLeads,
+    overallConversionRate,
+    avgDaysToConvert,
+    stageBreakdown,
+    pipelineVelocity,
+  };
+}

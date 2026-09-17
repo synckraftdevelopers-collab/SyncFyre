@@ -142,47 +142,101 @@ export function PortalSidebar({
   const label = portalLabel[portal];
 
   /**
-   * For Essential users (commercialPlanTier === "free"), split nav into two groups:
-   *   1. Available items (Phase 1 / no phase key / not locked)
-   *   2. Locked items (Phase 2 / locked by commercial rule)
-   * This gives a clean "Your features → Growth features" ordering.
-   * For paid users all items render in their natural order with no separator.
+   * Three-tier nav grouping based on commercial plan:
+   *
+   *  Essential (plan_1 / "free"):
+   *    - Available: Phase 1 items
+   *    - "Growth features" separator
+   *    - Locked Phase 2 items
+   *    - "Scale features" separator
+   *    - Locked Phase 3 items
+   *
+   *  Growth (plan_2):
+   *    - All Phase 1 + Phase 2 items (available)
+   *    - "Scale features" separator
+   *    - Locked Phase 3 items
+   *
+   *  Scale (plan_3):
+   *    - All items available, no separators
    */
   type NavGroup =
     | { type: "item"; item: (typeof filteredNavigation)[number] }
-    | { type: "separator" };
+    | { type: "separator"; label: string; key: string };
+
+  const isScale = currentPlanKey === "scale";
+  const isGrowthOrAbove = currentPlanKey === "growth" || currentPlanKey === "scale";
 
   const navGroups: NavGroup[] = (() => {
-    if (commercialPlanTier !== "free") {
+    // Scale: no locking, no separators
+    if (isScale) {
       return filteredNavigation.map((item) => ({ type: "item" as const, item }));
     }
 
+    // Growth: Phase 2 available, Phase 3 locked
+    if (isGrowthOrAbove) {
+      const available: (typeof filteredNavigation)[number][] = [];
+      const scaleLocked: (typeof filteredNavigation)[number][] = [];
+
+      for (const item of filteredNavigation) {
+        const phaseFeature = item.featureKey && phaseSnapshot
+          ? phaseSnapshot.featureMap[item.featureKey]
+          : null;
+        // Phase 3 items have phase_number 3 > current phase 2 → status "locked"
+        const isPhase3Locked = phaseFeature?.phase === "PHASE_3";
+
+        if (isPhase3Locked) {
+          scaleLocked.push(item);
+        } else {
+          available.push(item);
+        }
+      }
+
+      if (!scaleLocked.length) {
+        return available.map((item) => ({ type: "item" as const, item }));
+      }
+
+      return [
+        ...available.map((item) => ({ type: "item" as const, item })),
+        { type: "separator" as const, label: "Scale features", key: "scale-separator" },
+        ...scaleLocked.map((item) => ({ type: "item" as const, item })),
+      ];
+    }
+
+    // Essential: Phase 2 locked, Phase 3 also locked
     const available: (typeof filteredNavigation)[number][] = [];
-    const locked: (typeof filteredNavigation)[number][] = [];
+    const growthLocked: (typeof filteredNavigation)[number][] = [];
+    const scaleLocked: (typeof filteredNavigation)[number][] = [];
 
     for (const item of filteredNavigation) {
       const phaseFeature = item.featureKey && phaseSnapshot
         ? phaseSnapshot.featureMap[item.featureKey]
         : null;
       const phaseLocked = phaseFeature?.status === "locked";
+      const isPhase3 = phaseFeature?.phase === "PHASE_3";
       const hasLockedRule = !phaseLocked ? Boolean(getCommercialRouteRule(item.href)) : false;
 
-      if (phaseLocked || hasLockedRule) {
-        locked.push(item);
+      if (isPhase3) {
+        scaleLocked.push(item);
+      } else if (phaseLocked || hasLockedRule) {
+        growthLocked.push(item);
       } else {
         available.push(item);
       }
     }
 
-    if (!locked.length) {
-      return available.map((item) => ({ type: "item" as const, item }));
+    const groups: NavGroup[] = available.map((item) => ({ type: "item" as const, item }));
+
+    if (growthLocked.length) {
+      groups.push({ type: "separator" as const, label: "Growth features", key: "growth-separator" });
+      for (const item of growthLocked) groups.push({ type: "item" as const, item });
     }
 
-    return [
-      ...available.map((item) => ({ type: "item" as const, item })),
-      { type: "separator" as const },
-      ...locked.map((item) => ({ type: "item" as const, item })),
-    ];
+    if (scaleLocked.length) {
+      groups.push({ type: "separator" as const, label: "Scale features", key: "scale-separator" });
+      for (const item of scaleLocked) groups.push({ type: "item" as const, item });
+    }
+
+    return groups;
   })();
 
   return (
@@ -256,7 +310,7 @@ export function PortalSidebar({
           {navGroups.map((group) => {
             if (group.type === "separator") {
               return (
-                <div key="growth-separator" className="px-3 pb-1 pt-3">
+                <div key={group.key} className="px-3 pb-1 pt-3">
                   <div className="flex items-center gap-2">
                     <div className="h-px flex-1 bg-white/10" />
                     <span
@@ -266,7 +320,7 @@ export function PortalSidebar({
                         "block",
                       )}
                     >
-                      Growth features
+                      {group.label}
                     </span>
                     <div className="h-px flex-1 bg-white/10" />
                   </div>
@@ -276,8 +330,12 @@ export function PortalSidebar({
 
             const { label: navLabel, href, icon: Icon, exact, featureKey } = group.item;
             const phaseFeature = featureKey && phaseSnapshot ? phaseSnapshot.featureMap[featureKey] : null;
-            const phaseLocked = phaseFeature?.status === "locked" && commercialPlanTier === "free";
-            const lockedRule = !phaseLocked && commercialPlanTier === "free" ? getCommercialRouteRule(href) : null;
+            // An item is phase-locked when the snapshot says locked AND the user is not on a plan that allows it
+            const isPhase3Feature = phaseFeature?.phase === "PHASE_3";
+            const phaseLocked = phaseFeature?.status === "locked" && (
+              isPhase3Feature ? !isScale : !isGrowthOrAbove
+            );
+            const lockedRule = !phaseLocked && !isGrowthOrAbove ? getCommercialRouteRule(href) : null;
             const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
 
             if (phaseLocked) {

@@ -81,3 +81,25 @@ export async function recordLeadActivityAction(formData: FormData): Promise<{ er
     return { success: "Lead activity recorded." };
   } catch (error) { return { error: error instanceof Error ? error.message : "Unable to record activity." }; }
 }
+
+// ─── Advanced CRM Analytics action (Scale only) ────────────────────────────
+
+export async function getAdvancedCrmAction(): Promise<{
+  data: import("@/services/lead.service").AdvancedCrmAnalyticsResult | null;
+  error?: string;
+}> {
+  const profile = await requireUser(["owner", "admin", "manager"]);
+  if (!(await hasCurrentFeature("advanced_crm"))) {
+    return { data: null, error: "Advanced CRM Analytics requires the Scale plan." };
+  }
+  if (!profile.tenant_id) {
+    return { data: null, error: "Your account is not linked to an organization." };
+  }
+  try {
+    const { getAdvancedCrmAnalytics } = await import("@/services/lead.service");
+    const data = await getAdvancedCrmAnalytics(profile.tenant_id, profile.branch_id);
+    return { data };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : "Unable to load CRM analytics." };
+  }
+}

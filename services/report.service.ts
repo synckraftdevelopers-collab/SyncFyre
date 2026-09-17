@@ -537,3 +537,401 @@ export async function getMonthlyJoiningSummary(
     (a, b) => b.join_month.localeCompare(a.join_month)
   );
 }
+
+// ─── 10. Revenue Intelligence (Phase 3 / Scale) ───────────────────────────────
+
+export type MoMEntry = {
+  month: string;       // "YYYY-MM"
+  label: string;       // e.g. "Aug 2026"
+  revenue: number;
+};
+
+export type ForecastEntry = {
+  month: string;
+  label: string;
+  forecast: number;
+};
+
+export type RevenueIntelligenceResult = {
+  monthlyTrend: MoMEntry[];
+  forecast: ForecastEntry[];
+  collectionEfficiency: number; // 0-100 percentage
+  revenuePerMember: number;     // average INR per active member
+};
+
+/**
+ * Scale-exclusive revenue intelligence analytics.
+ *
+ * Computes:
+ *  - Month-over-month revenue trend (last 6 months)
+ *  - 3-month linear forecast
+ *  - Collection efficiency (collected / invoiced × 100)
+ *  - Revenue per active member
+ *
+ * Uses existing payments, invoices, and members tables — no new DB tables needed.
+ */
+export async function getRevenueIntelligence(params: {
+  branchId?: string | null;
+  tenantId?: string | null;
+}): Promise<RevenueIntelligenceResult> {
+  const { branchId, tenantId } = params;
+  const supabase = await createClient();
+
+  // ── last 6 full months ────────────────────────────────────────────────────
+  const now = new Date();
+  const months: { month: string; label: string }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("en-IN", { month: "short", year: "numeric" });
+    months.push({ month, label });
+  }
+  const startDate = months[0].month + "-01";
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
+
+  // ── fetch completed payments ──────────────────────────────────────────────
+  let payQuery = supabase
+    .from("payments")
+    .select("amount,payment_date")
+    .eq("payment_status", "completed")
+    .gte("payment_date", startDate)
+    .lte("payment_date", endDate);
+
+  if (branchId) payQuery = payQuery.eq("branch_id", branchId);
+  else if (tenantId) payQuery = payQuery.eq("tenant_id", tenantId);
+
+  const { data: payments } = await payQuery;
+
+  // aggregate by month
+  const revenueByMonth = new Map<string, number>();
+  for (const { month } of months) revenueByMonth.set(month, 0);
+  for (const p of payments ?? []) {
+    const m = (p.payment_date as string).slice(0, 7);
+    if (revenueByMonth.has(m)) {
+      revenueByMonth.set(m, (revenueByMonth.get(m) ?? 0) + Number(p.amount));
+    }
+  }
+
+  const monthlyTrend: MoMEntry[] = months.map(({ month, label }) => ({
+    month,
+    label,
+    revenue: revenueByMonth.get(month) ?? 0,
+  }));
+
+  // ── linear forecast (3 months ahead) ─────────────────────────────────────
+  const xs = monthlyTrend.map((_, i) => i);
+  const ys = monthlyTrend.map((r) => r.revenue);
+  const n = xs.length;
+  const sumX = xs.reduce((a, b) => a + b, 0);
+  const sumY = ys.reduce((a, b) => a + b, 0);
+  const sumXY = xs.reduce((s, x, i) => s + x * ys[i], 0);
+  const sumX2 = xs.reduce((s, x) => s + x * x, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  const slope = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+  const intercept = (sumY - slope * sumX) / n;
+
+  const forecast: ForecastEntry[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleString("en-IN", { month: "short", year: "numeric" });
+    forecast.push({
+      month,
+      label,
+      forecast: Math.max(0, Math.round(intercept + slope * (n + i - 1))),
+    });
+  }
+
+  // ── collection efficiency ─────────────────────────────────────────────────
+  let invoiceQuery = supabase
+    .from("invoices")
+    .select("total_amount,paid_amount")
+    .gte("created_at", startDate + "T00:00:00Z")
+    .lte("created_at", endDate + "T23:59:59Z");
+
+  if (branchId) invoiceQuery = invoiceQuery.eq("branch_id", branchId);
+  else if (tenantId) invoiceQuery = invoiceQuery.eq("tenant_id", tenantId);
+
+  const { data: invoices } = await invoiceQuery;
+
+  let totalInvoiced = 0;
+  let totalPaid = 0;
+  for (const inv of invoices ?? []) {
+    totalInvoiced += Number(inv.total_amount ?? 0);
+    totalPaid += Number(inv.paid_amount ?? 0);
+  }
+  const collectionEfficiency =
+    totalInvoiced > 0 ? Math.round((totalPaid / totalInvoiced) * 100) : 0;
+
+  // ── revenue per active member ─────────────────────────────────────────────
+  let memberQuery = supabase
+    .from("members")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "active");
+
+  if (branchId) memberQuery = memberQuery.eq("branch_id", branchId);
+  else if (tenantId) memberQuery = memberQuery.eq("tenant_id", tenantId);
+
+  const { count: activeMemberCount } = await memberQuery;
+
+  const totalRevenue = monthlyTrend.reduce((s, r) => s + r.revenue, 0);
+  const revenuePerMember =
+    (activeMemberCount ?? 0) > 0
+      ? Math.round(totalRevenue / (activeMemberCount ?? 1))
+      : 0;
+
+  return { monthlyTrend, forecast, collectionEfficiency, revenuePerMember };
+}
+
+// ─── 11. Retention Intelligence (Phase 3 / Scale) ─────────────────────────────
+
+export type ChurnRiskLevel = "high" | "medium" | "low";
+
+export type AtRiskMember = {
+  member_id: string;
+  member_code: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  risk_level: ChurnRiskLevel;
+  risk_score: number;        // 0-100 (higher = more at risk)
+  days_until_expiry: number | null;
+  last_attendance_days_ago: number | null;
+  subscription_status: string | null;
+  plan_name: string | null;
+};
+
+export type RetentionSummary = {
+  totalActiveMembers: number;
+  highRiskCount: number;
+  mediumRiskCount: number;
+  lowRiskCount: number;
+  renewalRate30d: number;    // % of expiring members who renewed in last 30 days
+  avgMembershipDays: number; // avg tenure of active members
+};
+
+export type RetentionIntelligenceResult = {
+  summary: RetentionSummary;
+  atRiskMembers: AtRiskMember[];
+};
+
+/**
+ * Scale-exclusive Retention Intelligence.
+ *
+ * Computes churn risk scores for active members using:
+ *  - Days until subscription expiry
+ *  - Days since last attendance
+ *  - Subscription status (active/expired/cancelled)
+ *
+ * Risk scoring (0-100):
+ *  - Expiry in ≤7 days:      +40 points
+ *  - Expiry in 8-30 days:    +20 points
+ *  - No attendance in 30d:   +30 points
+ *  - No attendance in 14d:   +15 points
+ *  - Subscription lapsed:    +30 points
+ *
+ *  Score ≥ 60 → high risk
+ *  Score 30-59 → medium risk
+ *  Score < 30 → low risk
+ *
+ * Uses existing members, subscriptions, and attendance tables — no new DB tables.
+ */
+export async function getRetentionIntelligence(params: {
+  branchId?: string | null;
+  tenantId?: string | null;
+  limit?: number;
+}): Promise<RetentionIntelligenceResult> {
+  const { branchId, tenantId, limit = 100 } = params;
+  const supabase = await createClient();
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  // ── Fetch active members ──────────────────────────────────────────────────
+  let memberQuery = supabase
+    .from("members")
+    .select("id,member_code,full_name,phone,email")
+    .eq("status", "active");
+
+  if (branchId) memberQuery = memberQuery.eq("branch_id", branchId);
+  else if (tenantId) memberQuery = memberQuery.eq("tenant_id", tenantId);
+
+  const { data: members } = await memberQuery;
+  const allMembers = members ?? [];
+  const totalActiveMembers = allMembers.length;
+
+  if (totalActiveMembers === 0) {
+    return {
+      summary: {
+        totalActiveMembers: 0,
+        highRiskCount: 0,
+        mediumRiskCount: 0,
+        lowRiskCount: 0,
+        renewalRate30d: 0,
+        avgMembershipDays: 0,
+      },
+      atRiskMembers: [],
+    };
+  }
+
+  const memberIds = allMembers.map((m) => m.id);
+
+  // ── Fetch latest subscription per member ─────────────────────────────────
+  let subQuery = supabase
+    .from("subscriptions")
+    .select("member_id,status,end_date,plan_id,created_at")
+    .in("member_id", memberIds)
+    .order("end_date", { ascending: false });
+
+  if (branchId) subQuery = subQuery.eq("branch_id", branchId);
+  else if (tenantId) subQuery = subQuery.eq("tenant_id", tenantId);
+
+  const { data: subscriptions } = await subQuery;
+
+  // Latest subscription per member
+  const latestSub = new Map<
+    string,
+    { status: string; end_date: string | null; created_at: string | null }
+  >();
+  for (const sub of subscriptions ?? []) {
+    if (!latestSub.has(sub.member_id)) {
+      latestSub.set(sub.member_id, {
+        status: sub.status as string,
+        end_date: sub.end_date as string | null,
+        created_at: sub.created_at as string | null,
+      });
+    }
+  }
+
+  // ── Fetch last attendance per member ────────────────────────────────────
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  let attQuery = supabase
+    .from("attendance")
+    .select("member_id,check_in_time")
+    .in("member_id", memberIds)
+    .gte("check_in_time", thirtyDaysAgo.toISOString())
+    .order("check_in_time", { ascending: false });
+
+  if (branchId) attQuery = attQuery.eq("branch_id", branchId);
+  else if (tenantId) attQuery = attQuery.eq("tenant_id", tenantId);
+
+  const { data: attendance } = await attQuery;
+
+  const lastAttendance = new Map<string, Date>();
+  for (const att of attendance ?? []) {
+    if (!lastAttendance.has(att.member_id)) {
+      lastAttendance.set(att.member_id, new Date(att.check_in_time as string));
+    }
+  }
+
+  // ── Compute risk scores ──────────────────────────────────────────────────
+  const scored: AtRiskMember[] = [];
+
+  for (const member of allMembers) {
+    const sub = latestSub.get(member.id);
+    const lastAtt = lastAttendance.get(member.id);
+
+    let score = 0;
+
+    // Expiry scoring
+    let daysUntilExpiry: number | null = null;
+    if (sub?.end_date) {
+      const expiry = new Date(sub.end_date);
+      daysUntilExpiry = Math.ceil(
+        (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (daysUntilExpiry <= 0) score += 30;       // already expired
+      else if (daysUntilExpiry <= 7) score += 40;  // expiring very soon
+      else if (daysUntilExpiry <= 30) score += 20; // expiring this month
+    } else {
+      score += 20; // no subscription found
+    }
+
+    // Subscription status scoring
+    if (sub?.status && !["active", "trial"].includes(sub.status)) {
+      score += 30; // lapsed / cancelled / expired
+    }
+
+    // Attendance scoring
+    let lastAttDaysAgo: number | null = null;
+    if (lastAtt) {
+      lastAttDaysAgo = Math.floor(
+        (today.getTime() - lastAtt.getTime()) / (1000 * 60 * 60 * 24),
+      );
+      if (lastAttDaysAgo >= 30) score += 30;
+      else if (lastAttDaysAgo >= 14) score += 15;
+    } else {
+      score += 30; // no attendance in last 30 days at all
+    }
+
+    score = Math.min(100, score);
+
+    const riskLevel: ChurnRiskLevel =
+      score >= 60 ? "high" : score >= 30 ? "medium" : "low";
+
+    scored.push({
+      member_id: member.id,
+      member_code: member.member_code as string,
+      full_name: member.full_name as string,
+      phone: member.phone as string | null,
+      email: member.email as string | null,
+      risk_level: riskLevel,
+      risk_score: score,
+      days_until_expiry: daysUntilExpiry,
+      last_attendance_days_ago: lastAttDaysAgo,
+      subscription_status: sub?.status ?? null,
+      plan_name: null,
+    });
+  }
+
+  // Sort by risk score descending
+  scored.sort((a, b) => b.risk_score - a.risk_score);
+
+  const highRiskCount = scored.filter((m) => m.risk_level === "high").length;
+  const mediumRiskCount = scored.filter((m) => m.risk_level === "medium").length;
+  const lowRiskCount = scored.filter((m) => m.risk_level === "low").length;
+
+  // ── Renewal rate (last 30 days) ───────────────────────────────────────────
+  // Members whose subscription was created/renewed in last 30 days
+  const renewedRecently = (subscriptions ?? []).filter((s) => {
+    if (!s.created_at) return false;
+    const created = new Date(s.created_at as string);
+    return created >= thirtyDaysAgo;
+  });
+  const renewedMemberIds = new Set(renewedRecently.map((s) => s.member_id));
+  const renewalRate30d =
+    totalActiveMembers > 0
+      ? Math.round((renewedMemberIds.size / totalActiveMembers) * 100)
+      : 0;
+
+  // ── Avg membership tenure ─────────────────────────────────────────────────
+  const tenureDays: number[] = [];
+  for (const sub of subscriptions ?? []) {
+    if (sub.created_at) {
+      const days = Math.floor(
+        (today.getTime() - new Date(sub.created_at as string).getTime()) /
+          (1000 * 60 * 60 * 24),
+      );
+      if (days >= 0) tenureDays.push(days);
+    }
+  }
+  const avgMembershipDays =
+    tenureDays.length > 0
+      ? Math.round(tenureDays.reduce((a, b) => a + b, 0) / tenureDays.length)
+      : 0;
+
+  return {
+    summary: {
+      totalActiveMembers,
+      highRiskCount,
+      mediumRiskCount,
+      lowRiskCount,
+      renewalRate30d,
+      avgMembershipDays,
+    },
+    atRiskMembers: scored.slice(0, limit),
+  };
+}

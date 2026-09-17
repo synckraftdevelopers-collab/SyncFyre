@@ -372,3 +372,112 @@ test("no duplicate plan definitions — plan config does not re-define the entit
   const planIds = COMMERCIAL_PLAN_ORDER.map((key) => COMMERCIAL_PLANS[key].planId);
   assert.deepEqual(planIds, ["plan_1", "plan_2", "plan_3"]);
 });
+
+// ─── Three-tier sidebar ordering (Phase 1 / Phase 2 / Phase 3) ───────────────
+
+type MockNavItem3 = { label: string; href: string; featureKey?: string };
+type MockPhaseFeature3 = { status: "active" | "locked"; phase: string };
+
+/**
+ * Pure function mirroring the three-tier sidebar grouping logic in portal-sidebar.tsx.
+ * Returns { phase1, growthLocked, scaleLocked } for the given plan tier.
+ */
+function partitionNavThreeTier(
+  items: MockNavItem3[],
+  featureMap: Record<string, MockPhaseFeature3>,
+  planKey: "essential" | "growth" | "scale",
+): { available: MockNavItem3[]; growthLocked: MockNavItem3[]; scaleLocked: MockNavItem3[] } {
+  const isScale = planKey === "scale";
+  const isGrowthOrAbove = planKey === "growth" || planKey === "scale";
+
+  const available: MockNavItem3[] = [];
+  const growthLocked: MockNavItem3[] = [];
+  const scaleLocked: MockNavItem3[] = [];
+
+  for (const item of items) {
+    const feature = item.featureKey ? featureMap[item.featureKey] : null;
+    const isPhase3 = feature?.phase === "PHASE_3";
+
+    if (isPhase3) {
+      // Phase 3 item: locked for Essential and Growth, available for Scale
+      if (isScale) available.push(item);
+      else scaleLocked.push(item);
+    } else if (feature?.status === "locked") {
+      // Phase 2 item: locked for Essential, available for Growth+
+      if (isGrowthOrAbove) available.push(item);
+      else growthLocked.push(item);
+    } else {
+      available.push(item);
+    }
+  }
+
+  return { available, growthLocked, scaleLocked };
+}
+
+const mockThreeTierItems: MockNavItem3[] = [
+  { label: "Dashboard",  href: "/admin/dashboard" },
+  { label: "Members",    href: "/admin/members" },
+  { label: "Attendance", href: "/admin/attendance",  featureKey: "attendance" },
+  { label: "Finance",    href: "/admin/finance",     featureKey: "finance" },
+  { label: "Branches",   href: "/admin/branches",    featureKey: "multi_branch" },
+];
+
+const mockThreeTierFeatureMap: Record<string, MockPhaseFeature3> = {
+  attendance:   { status: "active", phase: "PHASE_1" },
+  finance:      { status: "locked", phase: "PHASE_2" },
+  multi_branch: { status: "locked", phase: "PHASE_3" },
+};
+
+test("three-tier sidebar: Essential sees Phase 2 and Phase 3 as locked", () => {
+  const { available, growthLocked, scaleLocked } = partitionNavThreeTier(
+    mockThreeTierItems,
+    mockThreeTierFeatureMap,
+    "essential",
+  );
+  assert.ok(available.some((i) => i.label === "Dashboard"), "Dashboard available for Essential");
+  assert.ok(available.some((i) => i.label === "Members"), "Members available for Essential");
+  assert.ok(available.some((i) => i.label === "Attendance"), "Attendance (Phase 1) available for Essential");
+  assert.ok(growthLocked.some((i) => i.label === "Finance"), "Finance (Phase 2) locked for Essential");
+  assert.ok(scaleLocked.some((i) => i.label === "Branches"), "Branches (Phase 3) locked for Essential");
+  assert.equal(growthLocked.length, 1, "Exactly one growth-locked item");
+  assert.equal(scaleLocked.length, 1, "Exactly one scale-locked item");
+});
+
+test("three-tier sidebar: Growth sees Phase 2 available, Phase 3 locked", () => {
+  const { available, growthLocked, scaleLocked } = partitionNavThreeTier(
+    mockThreeTierItems,
+    mockThreeTierFeatureMap,
+    "growth",
+  );
+  assert.ok(available.some((i) => i.label === "Finance"), "Finance (Phase 2) available for Growth");
+  assert.ok(available.some((i) => i.label === "Dashboard"), "Dashboard available for Growth");
+  assert.equal(growthLocked.length, 0, "No growth-locked items for Growth user");
+  assert.ok(scaleLocked.some((i) => i.label === "Branches"), "Branches (Phase 3) locked for Growth");
+  assert.equal(scaleLocked.length, 1, "Exactly one scale-locked item for Growth");
+});
+
+test("three-tier sidebar: Scale sees all phases available, no locked items", () => {
+  const { available, growthLocked, scaleLocked } = partitionNavThreeTier(
+    mockThreeTierItems,
+    mockThreeTierFeatureMap,
+    "scale",
+  );
+  assert.ok(available.some((i) => i.label === "Finance"), "Finance available for Scale");
+  assert.ok(available.some((i) => i.label === "Branches"), "Branches available for Scale");
+  assert.equal(growthLocked.length, 0, "No growth-locked items for Scale");
+  assert.equal(scaleLocked.length, 0, "No scale-locked items for Scale");
+  assert.equal(available.length, mockThreeTierItems.length, "All items available for Scale");
+});
+
+test("three-tier sidebar: Talwalkar (standard/plan_1) behaves identically to Essential", () => {
+  // standard → plan_1 → "essential" key
+  const { available, growthLocked, scaleLocked } = partitionNavThreeTier(
+    mockThreeTierItems,
+    mockThreeTierFeatureMap,
+    "essential", // standard normalizes to essential
+  );
+  assert.ok(scaleLocked.some((i) => i.label === "Branches"), "Branches locked for Talwalkar");
+  assert.ok(growthLocked.some((i) => i.label === "Finance"), "Finance locked for Talwalkar");
+  assert.equal(scaleLocked.length, 1);
+  assert.equal(growthLocked.length, 1);
+});

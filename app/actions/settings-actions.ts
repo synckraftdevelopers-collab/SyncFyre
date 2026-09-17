@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { createClient } from "@/lib/supabase/server";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 
 async function refresh() {
   revalidatePath("/admin/settings");
@@ -107,6 +108,12 @@ export async function updateBranchAction(_: SettingsActionState, formData: FormD
 export async function createBranchAction(_: SettingsActionState, formData: FormData): Promise<SettingsActionState> {
   const profile = await requireUser(["owner", "admin"]);
   if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
+
+  // Multi-branch management is a Scale (plan_3) feature.
+  // Essential and Growth tenants may only have one branch.
+  if (!(await hasCurrentFeature("multi_branch"))) {
+    return { error: "Multi-branch management requires the Scale plan. Contact us at syncfyre.com to upgrade." };
+  }
 
   const name = String(formData.get("name") ?? "").trim();
   const code = String(formData.get("code") ?? "").trim().toUpperCase();
