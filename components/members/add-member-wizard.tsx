@@ -11,16 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MemberDynamicFields } from "@/components/members/member-dynamic-fields";
 import type { MemberFormFieldConfiguration, MemberFormFieldKey } from "@/lib/members/member-form-config";
-import { getLocalDateInputValue } from "@/lib/membership-dates";
+import { addCalendarMonthsToDateOnly, getLocalDateInputValue } from "@/lib/membership-dates";
 import { calculatePaymentBalance } from "@/lib/finance/payment-balance";
 import { cn, formatCurrency } from "@/lib/utils";
 import { applyMemberFormConfiguration, memberSchema } from "@/lib/validations/member";
 import { createMemberAction } from "@/app/actions/member-actions";
 
-interface Plan { id: string; name: string; price: number; gst_percent: number; discount_percent: number; duration_months: number; }
+interface Plan { id: string; name: string; price: number; gst_percent: number; discount_percent: number; duration_months: number; plan_type?: "individual" | "couple"; }
 interface Trainer { id: string; name: string; }
 interface Branch { id: string; name: string; }
-interface AddMemberWizardProps { branches: Branch[]; plans: Plan[]; trainers: Trainer[]; memberFormFields: MemberFormFieldConfiguration[]; basePath?: string; initialBranchId?: string | null; }
+interface MemberOption { id: string; full_name: string; member_code: string; }
+interface AddMemberWizardProps { branches: Branch[]; plans: Plan[]; trainers: Trainer[]; members?: MemberOption[]; memberFormFields: MemberFormFieldConfiguration[]; basePath?: string; initialBranchId?: string | null; }
 
 const STEPS = [
   { id: 1, label: "Personal", icon: User },
@@ -41,22 +42,48 @@ const fullSchema = memberSchema.extend({
   discount_amount: z.coerce.number().nonnegative("Discount cannot be negative.").default(0),
   payment_method: z.enum(["cash", "upi", "card", "online", "check"]).default("cash"),
   transaction_ref: z.string().optional().or(z.literal("")),
+  couple_partner_mode: z.enum(["existing", "new"]).default("existing"),
+  couple_partner_member_id: z.string().uuid().optional().or(z.literal("")),
+  couple_partner_full_name: z.string().trim().max(120).optional().or(z.literal("")),
+  couple_partner_age: z.union([z.coerce.number().int().min(0).max(130), z.literal("")]).optional(),
+  couple_partner_phone: z.string().trim().optional().or(z.literal("")),
+  // Optional second, independently-billed plan sold at the same time (e.g.
+  // Gym membership + Personal Training) — never replaces the primary plan
+  // above, the new member just ends up holding both.
+  extra_plan_id: z.string().uuid().optional().or(z.literal("")),
+  extra_payment_amount: z.coerce.number().nonnegative("Enter a valid amount.").optional().or(z.literal("")),
+  extra_discount_amount: z.coerce.number().nonnegative("Enter a valid amount.").optional().or(z.literal("")),
 });
 
 type WizardFormData = z.infer<typeof fullSchema>;
 
-export function AddMemberWizard({ branches, plans, trainers, memberFormFields, basePath = "/admin/members", initialBranchId = null }: AddMemberWizardProps) {
+export function AddMemberWizard({ branches, plans, trainers, members = [], memberFormFields, basePath = "/admin/members", initialBranchId = null }: AddMemberWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isPending, startTransition] = useTransition();
   const form = useForm<WizardFormData>({
     resolver: zodResolver(applyMemberFormConfiguration(fullSchema, memberFormFields)),
-    defaultValues: { status: "active", branch_id: initialBranchId ?? "", payment_method: "cash", discount_amount: 0, start_date: getLocalDateInputValue() },
+    defaultValues: { status: "active", branch_id: initialBranchId ?? "", payment_method: "cash", discount_amount: 0, start_date: getLocalDateInputValue(), couple_partner_mode: "existing" },
     mode: "onTouched",
   });
   const { watch, register, setValue, formState: { errors }, trigger, getValues } = form;
   const data = watch();
   const selectedPlan = plans.find((plan) => plan.id === data.plan_id);
+  const isCouplePlan = selectedPlan?.plan_type === "couple";
+  const partnerMember = members.find((member) => member.id === data.couple_partner_member_id);
+  const isNewPartner = isCouplePlan && data.couple_partner_mode === "new";
+  const expiryDate = selectedPlan && data.start_date
+    ? (() => {
+        try {
+          return addCalendarMonthsToDateOnly(data.start_date, selectedPlan.duration_months);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const expiryDateLabel = expiryDate
+    ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${expiryDate}T00:00:00`))
+    : null;
   const planPrice = selectedPlan?.price ?? 0;
   const planDiscount = Math.round(planPrice * (selectedPlan?.discount_percent ?? 0)) / 100;
   const enteredDiscount = Number(data.discount_amount ?? 0);
@@ -71,6 +98,37 @@ export function AddMemberWizard({ branches, plans, trainers, memberFormFields, b
   const paymentInvalid = paymentBalance.isOverpaid;
   const discountInvalid = enteredDiscount > maxDiscount;
 
+  // Second, independently-billed plan sold at registration — offered here
+  // as individual plans only (couple pairing already happens on the
+  // primary plan above; keeping this slot simple avoids a second partner
+  // picker for what's meant to be a quick add-on).
+  const [addExtraPlan, setAddExtraPlan] = useState(false);
+  const individualPlans = plans.filter((plan) => plan.plan_type !== "couple");
+  const extraPlan = individualPlans.find((plan) => plan.id === data.extra_plan_id);
+  const extraPlanPrice = extraPlan?.price ?? 0;
+  const extraPlanDiscountPct = Math.round(extraPlanPrice * (extraPlan?.discount_percent ?? 0)) / 100;
+  const extraEnteredDiscount = Number(data.extra_discount_amount ?? 0);
+  const extraMaxDiscount = Math.max(0, extraPlanPrice - extraPlanDiscountPct);
+  const extraDiscountAmount = Math.min(extraMaxDiscount, Math.max(0, extraEnteredDiscount));
+  const extraDiscountedPrice = extraPlanPrice - extraPlanDiscountPct - extraDiscountAmount;
+  const extraGstAmt = Math.round((extraDiscountedPrice * (extraPlan?.gst_percent ?? 18)) / 100);
+  const extraTotalAmt = extraDiscountedPrice + extraGstAmt;
+  const extraDiscountInvalid = extraEnteredDiscount > extraMaxDiscount;
+  const extraPaymentCompleted = Number(data.extra_payment_amount ?? 0);
+  const extraPaymentInvalid = extraPaymentCompleted > extraTotalAmt;
+  const extraExpiryDate = extraPlan && data.start_date
+    ? (() => {
+        try {
+          return addCalendarMonthsToDateOnly(data.start_date, extraPlan.duration_months);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const extraExpiryDateLabel = extraExpiryDate
+    ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${extraExpiryDate}T00:00:00`))
+    : null;
+
   const sections = {
     personal: memberFormFields.filter((field) => field.enabled && field.section === "personal"),
     emergency: memberFormFields.filter((field) => field.enabled && field.section === "emergency"),
@@ -83,7 +141,7 @@ export function AddMemberWizard({ branches, plans, trainers, memberFormFields, b
       ? [{ key: "emergency", label: "Emergency", icon: Phone, fields: sections.emergency.map((field) => field.key as keyof WizardFormData) }]
       : []),
     { key: "medical", label: "Medical", icon: HeartPulse, fields: sections.medical.map((field) => field.key as keyof WizardFormData) },
-    { key: "membership", label: "Membership", icon: CreditCard, fields: ["plan_id", "start_date"] as Array<keyof WizardFormData> },
+    { key: "membership", label: "Membership", icon: CreditCard, fields: ["plan_id", "start_date", "couple_partner_member_id", "couple_partner_full_name", "couple_partner_age", "couple_partner_phone"] as Array<keyof WizardFormData> },
     { key: "payment", label: "Payment", icon: Wallet, fields: ["payment_amount", "discount_amount", "payment_method"] as Array<keyof WizardFormData> },
     { key: "trainer", label: "Trainer", icon: Dumbbell, fields: [] as Array<keyof WizardFormData> },
     { key: "review", label: "Review", icon: ClipboardList, fields: [] as Array<keyof WizardFormData> },
@@ -95,6 +153,31 @@ export function AddMemberWizard({ branches, plans, trainers, memberFormFields, b
     const keys = [...(activeStep?.fields ?? [])];
     if (step === 1 && !initialBranchId) keys.push("branch_id");
     const valid = await trigger(keys);
+    if (activeStep?.key === "membership" && isCouplePlan) {
+      if (data.couple_partner_mode === "new") {
+        if (!data.couple_partner_full_name) {
+          form.setError("couple_partner_full_name", { message: "Enter the second member's name." });
+          return;
+        }
+      } else if (!data.couple_partner_member_id) {
+        form.setError("couple_partner_member_id", { message: "This is a couple plan — select the second member too." });
+        return;
+      }
+    }
+    if (activeStep?.key === "membership" && addExtraPlan) {
+      if (!data.extra_plan_id) {
+        form.setError("extra_plan_id", { message: "Select the extra plan, or turn off \"Add another plan\"." });
+        return;
+      }
+      if (extraDiscountInvalid) {
+        form.setError("extra_discount_amount", { message: "Discount cannot exceed the extra plan's amount." });
+        return;
+      }
+      if (extraPaymentInvalid) {
+        form.setError("extra_payment_amount", { message: "Payment cannot be greater than the extra plan's total." });
+        return;
+      }
+    }
     if (step === 5 && discountInvalid) {
       form.setError("discount_amount", { message: "Discount cannot exceed the package amount." });
       return;
@@ -113,10 +196,15 @@ export function AddMemberWizard({ branches, plans, trainers, memberFormFields, b
   function onSubmit() {
     const values = getValues();
     const formData = new FormData();
-    const keys = ["full_name", "phone", "email", "gender", "date_of_birth", "age", "address", "candidate_consent_name", "relationship_to_candidate", "screening_date", "screening_valid_until", "branch_id", "status", "height_cm", "weight_kg", "blood_group", "medical_conditions", "fitness_goal", "emergency_contact_name", "emergency_contact_phone", "assigned_trainer_id", "plan_id", "start_date", "payment_amount", "discount_amount", "payment_method", "transaction_ref"] as const;
+    const keys = ["full_name", "phone", "email", "gender", "date_of_birth", "age", "address", "candidate_consent_name", "relationship_to_candidate", "screening_date", "screening_valid_until", "branch_id", "status", "height_cm", "weight_kg", "blood_group", "medical_conditions", "fitness_goal", "emergency_contact_name", "emergency_contact_phone", "assigned_trainer_id", "plan_id", "start_date", "payment_amount", "discount_amount", "payment_method", "transaction_ref", "couple_partner_mode", "couple_partner_member_id", "couple_partner_full_name", "couple_partner_age", "couple_partner_phone"] as const;
     for (const key of keys) {
       const value = values[key as keyof WizardFormData];
       if (value !== undefined && value !== null && value !== "") formData.set(key, String(value));
+    }
+    if (addExtraPlan && values.extra_plan_id) {
+      formData.set("extra_plan_id", String(values.extra_plan_id));
+      formData.set("extra_payment_amount", String(values.extra_payment_amount ?? 0));
+      formData.set("extra_discount_amount", String(values.extra_discount_amount ?? 0));
     }
     if (initialBranchId && !formData.get("branch_id")) formData.set("branch_id", initialBranchId);
     formData.set("status", "active");
@@ -140,10 +228,131 @@ export function AddMemberWizard({ branches, plans, trainers, memberFormFields, b
       {activeStep?.key === "personal" && <div><h2 className="mb-5 text-base font-semibold">Personal Information</h2><MemberDynamicFields fields={sections.personal} values={data} errors={errorMap(sections.personal.map((field) => field.key))} register={(name) => register(name as keyof WizardFormData)} setValue={(name, value) => setValue(name as keyof WizardFormData, value as never, { shouldValidate: true, shouldTouch: true })} />{initialBranchId ? <input type="hidden" {...register("branch_id")} value={initialBranchId} /> : <label className={fieldClass}>Branch *<select {...register("branch_id")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"><option value="">Select branch</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>{errors.branch_id && <p className="text-xs text-red-600">{errors.branch_id.message}</p>}</label>}</div>}
       {activeStep?.key === "emergency" && <div><h2 className="mb-5 text-base font-semibold">Emergency Contact</h2><MemberDynamicFields fields={sections.emergency} values={data} errors={errorMap(sections.emergency.map((field) => field.key))} register={(name) => register(name as keyof WizardFormData)} setValue={(name, value) => setValue(name as keyof WizardFormData, value as never, { shouldValidate: true, shouldTouch: true })} /></div>}
       {activeStep?.key === "medical" && <div><h2 className="mb-5 text-base font-semibold">Medical Information</h2><MemberDynamicFields fields={sections.medical} values={data} errors={errorMap(sections.medical.map((field) => field.key))} register={(name) => register(name as keyof WizardFormData)} setValue={(name, value) => setValue(name as keyof WizardFormData, value as never, { shouldValidate: true, shouldTouch: true })} /></div>}
-      {activeStep?.key === "membership" && <div><h2 className="mb-5 text-base font-semibold">Membership Plan</h2><div className="grid gap-4 md:grid-cols-2"><label className={fieldClass}>Select package *<select {...register("plan_id")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"><option value="">Select package</option>{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} - {formatCurrency(plan.price)} / {plan.duration_months}mo</option>)}</select>{errors.plan_id && <p className="text-xs text-red-600">{errors.plan_id.message}</p>}</label><label className={fieldClass}>Start date *<Input {...register("start_date")} type="date" />{errors.start_date && <p className="text-xs text-red-600">{errors.start_date.message}</p>}</label></div>{selectedPlan && <div className="mt-4 rounded-xl border bg-muted/40 p-4 text-sm"><p className="font-semibold">{selectedPlan.name}</p><div className="mt-2 grid grid-cols-2 gap-y-1 text-muted-foreground sm:grid-cols-4"><span>Duration</span><span className="font-medium text-foreground">{selectedPlan.duration_months} months</span><span>Price</span><span className="font-medium text-foreground">{formatCurrency(selectedPlan.price)}</span><span>GST ({selectedPlan.gst_percent}%)</span><span className="font-medium text-foreground">{formatCurrency(Math.round(selectedPlan.price * selectedPlan.gst_percent / 100))}</span><span>Total</span><span className="font-bold text-foreground">{formatCurrency(selectedPlan.price + Math.round(selectedPlan.price * selectedPlan.gst_percent / 100))}</span></div></div>}</div>}
+      {activeStep?.key === "membership" && (
+        <div>
+          <h2 className="mb-5 text-base font-semibold">Membership Plan</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className={fieldClass}>
+              Select package *
+              <select {...register("plan_id")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="">Select package</option>
+                {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} - {formatCurrency(plan.price)} / {plan.duration_months}mo{plan.plan_type === "couple" ? " (Couple)" : ""}</option>)}
+              </select>
+              {errors.plan_id && <p className="text-xs text-red-600">{errors.plan_id.message}</p>}
+            </label>
+            <label className={fieldClass}>
+              Start date *
+              <Input {...register("start_date")} type="date" />
+              {errors.start_date && <p className="text-xs text-red-600">{errors.start_date.message}</p>}
+            </label>
+          </div>
+
+          {isCouplePlan && (
+            <div className={cn(fieldClass, "mt-4 rounded-lg border border-primary/30 bg-primary/5 p-3")}>
+              <p>Second member (couple plan) *</p>
+              <div className="mt-2 flex gap-4 text-xs font-normal">
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" value="existing" {...register("couple_partner_mode")} />
+                  Existing member
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input type="radio" value="new" {...register("couple_partner_mode")} />
+                  New member (short form)
+                </label>
+              </div>
+
+              {isNewPartner ? (
+                <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                  <label className="space-y-1 text-xs font-medium sm:col-span-1">
+                    Full name *
+                    <Input {...register("couple_partner_full_name")} placeholder="Second member's full name" />
+                    {errors.couple_partner_full_name && <p className="text-xs font-normal text-red-600">{errors.couple_partner_full_name.message}</p>}
+                  </label>
+                  <label className="space-y-1 text-xs font-medium">
+                    Age
+                    <Input {...register("couple_partner_age")} type="number" min="0" max="130" placeholder="Optional" />
+                  </label>
+                  <label className="space-y-1 text-xs font-medium">
+                    Phone
+                    <Input {...register("couple_partner_phone")} placeholder="10-digit mobile (optional)" />
+                  </label>
+                </div>
+              ) : (
+                <>
+                  <select {...register("couple_partner_member_id")} className="mt-2 h-10 w-full rounded-lg border bg-background px-3 text-sm font-normal outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Select the existing member being paired</option>
+                    {members.map((member) => <option key={member.id} value={member.id}>{member.full_name} ({member.member_code})</option>)}
+                  </select>
+                  {errors.couple_partner_member_id && <p className="text-xs text-red-600">{errors.couple_partner_member_id.message}</p>}
+                </>
+              )}
+
+              <p className="mt-2 text-xs font-normal text-muted-foreground">
+                {selectedPlan?.name} is a couple plan. {isNewPartner ? "The new second member will be registered together with this member — only their name is required; age and phone are optional." : "Pick the already-registered member this new member is pairing with."} Both will start on {data.start_date || "the selected start date"} and expire on {expiryDateLabel ?? "the same date"}.
+              </p>
+            </div>
+          )}
+
+          {selectedPlan && (
+            <div className="mt-4 rounded-xl border bg-muted/40 p-4 text-sm">
+              <p className="font-semibold">{selectedPlan.name}</p>
+              <div className="mt-2 grid grid-cols-2 gap-y-1 text-muted-foreground sm:grid-cols-4">
+                <span>Duration</span><span className="font-medium text-foreground">{selectedPlan.duration_months} months</span>
+                <span>Expiry</span><span className="font-medium text-foreground">{expiryDateLabel ?? "—"}</span>
+                <span>Price</span><span className="font-medium text-foreground">{formatCurrency(selectedPlan.price)}</span>
+                <span>GST ({selectedPlan.gst_percent}%)</span><span className="font-medium text-foreground">{formatCurrency(Math.round(selectedPlan.price * selectedPlan.gst_percent / 100))}</span>
+                <span>Total</span><span className="font-bold text-foreground">{formatCurrency(selectedPlan.price + Math.round(selectedPlan.price * selectedPlan.gst_percent / 100))}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 rounded-lg border p-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={addExtraPlan} onChange={(event) => { setAddExtraPlan(event.target.checked); if (!event.target.checked) { setValue("extra_plan_id", "" as never); setValue("extra_payment_amount", "" as never); setValue("extra_discount_amount", "" as never); } }} />
+              Add another plan (optional) — e.g. Personal Training alongside this membership
+            </label>
+            {addExtraPlan && (
+              <div className="mt-3 space-y-3">
+                <label className={fieldClass}>
+                  Extra plan
+                  <select {...register("extra_plan_id")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30">
+                    <option value="">Select package</option>
+                    {individualPlans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} - {formatCurrency(plan.price)} / {plan.duration_months}mo</option>)}
+                  </select>
+                  {errors.extra_plan_id && <p className="text-xs text-red-600">{errors.extra_plan_id.message}</p>}
+                </label>
+                {extraPlan && (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className={fieldClass}>
+                        Payment completed for this plan
+                        <Input {...register("extra_payment_amount")} type="number" min="0" max={extraTotalAmt} step="1" placeholder="0" />
+                        {errors.extra_payment_amount && <p className="text-xs text-red-600">{errors.extra_payment_amount.message}</p>}
+                        {extraPaymentInvalid && <p className="text-xs text-red-600">Payment cannot be greater than this plan's total.</p>}
+                      </label>
+                      <label className={fieldClass}>
+                        Discount for this plan
+                        <Input {...register("extra_discount_amount")} type="number" min="0" max={extraMaxDiscount} step="1" placeholder="0" />
+                        {extraDiscountInvalid && <p className="text-xs text-red-600">Discount cannot exceed this plan's amount.</p>}
+                      </label>
+                    </div>
+                    <div className="rounded-lg bg-muted/40 p-3 text-sm">
+                      <div className="grid grid-cols-2 gap-y-1 text-muted-foreground sm:grid-cols-4">
+                        <span>Expiry</span><span className="font-medium text-foreground">{extraExpiryDateLabel ?? "—"}</span>
+                        <span>Total</span><span className="font-bold text-foreground">{formatCurrency(extraTotalAmt)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground">This runs alongside the plan above, not instead of it — the member ends up with both.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {activeStep?.key === "payment" && <div><h2 className="mb-5 text-base font-semibold">Payment Details</h2>{selectedPlan && <div className="mb-4 rounded-xl border bg-muted/40 p-4 text-sm"><div className="flex justify-between"><span className="text-muted-foreground">Total Amount</span><span className="font-semibold">{formatCurrency(totalAmt)}</span></div><div className="mt-2 flex justify-between border-t pt-2"><span className="text-muted-foreground">Pending Amount</span><span className="font-bold text-amber-700">{formatCurrency(pendingAmount)}</span></div><p className="mt-2 text-xs text-muted-foreground">Pending Amount = Total Amount - Payment Completed</p></div>}<div className="grid gap-4 md:grid-cols-2"><label className={fieldClass}>Payment Completed *<Input {...register("payment_amount")} type="number" min="0" max={totalAmt} step="1" placeholder="0" />{errors.payment_amount && <p className="text-xs text-red-600">{errors.payment_amount.message}</p>}{paymentInvalid && <p className="text-xs text-red-600">Payment completed cannot be greater than total amount.</p>}</label><label className={fieldClass}>Payment Status<Input value={paymentBalance.status === "pending" ? "Pending" : paymentBalance.status === "completed" ? "Paid" : paymentBalance.status === "partial" ? "Partially Paid" : "Overpaid"} readOnly className="mt-1 bg-muted" /></label><label className={fieldClass}>Payment Method<select {...register("payment_method")} className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"><option value="cash">Cash</option><option value="upi">UPI</option><option value="card">Card</option><option value="check">Check</option></select></label><label className={cn(fieldClass, "md:col-span-2")}>Discount<Input {...register("discount_amount")} type="number" min="0" max={maxDiscount} step="1" placeholder="0" />{errors.discount_amount && <p className="text-xs text-red-600">{errors.discount_amount.message}</p>}{discountInvalid && <p className="text-xs text-red-600">Discount cannot exceed the package amount.</p>}</label><label className={fieldClass}>Pending Amount<Input type="number" min="0" max={totalAmt} step="1" value={pendingAmount} onChange={(event) => { const nextPending = Number(event.target.value || 0); setValue("payment_amount", Math.max(0, totalAmt - nextPending), { shouldValidate: true, shouldTouch: true }); }} /></label></div></div>}
       {activeStep?.key === "trainer" && <div><h2 className="mb-5 text-base font-semibold">Trainer Assignment</h2><label className={fieldClass}>Assign trainer<select {...register("assigned_trainer_id")} className="mt-1 h-10 w-full max-w-sm rounded-lg border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-primary/30"><option value="">Not assigned</option>{trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.name}</option>)}</select></label><p className="mt-3 text-xs text-muted-foreground">Trainer assignment is optional and can be changed anytime from the member profile.</p></div>}
-      {activeStep?.key === "review" && <div><h2 className="mb-4 text-base font-semibold">Review & Confirm</h2><div className="grid gap-5 md:grid-cols-2"><div className="rounded-xl border p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member Profile</p>{memberFormFields.filter((field) => field.enabled).map((field) => row(field.label, data[field.key] ? String(data[field.key]) : undefined))}{row("Branch", branches.find((branch) => branch.id === data.branch_id)?.name)}</div><div className="rounded-xl border p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Membership & Payment</p>{row("Package", selectedPlan?.name)}{row("Start date", data.start_date)}{row("Total amount", selectedPlan ? formatCurrency(totalAmt) : undefined)}{row("Payment amount", data.payment_amount !== undefined && data.payment_amount !== null ? formatCurrency(Number(data.payment_amount)) : undefined)}{row("Discount", data.discount_amount !== undefined && data.discount_amount !== null ? formatCurrency(Number(data.discount_amount)) : undefined)}{row("Payment method", data.payment_method)}{row("Trainer", trainers.find((trainer) => trainer.id === data.assigned_trainer_id)?.name)}</div></div></div>}
+      {activeStep?.key === "review" && <div><h2 className="mb-4 text-base font-semibold">Review & Confirm</h2><div className="grid gap-5 md:grid-cols-2"><div className="rounded-xl border p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Member Profile</p>{memberFormFields.filter((field) => field.enabled).map((field) => row(field.label, data[field.key] ? String(data[field.key]) : undefined))}{row("Branch", branches.find((branch) => branch.id === data.branch_id)?.name)}</div><div className="rounded-xl border p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Membership & Payment</p>{row("Package", selectedPlan?.name)}{isCouplePlan && row("Couple partner", isNewPartner ? (data.couple_partner_full_name ? `${data.couple_partner_full_name}${data.couple_partner_age ? `, ${data.couple_partner_age}y` : ""}${data.couple_partner_phone ? ` (${data.couple_partner_phone})` : ""} — new member` : undefined) : (partnerMember ? `${partnerMember.full_name} (${partnerMember.member_code})` : undefined))}{row("Start date", data.start_date)}{isCouplePlan && row("Both expire on", expiryDateLabel ?? undefined)}{row("Total amount", selectedPlan ? formatCurrency(totalAmt) : undefined)}{row("Payment amount", data.payment_amount !== undefined && data.payment_amount !== null ? formatCurrency(Number(data.payment_amount)) : undefined)}{row("Discount", data.discount_amount !== undefined && data.discount_amount !== null ? formatCurrency(Number(data.discount_amount)) : undefined)}{row("Payment method", data.payment_method)}{addExtraPlan && extraPlan && row("Extra plan", extraPlan.name)}{addExtraPlan && extraPlan && row("Extra plan total", formatCurrency(extraTotalAmt))}{row("Trainer", trainers.find((trainer) => trainer.id === data.assigned_trainer_id)?.name)}</div></div></div>}
       {activeStep?.key === "save" && <div className="grid min-h-[240px] place-items-center text-center">{isPending ? <div className="flex flex-col items-center gap-3"><LoaderCircle className="size-10 animate-spin text-primary" /><p className="font-medium">Registering member...</p><p className="text-sm text-muted-foreground">Please wait while we save the profile.</p></div> : <div className="flex flex-col items-center gap-3"><div className="grid size-16 place-items-center rounded-2xl bg-primary/10"><Save className="size-8 text-primary" /></div><p className="text-lg font-semibold">Ready to register</p><p className="max-w-sm text-sm text-muted-foreground">Click <strong>Register Member</strong> to create the profile and save the package and payment details.</p></div>}</div>}
     </div>
     <div className="flex items-center justify-between border-t pt-4"><Button type="button" variant="outline" onClick={step === 1 ? () => history.back() : () => setStep((current) => Math.max(current - 1, 1))} disabled={isPending}><ChevronLeft className="size-4" />{step === 1 ? "Cancel" : "Back"}</Button>{step < wizardSteps.length - 1 && <Button type="button" onClick={goNext}>Next<ChevronRight className="size-4" /></Button>}{step === wizardSteps.length - 1 && <Button type="button" onClick={() => setStep(wizardSteps.length)}><ChevronRight className="size-4" />Confirm & Save</Button>}{step === wizardSteps.length && <Button type="button" onClick={onSubmit} disabled={isPending}>{isPending ? <><LoaderCircle className="size-4 animate-spin" />Saving...</> : <><Save className="size-4" />Register Member</>}</Button>}</div>

@@ -8,6 +8,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type { MemberRegisterRow } from "@/types";
+import { selectWithSchemaFallback } from "@/lib/supabase/select-fallback";
+import { inferPlanType } from "@/lib/membership-plan-type";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Rich member list (from member_register_view) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -597,14 +599,45 @@ export async function getBranchOptions({ tenantId, branchId, role }: BranchOptio
   return data ?? [];
 }
 
+// plan_type ships in migration 0046. Until that migration has run against
+// this database, asking for it errors the whole query out — try it first,
+// then fall back to the base columns so plans keep showing up instead of
+// the dropdown going empty. See lib/supabase/select-fallback.ts.
+//
+// When the column is genuinely absent (pre-migration), plan_type comes
+// back undefined for every row and a couple plan created before the
+// migration has nowhere to have persisted its type — inferPlanType()
+// falls back to checking the plan's name for "couple" so the sale flows
+// can still recognize plans like "COUPLE PLAN" without the migration.
 export async function getPlanOptions(branchId?: string | null) {
   const supabase = await createClient();
+  const baseColumns = "id, name, price, gst_percent, discount_percent, duration_months";
+  const withPlanType = `${baseColumns}, plan_type`;
+
+  async function run(columns: string) {
+    let query = supabase.from("membership_plans").select(columns).eq("status", "active");
+    if (branchId) query = query.eq("branch_id", branchId);
+    return query.order("name");
+  }
+
+  const { data } = await selectWithSchemaFallback(run, [withPlanType, baseColumns]);
+  const rows = (data ?? []) as { id: string; name: string; price: number; gst_percent: number; discount_percent: number; duration_months: number; plan_type?: "individual" | "couple" }[];
+  return rows.map((row) => ({ ...row, plan_type: inferPlanType(row.plan_type, row.name) }));
+}
+
+/**
+ * Existing active members in the branch, for pickers such as the couple-plan
+ * partner selector on the registration wizard. Not scoped to a plan — any
+ * active member can be a couple-plan partner.
+ */
+export async function getMemberOptions(branchId?: string | null) {
+  const supabase = await createClient();
   let query = supabase
-    .from("membership_plans")
-    .select("id, name, price, gst_percent, discount_percent, duration_months")
+    .from("members")
+    .select("id, full_name, member_code")
     .eq("status", "active");
   if (branchId) query = query.eq("branch_id", branchId);
-  const { data } = await query.order("name");
+  const { data } = await query.order("full_name");
   return data ?? [];
 }
 

@@ -10,7 +10,7 @@ export const metadata = { title: "New Membership Sale" };
 export default async function AdminNewSubscriptionSalePage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnTo?: string }>;
+  searchParams: Promise<{ returnTo?: string; member?: string }>;
 }) {
   const params = await searchParams;
   const profile = await requireUser(["admin", "manager", "reception"]);
@@ -41,6 +41,7 @@ export default async function AdminNewSubscriptionSalePage({
             plans={plansRes}
             branchId={profile.branch_id}
             returnTo={params.returnTo}
+            initialMemberId={params.member}
           />
         </CardContent>
       </Card>

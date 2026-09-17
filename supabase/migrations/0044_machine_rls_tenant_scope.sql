@@ -88,6 +88,13 @@ create policy machines_management on public.face_machine_settings
 --
 -- device_id is DEMO-FACE-ERIS (distinct from Talwalkar's FACE-DEV-002)
 -- to satisfy the unique(branch_id, device_id) constraint.
+--
+-- Note: the row id below was originally written as the mnemonic string
+-- 'eris0000-demo-0000-0000-000000000001', which is not a valid UUID (it
+-- contains non-hex characters like 'r', 'i', 's', 'd', 'm', 'o') and fails
+-- with "invalid input syntax for type uuid" when this migration runs.
+-- Replaced with a hex-only id that keeps the same "recognizable sentinel"
+-- intent.
 -- ─────────────────────────────────────────────────────────────────────────
 insert into public.face_machine_settings (
   id,
@@ -104,7 +111,7 @@ insert into public.face_machine_settings (
   settings
 )
 values (
-  'eris0000-demo-0000-0000-000000000001',
+  'e0510000-0000-0000-0000-000000000001',
   '9937e5b4-a337-4e0e-8349-d19b7c48f43f',   -- Demo Gym Main Branch
   '052375ac-f0c8-45f8-91ee-da3e7f3ae71f',   -- Demo Gym tenant
   'Front Desk AiFace-ERIS',

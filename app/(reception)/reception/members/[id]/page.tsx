@@ -73,7 +73,7 @@ export default async function ReceptionMemberDetailPage({
           <h1 className="mt-2 text-2xl font-bold">Edit member</h1>
           <p className="text-sm text-muted-foreground">Update {member.full_name}&apos;s profile and assignment details.</p>
         </div>
-        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} memberFormFields={memberFormFields} branches={branches} trainers={trainers} dieticians={dieticians} /></CardContent></Card>
+        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} memberFormFields={memberFormFields} branches={branches} trainers={trainers} dieticians={dieticians} subscriptions={subscriptions} basePath="/reception/members" /></CardContent></Card>
       </div>
     );
   }

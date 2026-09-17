@@ -1,6 +1,7 @@
 import { addCalendarMonthsToDateOnly } from "@/lib/membership-dates";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isMissingSchemaError } from "@/lib/supabase/schema";
 import type { ResourceName } from "@/lib/validations/resources";
 
 type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
@@ -43,6 +44,12 @@ export async function createSubscriptionWithHistory(input: {
   performedBy: string;
   action?: "created" | "renewed";
   remarks?: string | null;
+  /**
+   * Couple plans: the partner member's subscription id, created just before
+   * this one. Links both rows to each other (two-way) so they can be shown
+   * and reasoned about as a pair. Leave unset for a regular, individual sale.
+   */
+  linkedSubscriptionId?: string | null;
 }) {
   const supabase = await createClient();
   const { data: branch, error: branchError } = await supabase
@@ -92,29 +99,68 @@ export async function createSubscriptionWithHistory(input: {
     resolvedEndDate = addCalendarMonthsToDateOnly(input.startDate, Number(plan.duration_months));
   }
 
-  const { data: subscription, error: subscriptionError } = await supabase
-    .from("subscriptions")
-    .insert({
-      member_id: input.memberId,
-      plan_id: input.planId,
-      branch_id: input.branchId,
-      tenant_id: resolvedTenantId,
-      start_date: input.startDate,
-      end_date: resolvedEndDate,
-      status: input.status ?? "pending",
-      auto_renew: input.autoRenew ?? false,
-      price: input.price,
-      discount_amount: input.discountAmount ?? 0,
-      gst_amount: input.gstAmount ?? 0,
-      total_amount: input.totalAmount,
-      created_by: input.performedBy,
-    })
-    .select("id, member_id, branch_id, tenant_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, created_by")
-    .single();
-  if (subscriptionError || !subscription) throw new Error(subscriptionError?.message ?? "Unable to create subscription.");
+  const baseSubscriptionPayload = {
+    member_id: input.memberId,
+    plan_id: input.planId,
+    branch_id: input.branchId,
+    tenant_id: resolvedTenantId,
+    start_date: input.startDate,
+    end_date: resolvedEndDate,
+    status: input.status ?? "pending",
+    auto_renew: input.autoRenew ?? false,
+    price: input.price,
+    discount_amount: input.discountAmount ?? 0,
+    gst_amount: input.gstAmount ?? 0,
+    total_amount: input.totalAmount,
+    created_by: input.performedBy,
+  };
+  const baseSelectColumns = "id, member_id, branch_id, tenant_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, created_by";
+  const selectWithLink = `${baseSelectColumns}, linked_subscription_id`;
+
+  // linked_subscription_id ships in migration 0046. Until that migration has
+  // run against this database, asking for it (in the insert payload OR the
+  // returned columns) errors the whole insert out — this would otherwise
+  // break every subscription creation, couple plan or not. Try the full
+  // shape first, then fall back to the base shape so a pending migration
+  // degrades the couple-linking feature instead of blocking every sale.
+  let subscription: Record<string, unknown> | null = null;
+  let linkColumnSupported = true;
+  {
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .insert({ ...baseSubscriptionPayload, linked_subscription_id: input.linkedSubscriptionId ?? null })
+      .select(selectWithLink)
+      .single();
+    if (!error) {
+      subscription = data;
+    } else if (isMissingSchemaError(error)) {
+      linkColumnSupported = false;
+      const retry = await supabase
+        .from("subscriptions")
+        .insert(baseSubscriptionPayload)
+        .select(baseSelectColumns)
+        .single();
+      if (retry.error || !retry.data) throw new Error(retry.error?.message ?? "Unable to create subscription.");
+      subscription = retry.data;
+    } else {
+      throw new Error(error.message);
+    }
+  }
+  if (!subscription) throw new Error("Unable to create subscription.");
+  const subscriptionId = String(subscription.id);
+
+  if (input.linkedSubscriptionId && linkColumnSupported) {
+    // Two-way link: point the partner's subscription (created just before
+    // this one) back at this new row too.
+    const { error: linkBackError } = await supabase
+      .from("subscriptions")
+      .update({ linked_subscription_id: subscriptionId })
+      .eq("id", input.linkedSubscriptionId);
+    if (linkBackError && !isMissingSchemaError(linkBackError)) throw new Error(linkBackError.message);
+  }
 
   const { error: historyError } = await supabase.from("subscription_history").insert({
-    subscription_id: subscription.id,
+    subscription_id: subscriptionId,
     member_id: input.memberId,
     previous_end_date: null,
     new_start_date: input.startDate,
@@ -134,7 +180,7 @@ export async function createSubscriptionWithHistory(input: {
     branchId: branch.id,
     action: input.action === "renewed" ? "membership_renewed" : "membership_created",
     entityType: "subscription",
-    entityId: subscription.id,
+    entityId: subscriptionId,
     description: "Membership lifecycle event",
     metadata: { action: input.action ?? "created", member_id: input.memberId, status: input.status ?? "pending" },
   });

@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { calculateMembershipPlanTotals } from "@/lib/membership-plan-calculations";
+import { addCalendarMonthsToDateOnly } from "@/lib/membership-dates";
 import type { MembershipPlanSummary } from "@/services/plan.service";
 import { formatCurrency } from "@/lib/utils";
+import { createQuickCoupleMemberAction } from "@/app/actions/member-actions";
 
 type MemberOption = {
   id: string;
@@ -21,6 +23,8 @@ type SaleWizardProps = {
   plans: MembershipPlanSummary[];
   branchId?: string | null;
   returnTo?: string;
+  /** Preselects the member — used by the "Add Plan" link from a member's profile/edit page so staff don't have to find them again. Still changeable. */
+  initialMemberId?: string;
 };
 
 function todayInputValue() {
@@ -31,10 +35,15 @@ function todayInputValue() {
   return `${year}-${month}-${day}`;
 }
 
-export function MembershipSaleWizard({ members, plans, branchId, returnTo }: SaleWizardProps) {
+export function MembershipSaleWizard({ members, plans, branchId, returnTo, initialMemberId }: SaleWizardProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [memberId, setMemberId] = useState("");
+  const [memberId, setMemberId] = useState(initialMemberId ?? "");
+  const [secondMemberMode, setSecondMemberMode] = useState<"existing" | "new">("existing");
+  const [secondMemberId, setSecondMemberId] = useState("");
+  const [secondMemberFullName, setSecondMemberFullName] = useState("");
+  const [secondMemberAge, setSecondMemberAge] = useState("");
+  const [secondMemberPhone, setSecondMemberPhone] = useState("");
   const [planId, setPlanId] = useState("");
   const [startDate, setStartDate] = useState(todayInputValue());
   const [autoRenew, setAutoRenew] = useState(false);
@@ -45,6 +54,7 @@ export function MembershipSaleWizard({ members, plans, branchId, returnTo }: Sal
   const [error, setError] = useState("");
 
   const selectedPlan = plans.find((plan) => plan.id === planId) ?? null;
+  const isCouplePlan = selectedPlan?.plan_type === "couple";
   const totals = selectedPlan
     ? calculateMembershipPlanTotals({
         price: selectedPlan.price,
@@ -53,12 +63,47 @@ export function MembershipSaleWizard({ members, plans, branchId, returnTo }: Sal
         discountAmount: Number(discountAmount) || 0,
       })
     : calculateMembershipPlanTotals({ price: 0, discountAmount: Number(discountAmount) || 0 });
+  const expiryDate = selectedPlan && startDate
+    ? (() => {
+        try {
+          return addCalendarMonthsToDateOnly(startDate, selectedPlan.duration_months);
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const expiryDateLabel = expiryDate
+    ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${expiryDate}T00:00:00`))
+    : null;
 
   useEffect(() => {
     if (!selectedPlan) return;
     const suggestedDiscount = Math.round(((selectedPlan.price * selectedPlan.discount_percent) / 100) * 100) / 100;
     setDiscountAmount(String(suggestedDiscount));
   }, [selectedPlan]);
+
+  useEffect(() => {
+    if (!isCouplePlan) {
+      setSecondMemberId("");
+      setSecondMemberMode("existing");
+      setSecondMemberFullName("");
+      setSecondMemberAge("");
+      setSecondMemberPhone("");
+    }
+  }, [isCouplePlan]);
+
+  async function postJson(url: string, body: unknown) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const responseBody = (await res.json()) as { error?: string };
+      throw new Error(responseBody.error ?? `Request to ${url} failed.`);
+    }
+    return res.json();
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,91 +121,114 @@ export function MembershipSaleWizard({ members, plans, branchId, returnTo }: Sal
       setError("Select a membership plan.");
       return;
     }
+    if (isCouplePlan && secondMemberMode === "existing" && !secondMemberId) {
+      setError("This is a couple plan — select the second member too.");
+      return;
+    }
+    if (isCouplePlan && secondMemberMode === "existing" && secondMemberId === memberId) {
+      setError("The second member must be different from the first member.");
+      return;
+    }
+    if (isCouplePlan && secondMemberMode === "new" && !secondMemberFullName.trim()) {
+      setError("This is a couple plan — enter the second member's name.");
+      return;
+    }
+
+    const primaryMemberName = members.find((member) => member.id === memberId)?.full_name ?? "";
 
     startTransition(async () => {
       try {
-        const subscriptionRes = await fetch("/api/subscriptions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            member_id: memberId,
+        let resolvedSecondMemberId = secondMemberId;
+        let secondaryMemberName = members.find((member) => member.id === secondMemberId)?.full_name ?? "";
+
+        if (isCouplePlan && secondMemberMode === "new" && branchId) {
+          const created = await createQuickCoupleMemberAction({
+            fullName: secondMemberFullName,
+            age: secondMemberAge,
+            phone: secondMemberPhone,
+            branchId,
+          });
+          if (created.error || !created.member) throw new Error(created.error ?? "Unable to create the second member.");
+          resolvedSecondMemberId = created.member.id;
+          secondaryMemberName = created.member.full_name;
+        }
+
+        const subscription = (await postJson("/api/subscriptions", {
+          member_id: memberId,
+          plan_id: selectedPlan.id,
+          branch_id: branchId,
+          start_date: startDate,
+          status: "active",
+          auto_renew: autoRenew,
+          price: totals.price,
+          discount_amount: totals.discountAmount,
+          gst_amount: totals.gstAmount,
+          total_amount: totals.totalAmount,
+          workflow_action: "created",
+          remarks: isCouplePlan
+            ? [notes, `Couple plan with ${secondaryMemberName || "second member"}.`].filter(Boolean).join(" ")
+            : notes || null,
+        })) as { id: string };
+
+        const invoice = (await postJson("/api/invoices", {
+          member_id: memberId,
+          subscription_id: subscription.id,
+          branch_id: branchId,
+          subtotal: totals.taxableAmount,
+          discount_amount: totals.discountAmount,
+          gst_amount: totals.gstAmount,
+          total_amount: totals.totalAmount,
+          amount_paid: totals.totalAmount,
+          status: "paid",
+          due_date: null,
+          line_items: [
+            {
+              description: isCouplePlan
+                ? `${selectedPlan.name} — Couple plan (${primaryMemberName} & ${secondaryMemberName})`
+                : selectedPlan.name,
+              amount: totals.price,
+              discount_amount: totals.discountAmount,
+              gst_amount: totals.gstAmount,
+              total_amount: totals.totalAmount,
+            },
+          ],
+          notes: notes || null,
+        })) as { id: string };
+
+        await postJson("/api/payments", {
+          member_id: memberId,
+          subscription_id: subscription.id,
+          invoice_id: invoice.id,
+          branch_id: branchId,
+          amount: totals.totalAmount,
+          method: paymentMethod,
+          status: "completed",
+          transaction_reference: transactionReference || null,
+          paid_at: new Date().toISOString(),
+        });
+
+        if (isCouplePlan) {
+          // Same plan, same start date — the DB derives an identical expiry
+          // for this member automatically. It's billed together with the
+          // primary member above, so it carries no additional price.
+          await postJson("/api/subscriptions", {
+            member_id: resolvedSecondMemberId,
             plan_id: selectedPlan.id,
             branch_id: branchId,
             start_date: startDate,
             status: "active",
             auto_renew: autoRenew,
-            price: totals.price,
-            discount_amount: totals.discountAmount,
-            gst_amount: totals.gstAmount,
-            total_amount: totals.totalAmount,
+            price: 0,
+            discount_amount: 0,
+            gst_amount: 0,
+            total_amount: 0,
             workflow_action: "created",
-            remarks: notes || null,
-          }),
-        });
-
-        if (!subscriptionRes.ok) {
-          const body = (await subscriptionRes.json()) as { error?: string };
-          throw new Error(body.error ?? "Failed to create the subscription.");
+            remarks: `Couple plan with ${primaryMemberName || "the primary member"}. Billed on that member's subscription.`,
+            linked_subscription_id: subscription.id,
+          });
         }
 
-        const subscription = (await subscriptionRes.json()) as { id: string };
-
-        const invoiceRes = await fetch("/api/invoices", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            member_id: memberId,
-            subscription_id: subscription.id,
-            branch_id: branchId,
-            subtotal: totals.taxableAmount,
-            discount_amount: totals.discountAmount,
-            gst_amount: totals.gstAmount,
-            total_amount: totals.totalAmount,
-            amount_paid: totals.totalAmount,
-            status: "paid",
-            due_date: null,
-            line_items: [
-              {
-                description: selectedPlan.name,
-                amount: totals.price,
-                discount_amount: totals.discountAmount,
-                gst_amount: totals.gstAmount,
-                total_amount: totals.totalAmount,
-              },
-            ],
-            notes: notes || null,
-          }),
-        });
-
-        if (!invoiceRes.ok) {
-          const body = (await invoiceRes.json()) as { error?: string };
-          throw new Error(body.error ?? "Membership created, but invoice creation failed.");
-        }
-
-        const invoice = (await invoiceRes.json()) as { id: string };
-
-        const paymentRes = await fetch("/api/payments", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            member_id: memberId,
-            subscription_id: subscription.id,
-            invoice_id: invoice.id,
-            branch_id: branchId,
-            amount: totals.totalAmount,
-            method: paymentMethod,
-            status: "completed",
-            transaction_reference: transactionReference || null,
-            paid_at: new Date().toISOString(),
-          }),
-        });
-
-        if (!paymentRes.ok) {
-          const body = (await paymentRes.json()) as { error?: string };
-          throw new Error(body.error ?? "Membership and invoice were created, but payment recording failed.");
-        }
-
-        toast.success("Membership sale completed.");
+        toast.success(isCouplePlan ? "Couple membership sale completed for both members." : "Membership sale completed.");
         router.push(returnTo ?? `/admin/invoices/${invoice.id}`);
       } catch (submitError) {
         setError(submitError instanceof Error ? submitError.message : "Unable to complete the membership sale.");
@@ -199,11 +267,65 @@ export function MembershipSaleWizard({ members, plans, branchId, returnTo }: Sal
             {plans.map((plan) => (
               <option key={plan.id} value={plan.id}>
                 {plan.name} - {formatCurrency(plan.price)}
+                {plan.plan_type === "couple" ? " (Couple)" : ""}
               </option>
             ))}
           </select>
         </label>
       </div>
+
+      {isCouplePlan && (
+        <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm font-medium">
+          <p>Second member (couple plan) *</p>
+          <div className="flex gap-4 text-xs font-normal">
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={secondMemberMode === "existing"} onChange={() => setSecondMemberMode("existing")} />
+              Existing member
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input type="radio" checked={secondMemberMode === "new"} onChange={() => setSecondMemberMode("new")} />
+              New member (short form)
+            </label>
+          </div>
+
+          {secondMemberMode === "existing" ? (
+            <select
+              value={secondMemberId}
+              onChange={(event) => setSecondMemberId(event.target.value)}
+              className="h-10 w-full rounded-lg border bg-background px-3 text-sm font-normal"
+              required
+            >
+              <option value="">Select the second member</option>
+              {members
+                .filter((member) => member.id !== memberId)
+                .map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.full_name} ({member.member_code})
+                  </option>
+                ))}
+            </select>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <label className="space-y-1 text-xs font-medium sm:col-span-1">
+                Full name *
+                <Input value={secondMemberFullName} onChange={(event) => setSecondMemberFullName(event.target.value)} placeholder="Second member's full name" required />
+              </label>
+              <label className="space-y-1 text-xs font-medium">
+                Age
+                <Input type="number" min="0" max="130" value={secondMemberAge} onChange={(event) => setSecondMemberAge(event.target.value)} placeholder="Optional" />
+              </label>
+              <label className="space-y-1 text-xs font-medium">
+                Phone
+                <Input value={secondMemberPhone} onChange={(event) => setSecondMemberPhone(event.target.value)} placeholder="Optional" />
+              </label>
+            </div>
+          )}
+
+          <p className="text-xs font-normal text-muted-foreground">
+            {selectedPlan?.name} is a couple plan. {secondMemberMode === "new" ? "Only the name is required — age and phone are optional." : "Pick the second member being paired."} Both start on {startDate} and expire on {expiryDateLabel ?? "the same date"}.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <label className="space-y-1.5 text-sm font-medium">
@@ -255,7 +377,11 @@ export function MembershipSaleWizard({ members, plans, branchId, returnTo }: Sal
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium">Sale summary</p>
-            <p className="text-xs text-muted-foreground">Subscription, invoice, and payment are created together.</p>
+            <p className="text-xs text-muted-foreground">
+              {isCouplePlan
+                ? "Subscription, invoice, and payment are created for the first member; the second member gets a linked subscription on the same plan and dates, at no extra charge."
+                : "Subscription, invoice, and payment are created together."}
+            </p>
           </div>
           <ShieldCheck className="size-5 text-muted-foreground" />
         </div>
@@ -275,6 +401,10 @@ export function MembershipSaleWizard({ members, plans, branchId, returnTo }: Sal
           <div className="flex items-center justify-between gap-4">
             <dt className="text-muted-foreground">Total payable</dt>
             <dd className="font-semibold tabular-nums">{formatCurrency(totals.totalAmount)}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt className="text-muted-foreground">Expiry</dt>
+            <dd className="font-medium tabular-nums">{expiryDateLabel ?? "—"}</dd>
           </div>
         </dl>
       </div>

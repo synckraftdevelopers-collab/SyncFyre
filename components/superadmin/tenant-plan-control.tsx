@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
 import { assignTenantPlanAction, type PlanActionState } from "@/app/(superadmin)/superadmin/tenants/plan-actions";
 import { normalizePlan } from "@/lib/entitlements/evaluate";
@@ -42,6 +42,11 @@ export function TenantPlanControl({
     assignTenantPlanAction,
     {},
   );
+  // useActionState's dispatch must be called inside a transition when
+  // invoked outside a <form action=...>/formAction prop (e.g. from this
+  // onClick handler) — otherwise React warns and isSubmitting won't track
+  // correctly. See handleSelect below.
+  const [, startTransition] = useTransition();
 
   // Sync back if a successful assignment was confirmed by the server
   useEffect(() => {
@@ -69,7 +74,9 @@ export function TenantPlanControl({
     const formData = new FormData();
     formData.set("tenant_id", tenantId);
     formData.set("plan_id", planId);
-    await formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   }
 
   const displayPlanId = pendingPlanId ?? activePlanId;

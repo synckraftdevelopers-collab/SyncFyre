@@ -93,6 +93,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         performedBy: profile.id,
         action: workflowAction === "renewed" ? "renewed" : "created",
         remarks: remarks ?? null,
+        linkedSubscriptionId: (payload.linked_subscription_id as string | null | undefined) ?? null,
       });
       return NextResponse.json(data, { status: 201 });
     } catch (error) {

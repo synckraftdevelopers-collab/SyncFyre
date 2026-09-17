@@ -5,6 +5,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { selectWithSchemaFallback } from "@/lib/supabase/select-fallback";
+import { inferPlanType } from "@/lib/membership-plan-type";
 import { formatCurrency } from "@/lib/utils";
 import { renewSubscriptionAction, updateSubscriptionStatusAction } from "@/app/actions/subscription-actions";
 import { SubscriptionExpiryBadge, SubscriptionStatusBadge } from "@/components/modules/subscription-status-badge";
@@ -22,15 +24,26 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
   const { id } = await params;
   const supabase = await createClient();
 
-  let subscriptionQuery = supabase
-    .from("subscriptions")
-    .select(
-      "id, member_id, plan_id, branch_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, members(full_name, member_code), membership_plans(name, duration_months)",
-    )
-    .eq("id", id);
-  if (profile.branch_id) subscriptionQuery = subscriptionQuery.eq("branch_id", profile.branch_id);
-  const { data: subscription, error } = await subscriptionQuery.maybeSingle();
+  // linked_subscription_id (on subscriptions) and plan_type (on the joined
+  // membership_plans) ship in migration 0046. Until that migration has run
+  // against this database, asking for either errors the whole detail query
+  // out — try the full shape first, then fall back to the base columns
+  // (couple-plan info just won't show yet) rather than 404ing a subscription
+  // that exists. See lib/supabase/select-fallback.ts.
+  const baseColumns =
+    "id, member_id, plan_id, branch_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, members(full_name, member_code), membership_plans(name, duration_months)";
+  const withCoupleColumns =
+    "id, member_id, plan_id, branch_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, linked_subscription_id, members(full_name, member_code), membership_plans(name, duration_months, plan_type)";
+
+  async function runSubscriptionQuery(columns: string) {
+    let query = supabase.from("subscriptions").select(columns).eq("id", id);
+    if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
+    return query.maybeSingle();
+  }
+
+  const { data: subscription, error } = await selectWithSchemaFallback(runSubscriptionQuery, [withCoupleColumns, baseColumns]);
   if (error || !subscription) notFound();
+  const subscriptionRow = subscription as Record<string, unknown>;
 
   const { data: history } = await supabase
     .from("subscription_history")
@@ -38,8 +51,19 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
     .eq("subscription_id", id)
     .order("performed_at", { ascending: false });
 
-  const member = subscription.members as unknown as { full_name: string | null; member_code: string | null } | null;
-  const plan = subscription.membership_plans as unknown as { name: string | null; duration_months: number | null } | null;
+  const member = subscriptionRow.members as unknown as { full_name: string | null; member_code: string | null } | null;
+  const planRaw = subscriptionRow.membership_plans as unknown as { name: string | null; duration_months: number | null; plan_type?: string | null } | null;
+  const plan = planRaw ? { ...planRaw, plan_type: inferPlanType(planRaw.plan_type, planRaw.name) } : null;
+
+  let linkedMember: { full_name: string | null; member_code: string | null } | null = null;
+  if (subscriptionRow.linked_subscription_id) {
+    const { data: linkedSubscription } = await supabase
+      .from("subscriptions")
+      .select("members(full_name, member_code)")
+      .eq("id", String(subscriptionRow.linked_subscription_id))
+      .maybeSingle();
+    linkedMember = (linkedSubscription?.members as unknown as { full_name: string | null; member_code: string | null } | null) ?? null;
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -63,6 +87,14 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
               </Link>
               {member?.member_code ? ` · ${member.member_code}` : ""}
             </p>
+            {plan?.plan_type === "couple" && (
+              <p className="mt-1 text-sm text-primary">
+                Couple plan
+                {linkedMember?.full_name
+                  ? ` — linked with ${linkedMember.full_name}${linkedMember.member_code ? ` (${linkedMember.member_code})` : ""}`
+                  : " — no linked member found"}
+              </p>
+            )}
 
             <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
               <Detail label="Start date" value={formatDate(subscription.start_date)} />

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import { Apple, Bell, CreditCard, Dumbbell, FileUp, MessageCircle, Phone, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
+import { Apple, Bell, CreditCard, Dumbbell, FileUp, MessageCircle, Phone, PlusCircle, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
 import type { UserRole } from "@/types";
 import { MemberProgressChart } from "@/components/progress/member-progress-chart";
 import { MemberAvatar } from "@/components/members/member-avatar";
@@ -246,6 +246,10 @@ export function Member360({
   const bmi = calculateBmi(member.height_cm, member.weight_kg);
   const latestSubscription = subscriptions[0];
   const activeSubscription = subscriptions.find((item) => item.status === "active") ?? latestSubscription;
+  // A member can hold more than one plan at once (e.g. Gym + Personal
+  // Training running concurrently) — every active subscription, not just
+  // the single "current" one used for the header badge above.
+  const activeSubscriptions = subscriptions.filter((item) => item.status === "active");
   const totalPaid = payments.filter((item) => item.payment_status === "completed").reduce((sum, item) => sum + Number(item.net_amount), 0);
   const outstanding = receivables.reduce((sum, item) => sum + Number(item.balance_amount ?? 0), 0);
   const engagement = getEngagement(member, attendance, latestSubscription, receivables, workouts, dietPlans, notifications);
@@ -266,6 +270,15 @@ export function Member360({
   });
   const whatsappHref = buildWhatsAppUrl(phone, whatsappMessage);
   const collectPaymentLink = `${collectPaymentHref}${collectPaymentHref.includes("?") ? "&" : "?"}memberId=${member.id}`;
+  // "Add Plan" reuses the existing membership-sale flow (already supports
+  // picking a couple-plan partner) with this member preselected — it always
+  // creates a brand new, separate subscription rather than touching any
+  // plan the member already has, so a member can end up holding more than
+  // one plan at once.
+  const isReceptionPortal = basePath.startsWith("/reception");
+  const addPlanHref = isReceptionPortal
+    ? `/reception/memberships/new?member=${member.id}`
+    : `/admin/subscriptions/new?member=${member.id}&returnTo=${encodeURIComponent(`${basePath}/${member.id}?tab=membership`)}`;
 
   return (
     <div className="mx-auto max-w-7xl space-y-5">
@@ -291,7 +304,9 @@ export function Member360({
               <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
                 <span>{phone || "-"}</span>
                 {member.email ? <span>{member.email}</span> : null}
-                {activeSubscription?.plan_name ? <span>{activeSubscription.plan_name}</span> : null}
+                {activeSubscriptions.length > 1
+                  ? <span>{activeSubscriptions.length} active plans: {activeSubscriptions.map((item) => item.plan_name).join(", ")}</span>
+                  : activeSubscription?.plan_name ? <span>{activeSubscription.plan_name}</span> : null}
                 {age ? <span>{age} yrs</span> : null}
               </div>
 
@@ -304,6 +319,7 @@ export function Member360({
                 {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
                 {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><CreditCard className="size-4" />Collect Payment</Link> : null}
                 {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} defaultOpen={renewOpen} /> : null}
+                {canUse(role, ["admin", "manager", "reception"]) ? <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link> : null}
               </div>
             </div>
 
@@ -323,7 +339,14 @@ export function Member360({
           {activeTab === "overview" ? (
             <>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <InfoCard title="Membership" rows={[['Plan', activeSubscription?.plan_name ?? 'No active plan'], ['Start', formatDate(activeSubscription?.start_date)], ['Expiry', formatDate(activeSubscription?.end_date)], ['Status', actionLabel(activeSubscription?.status ?? 'inactive')]]} />
+                <InfoCard
+                  title={activeSubscriptions.length > 1 ? `Membership (${activeSubscriptions.length} active plans)` : "Membership"}
+                  rows={
+                    activeSubscriptions.length > 1
+                      ? activeSubscriptions.map((item) => [item.plan_name ?? 'Plan', `Exp ${formatDate(item.end_date)}`] as [string, React.ReactNode])
+                      : [['Plan', activeSubscription?.plan_name ?? 'No active plan'], ['Start', formatDate(activeSubscription?.start_date)], ['Expiry', formatDate(activeSubscription?.end_date)], ['Status', actionLabel(activeSubscription?.status ?? 'inactive')]]
+                  }
+                />
                 <InfoCard title="Financial" rows={[['Plan Amount', activeSubscription ? formatCurrency(activeSubscription.total_amount) : '-'], ['Paid', formatCurrency(totalPaid)], ['Due', outstanding ? formatCurrency(outstanding) : 'Cleared'], ['Invoices', String(payments.length)]]} />
                 <InfoCard title="Attendance" rows={[['This Month', `${attendance.currentMonthVisits} visits`], ['Last Visit', formatDate(attendance.lastVisitDate)], ['Attendance Rate', `${Math.min(100, Math.round((attendance.currentMonthVisits / 24) * 100))}%`], ['Today', attendance.todayPresent ? 'Present' : 'Absent']]} />
                 <InfoCard title="Trainer" rows={[['Assigned Trainer', trainerName], ['Dietician', dieticianName], ['Workout Plans', String(workouts.length)], ['Diet Plans', String(dietPlans.length)]]} />
@@ -366,6 +389,7 @@ export function Member360({
                     {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><Wallet className="size-4" />Collect Payment</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={`${basePath}/${member.id}?tab=membership`} className={buttonVariants({ variant: "outline", size: "sm" })}><TrendingUp className="size-4" />Renew</Link> : null}
+                    {canUse(role, ["admin", "manager", "reception"]) ? <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href="/reception/attendance" className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignTrainerDialog memberId={member.id} currentTrainerId={member.assigned_trainer_id} trainers={trainers} /> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignDieticianDialog memberId={member.id} currentDieticianId={member.assigned_dietician_id} dieticians={dieticians} /> : null}
@@ -378,9 +402,15 @@ export function Member360({
 
           {activeTab === "membership" ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Membership History</h2>
-                {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} defaultOpen={renewOpen} /> : null}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-lg font-semibold">Membership History</h2>
+                  {activeSubscriptions.length > 1 ? <p className="text-sm text-muted-foreground">{activeSubscriptions.length} plans are active at the same time — each below runs on its own dates and balance.</p> : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} defaultOpen={renewOpen} /> : null}
+                  {canUse(role, ["admin", "manager", "reception"]) ? <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link> : null}
+                </div>
               </div>
               <ResponsiveTable headers={["Plan", "Start", "Expiry", "Status", "Total", "Renewals"]} rows={subscriptions.map((item) => [item.plan_name, formatDate(item.start_date), formatDate(item.end_date), <SubscriptionStatusBadge key={item.id} status={item.status} />, formatCurrency(item.total_amount), String(item.times_renewed)])} empty="No membership history available." />
             </div>

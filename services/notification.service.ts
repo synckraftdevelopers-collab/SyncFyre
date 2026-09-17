@@ -61,6 +61,22 @@ export async function getNotificationFeed(input: NotificationScopeInput & { filt
   return (data ?? []) as unknown as NotificationFeedRow[];
 }
 
+/**
+ * Protected cron entry point. Flips any 'active' subscription whose
+ * end_date has passed to 'expired' (and logs it to subscription_history),
+ * so the Members page, its Expired filter/count, and the dashboard's
+ * expired-memberships tile — which all query subscriptions.status directly
+ * — stay accurate day to day instead of subscriptions silently staying
+ * "active" forever after they lapse. Idempotent: a no-op once nothing is
+ * overdue. Runs before queueSubscriptionReminders() so same-day "expired
+ * today" notifications reflect the just-updated status.
+ */
+export async function expireOverdueSubscriptions() {
+  const { data, error } = await createAdminClient().rpc("expire_overdue_subscriptions");
+  if (error) throw new Error(error.message);
+  return { expired: Number(data ?? 0) };
+}
+
 /** Protected cron entry point. The database function reads real memberships and invoices and is idempotent. */
 export async function queueSubscriptionReminders() {
   const { data, error } = await createAdminClient().rpc("generate_membership_reminders");
@@ -69,7 +85,8 @@ export async function queueSubscriptionReminders() {
 }
 
 export async function runNotificationAutomation() {
+  const expiry = await expireOverdueSubscriptions();
   const reminders = await queueSubscriptionReminders();
   const deliveries = await dispatchPendingNotificationDeliveries();
-  return { reminders, deliveries };
+  return { expiry, reminders, deliveries };
 }

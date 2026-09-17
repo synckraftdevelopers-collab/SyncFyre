@@ -7,11 +7,13 @@ import { calculatePaymentBalance } from "@/lib/finance/payment-balance";
 import { insertWithSchemaFallback } from "@/lib/supabase/insert-fallback";
 import { parseDateOnly } from "@/lib/membership-dates";
 import { createClient } from "@/lib/supabase/server";
-import { applyMemberFormConfiguration, memberSchema } from "@/lib/validations/member";
+import { applyMemberFormConfiguration, memberSchema, type MemberInput } from "@/lib/validations/member";
 import { createMember, updateMember } from "@/services/member.service";
 import { getMemberFormConfiguration } from "@/services/member-form-config.service";
+import { getPlanForSale } from "@/services/plan.service";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 import { deactivateMember } from "@/services/member-extended.service";
+import { sellMembershipPlanToMember } from "@/services/membership-plan.service";
 
 export type MemberFormState = { error?: string; fields?: Record<string, string[]> };
 
@@ -32,6 +34,51 @@ const paymentSchemaFallbackKeys = [
   ["taxable_amount", "gst_rate", "gst_type", "gst_amount", "cgst_amount", "sgst_amount", "igst_amount"],
   ["tenant_id"],
 ] as const;
+
+export type QuickMemberState = { error?: string; member?: { id: string; full_name: string; member_code: string } };
+
+/**
+ * Short-form member creation (name required, age/phone optional) for the
+ * "New member" option on a couple plan's second-member picker. Unlike
+ * createMemberAction, this is called directly from client code (not a
+ * <form action>) — the admin sale wizard talks to the REST resource API for
+ * everything else, but member creation isn't exposed there (see
+ * lib/validations/resources.ts), so this server action fills that gap. Uses
+ * the same createMember() as every other member-creation path in the app.
+ */
+export async function createQuickCoupleMemberAction(input: {
+  fullName: string;
+  age?: string | number | null;
+  phone?: string | null;
+  branchId: string;
+}): Promise<QuickMemberState> {
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
+  const fullName = String(input.fullName ?? "").trim();
+  if (!fullName) return { error: "Enter the second member's name." };
+  if (!input.branchId) return { error: "A branch is required." };
+  if (profile.role?.slug === "reception" && profile.branch_id !== input.branchId) {
+    return { error: "Reception staff can register members only for their assigned branch." };
+  }
+
+  const age = input.age !== undefined && input.age !== null && input.age !== "" ? Number(input.age) : null;
+  try {
+    const member = await createMember(
+      {
+        full_name: fullName,
+        phone: normalizePhone(input.phone) || null,
+        age: Number.isFinite(age) ? age : null,
+        branch_id: input.branchId,
+        status: "active",
+      } as MemberInput,
+      profile.id,
+      profile.tenant_id,
+    );
+    return { member: { id: member.id, full_name: member.full_name, member_code: member.member_code } };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to create the second member." };
+  }
+}
 
 export async function createMemberAction(
   _: MemberFormState,
@@ -66,11 +113,29 @@ export async function createMemberAction(
   const discountAmount = Number(raw.discount_amount ?? 0);
   const paymentMethod = ["cash", "upi", "card", "online", "check"].includes(String(raw.payment_method ?? "")) ? String(raw.payment_method) : "cash";
   const transactionRef = String(raw.transaction_ref ?? "").trim() || null;
+  const couplePartnerMode = String(raw.couple_partner_mode ?? "existing") === "new" ? "new" : "existing";
+  const couplePartnerMemberId = String(raw.couple_partner_member_id ?? "").trim();
+  const couplePartnerFullName = String(raw.couple_partner_full_name ?? "").trim();
+  const couplePartnerAgeText = String(raw.couple_partner_age ?? "").trim();
+  const couplePartnerAge = couplePartnerAgeText ? Number(couplePartnerAgeText) : null;
+  const couplePartnerPhone = normalizePhone(raw.couple_partner_phone);
+  // Optional second, independently-billed plan sold at the same time as the
+  // primary one above (e.g. a Gym membership + a Personal Training plan) —
+  // see the "Add another plan" toggle on the registration wizard. Both plans
+  // stay active at once; this never replaces the primary plan. Only
+  // individual (non-couple) plans are offered here to keep this simple —
+  // couple pairing is already handled for the primary plan slot.
+  const extraPlanId = String(raw.extra_plan_id ?? "").trim();
+  const extraPaymentAmountText = String(raw.extra_payment_amount ?? "").trim();
+  const extraPaymentAmount = extraPaymentAmountText ? Number(extraPaymentAmountText) : 0;
+  const extraDiscountAmount = Number(raw.extra_discount_amount ?? 0);
 
   if (!planId) return { error: "Package is required." };
   if (!startDate) return { error: "Start date is required." };
   if (!paymentAmountText || Number.isNaN(paymentAmount) || paymentAmount < 0) return { error: "Payment completed is required." };
   if (!Number.isFinite(discountAmount) || discountAmount < 0) return { error: "Enter a valid discount amount." };
+  if (extraPlanId && (!Number.isFinite(extraPaymentAmount) || extraPaymentAmount < 0)) return { error: "Enter a valid payment amount for the extra plan." };
+  if (extraPlanId && (!Number.isFinite(extraDiscountAmount) || extraDiscountAmount < 0)) return { error: "Enter a valid discount amount for the extra plan." };
 
   try {
     parseDateOnly(startDate);
@@ -79,13 +144,8 @@ export async function createMemberAction(
   }
 
   const supabase = await createClient();
-  const [{ data: plan }, { data: branch }, { data: financeSettings }] = await Promise.all([
-    supabase
-      .from("membership_plans")
-      .select("id, name, branch_id, price, gst_percent, discount_percent, duration_months")
-      .eq("id", planId)
-      .eq("status", "active")
-      .maybeSingle(),
+  const [plan, { data: branch }, { data: financeSettings }] = await Promise.all([
+    getPlanForSale(planId),
     supabase
       .from("branches")
       .select("id, state, tenant_id")
@@ -105,6 +165,31 @@ export async function createMemberAction(
   if (!branch) return { error: "Select an active branch in your organization." };
   if (profile.role?.slug === "reception" && profile.branch_id !== branch.id) {
     return { error: "Reception staff can register members only for their assigned branch." };
+  }
+
+  const isCouplePlan = plan.plan_type === "couple";
+  if (isCouplePlan && couplePartnerMode === "existing" && !couplePartnerMemberId) {
+    return { error: "This is a couple plan — select the second member too." };
+  }
+  if (isCouplePlan && couplePartnerMode === "new" && !couplePartnerFullName) {
+    return { error: "This is a couple plan — enter the second member's name." };
+  }
+  // "existing" pairs with an already-registered member (looked up now, before
+  // we spend anything). "new" registers a second brand-new member via a
+  // short form (name + phone) — that member is created further below,
+  // alongside the primary member and billing, so any failure there rolls
+  // back the same way.
+  let existingCouplePartner: { id: string; full_name: string | null } | null = null;
+  if (isCouplePlan && couplePartnerMode === "existing") {
+    const { data: partner } = await supabase
+      .from("members")
+      .select("id, full_name")
+      .eq("id", couplePartnerMemberId)
+      .eq("branch_id", parsed.data.branch_id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!partner) return { error: "The second member is unavailable for this branch." };
+    existingCouplePartner = partner;
   }
 
   const discountBase = Number(plan.price ?? 0);
@@ -134,6 +219,8 @@ export async function createMemberAction(
 
   if (calculatePaymentBalance(total, paymentAmount).isOverpaid) return { error: "Payment completed cannot be greater than total amount." };
 
+  let couplePartner: { id: string; full_name: string | null } | null = existingCouplePartner;
+
   try {
     const subscription = await createSubscriptionWithHistory({
       memberId: createdMember.id,
@@ -151,8 +238,55 @@ export async function createMemberAction(
       remarks: `Collected on registration: ${paymentAmount.toFixed(2)}`,
     });
 
-    const subscriptionEndDate = (subscription as { id?: string; end_date?: string } | null)?.end_date ?? null;
-    if (!subscriptionEndDate) throw new Error("Unable to determine membership expiry date.");
+    // Note: the invoice's due_date is the *payment* due date, not the
+    // membership's expiry date — those were previously conflated here,
+    // which made every registration-day invoice's due date track the
+    // subscription's end_date instead of when payment was actually owed
+    // (causing unrelated invoices to cluster onto the same "due date" on
+    // the Outstanding Dues page whenever their plans happened to share a
+    // duration). Payment is expected on the day the membership starts.
+
+    if (isCouplePlan && couplePartnerMode === "new") {
+      // Short-form registration: create the second member with just a name
+      // (and optional phone) — everything else defaults, same as any other
+      // member record. Created here, alongside billing, so a failure below
+      // surfaces as one combined error rather than leaving an orphan member.
+      const newPartner = await createMember(
+        {
+          full_name: couplePartnerFullName,
+          phone: couplePartnerPhone || null,
+          age: Number.isFinite(couplePartnerAge) ? couplePartnerAge : null,
+          branch_id: parsed.data.branch_id,
+          status: "active",
+        } as MemberInput,
+        profile.id,
+        profile.tenant_id,
+      );
+      couplePartner = { id: newPartner.id, full_name: newPartner.full_name };
+    }
+
+    if (isCouplePlan && couplePartner) {
+      // Same plan and start date as the new member's subscription above, so
+      // the plan's duration trigger derives a matching expiry for the
+      // partner automatically. No separate charge — already billed on the
+      // new member's invoice/payment below.
+      await createSubscriptionWithHistory({
+        memberId: couplePartner.id,
+        planId: plan.id,
+        branchId: parsed.data.branch_id,
+        tenantId: profile.tenant_id,
+        startDate,
+        status: "active",
+        price: 0,
+        discountAmount: 0,
+        gstAmount: 0,
+        totalAmount: 0,
+        performedBy: profile.id,
+        action: "created",
+        remarks: `Couple plan — paired with new member ${parsed.data.full_name}. Billed on that member's subscription.`,
+        linkedSubscriptionId: (subscription as { id?: string } | null)?.id ?? null,
+      });
+    }
 
     const invoicePayload = {
       member_id: createdMember.id,
@@ -173,7 +307,7 @@ export async function createMemberAction(
       balance_amount: total,
       payment_status: "pending",
       status: "unpaid",
-      due_date: subscriptionEndDate,
+      due_date: startDate,
       line_items: [{ description: plan.name, amount: total, taxable_amount: gst.taxableAmount, gst_amount: gst.gstAmount }],
       created_by: profile.id,
     };
@@ -213,12 +347,34 @@ export async function createMemberAction(
       );
       if (paymentError) throw new Error(paymentError.message ?? "Unable to create payment.");
     }
+
+    if (extraPlanId) {
+      // A second, separate plan for the same new member — its own
+      // subscription, invoice, and (optional) payment, running alongside
+      // the primary plan above rather than replacing it.
+      await sellMembershipPlanToMember({
+        memberId: createdMember.id,
+        memberName: createdMember.full_name,
+        branchId: parsed.data.branch_id,
+        tenantId: profile.tenant_id,
+        planId: extraPlanId,
+        startDate,
+        paymentAmount: extraPaymentAmount,
+        discountAmount: extraDiscountAmount,
+        paymentMethod: paymentMethod as "cash" | "upi" | "card" | "online" | "check",
+        transactionRef: null,
+        performedBy: profile.id,
+        subscriptionAction: "created",
+        remarksPrefix: "Extra plan added at registration — collected: ",
+      });
+    }
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Member created, but package/payment could not be saved." };
   }
 
   const base = profile.role?.slug === "reception" ? "/reception" : "/admin";
   revalidatePath(`${base}/members`);
+  if (couplePartner) revalidatePath(`${base}/members/${couplePartner.id}`);
   redirect(`${base}/members`);
 }
 
@@ -303,7 +459,9 @@ export async function generateMemberInvoiceAction(memberId: string): Promise<{ e
   });
 
   const total = gst.grandTotal;
-  const dueDate = subscription.end_date ?? subscription.start_date ?? new Date().toISOString().slice(0, 10);
+  // Payment due date, not the membership's expiry date — see the note in
+  // createMemberAction above for why end_date must not be used here.
+  const dueDate = subscription.start_date ?? new Date().toISOString().slice(0, 10);
 
   const invoicePayload = {
       member_id: memberId,

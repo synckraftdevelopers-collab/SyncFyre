@@ -31,6 +31,7 @@ interface MembershipPlan {
   status: "active" | "inactive";
   created_at: string;
   branch_id: string | null;
+  plan_type: "individual" | "couple";
 }
 
 export default async function MembershipsPage({
@@ -201,9 +202,16 @@ export default async function MembershipsPage({
                         {plan.duration_months} month{plan.duration_months !== 1 ? "s" : ""}
                       </p>
                     </div>
-                    <Badge variant={plan.status === "active" ? "default" : "outline"} className="shrink-0">
-                      {plan.status}
-                    </Badge>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant={plan.status === "active" ? "default" : "outline"}>
+                        {plan.status}
+                      </Badge>
+                      {plan.plan_type === "couple" && (
+                        <Badge variant="outline" className="border-primary/40 text-primary">
+                          Couple plan
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
 

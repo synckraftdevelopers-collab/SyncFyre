@@ -30,6 +30,7 @@ interface Plan {
   discount_percent: number;
   features: string[];
   status: "active" | "inactive";
+  plan_type?: "individual" | "couple";
 }
 
 interface Props {
@@ -154,6 +155,37 @@ export function MembershipPlanForm({ branchId, plan }: Props) {
           />
           <p className="text-xs text-muted-foreground">
             Comma-separated list of features included in this plan
+          </p>
+        </div>
+
+        {/* Plan type */}
+        <div className="space-y-1.5 sm:col-span-2">
+          <label className="text-sm font-medium">Plan Type</label>
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="plan_type"
+                value="individual"
+                defaultChecked={(plan?.plan_type ?? "individual") === "individual"}
+                className="size-4"
+              />
+              Individual (1 member)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="plan_type"
+                value="couple"
+                defaultChecked={plan?.plan_type === "couple"}
+                className="size-4"
+              />
+              Couple (2 members)
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A couple plan lets staff select two members at sale time. Both get this
+            plan with the same start date and expiry.
           </p>
         </div>
 
