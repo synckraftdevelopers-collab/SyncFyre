@@ -13,7 +13,7 @@ import { getMemberFormConfiguration } from "@/services/member-form-config.servic
 import { getPlanForSale } from "@/services/plan.service";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 import { deactivateMember } from "@/services/member-extended.service";
-import { sellMembershipPlanToMember } from "@/services/membership-plan.service";
+import { changeCouplePartner, sellMembershipPlanToMember } from "@/services/membership-plan.service";
 
 export type MemberFormState = { error?: string; fields?: Record<string, string[]> };
 
@@ -77,6 +77,148 @@ export async function createQuickCoupleMemberAction(input: {
     return { member: { id: member.id, full_name: member.full_name, member_code: member.member_code } };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to create the second member." };
+  }
+}
+
+export type AddPlanState = { error?: string; success?: boolean; subscriptionId?: string; couplePartnerId?: string };
+
+/**
+ * Sells one more plan to a member who already exists — the server action
+ * behind the inline "Add Plan" panel on the Edit Member page. Unlike
+ * createMemberAction, this never creates or touches personal-info fields —
+ * it only calls sellMembershipPlanToMember, which always creates a brand
+ * new subscription/invoice rather than replacing any plan the member
+ * already holds (see migration 0051). Couple plans are supported here the
+ * same way as everywhere else a plan gets sold (existing partner or a
+ * quick new-member short form).
+ */
+export async function addMemberPlanAction(
+  _: AddPlanState,
+  formData: FormData,
+): Promise<AddPlanState> {
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
+
+  const memberId = String(formData.get("member_id") ?? "").trim();
+  const planId = String(formData.get("plan_id") ?? "").trim();
+  const startDate = String(formData.get("start_date") ?? "").trim();
+  const paymentAmountText = String(formData.get("payment_amount") ?? "").trim();
+  const paymentAmount = paymentAmountText ? Number(paymentAmountText) : 0;
+  const discountAmount = Number(formData.get("discount_amount") ?? 0);
+  const paymentMethodRaw = String(formData.get("payment_method") ?? "cash");
+  const paymentMethod = (["cash", "upi", "card", "online", "check"].includes(paymentMethodRaw) ? paymentMethodRaw : "cash") as "cash" | "upi" | "card" | "online" | "check";
+  const transactionRef = String(formData.get("transaction_ref") ?? "").trim() || null;
+  const couplePartnerMode = String(formData.get("couple_partner_mode") ?? "existing") === "new" ? "new" : "existing";
+  const couplePartnerMemberId = String(formData.get("couple_partner_member_id") ?? "").trim();
+  const couplePartnerFullName = String(formData.get("couple_partner_full_name") ?? "").trim();
+  const couplePartnerAgeText = String(formData.get("couple_partner_age") ?? "").trim();
+  const couplePartnerAge = couplePartnerAgeText ? Number(couplePartnerAgeText) : null;
+  const couplePartnerPhone = normalizePhone(formData.get("couple_partner_phone"));
+
+  if (!memberId) return { error: "Member is required." };
+  if (!planId) return { error: "Select a package." };
+  if (!startDate) return { error: "Start date is required." };
+  if (!Number.isFinite(paymentAmount) || paymentAmount < 0) return { error: "Enter a valid payment amount." };
+  if (!Number.isFinite(discountAmount) || discountAmount < 0) return { error: "Enter a valid discount amount." };
+  try {
+    parseDateOnly(startDate);
+  } catch {
+    return { error: "Enter a valid start date." };
+  }
+
+  const supabase = await createClient();
+  const { data: member } = await supabase
+    .from("members")
+    .select("id, full_name, branch_id")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (!member) return { error: "Member not found." };
+  if (profile.role?.slug === "reception" && profile.branch_id !== member.branch_id) {
+    return { error: "Reception staff can only add plans for members at their assigned branch." };
+  }
+
+  try {
+    const result = await sellMembershipPlanToMember({
+      memberId: member.id,
+      memberName: member.full_name ?? "",
+      branchId: member.branch_id,
+      tenantId: profile.tenant_id,
+      planId,
+      startDate,
+      paymentAmount,
+      discountAmount,
+      paymentMethod,
+      transactionRef,
+      performedBy: profile.id,
+      subscriptionAction: "created",
+      remarksPrefix: "Collected: ",
+      couplePartnerMode,
+      couplePartnerMemberId: couplePartnerMemberId || null,
+      couplePartnerFullName: couplePartnerFullName || null,
+      couplePartnerAge,
+      couplePartnerPhone: couplePartnerPhone || null,
+    });
+
+    const base = profile.role?.slug === "reception" ? "/reception" : "/admin";
+    revalidatePath(`${base}/members/${memberId}`);
+    if (result.couplePartnerId) revalidatePath(`${base}/members/${result.couplePartnerId}`);
+    return { success: true, subscriptionId: result.subscriptionId, couplePartnerId: result.couplePartnerId };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to add the plan." };
+  }
+}
+
+export type ChangePartnerState = { error?: string; success?: boolean; newPartnerId?: string };
+
+/**
+ * Swaps out who a member's already-sold couple plan is paired with — the
+ * server action behind the "Change partner" control on the Edit Member
+ * page's Memberships section. Must be called with the subscription id of
+ * the member who was actually billed for the plan (see
+ * changeCouplePartner's docstring); the old partner's linked subscription is
+ * cancelled, not deleted, and a new one is created for the replacement
+ * partner on the same plan/dates.
+ */
+export async function changeCouplePartnerAction(
+  _: ChangePartnerState,
+  formData: FormData,
+): Promise<ChangePartnerState> {
+  const profile = await requireUser(["admin", "manager", "reception"]);
+  if (!profile.tenant_id) return { error: "Your account is not linked to an organization." };
+
+  const subscriptionId = String(formData.get("subscription_id") ?? "").trim();
+  const partnerMode = String(formData.get("partner_mode") ?? "existing") === "new" ? "new" : "existing";
+  const partnerMemberId = String(formData.get("partner_member_id") ?? "").trim();
+  const partnerFullName = String(formData.get("partner_full_name") ?? "").trim();
+  const partnerAgeText = String(formData.get("partner_age") ?? "").trim();
+  const partnerAge = partnerAgeText ? Number(partnerAgeText) : null;
+  const partnerPhone = normalizePhone(formData.get("partner_phone"));
+
+  if (!subscriptionId) return { error: "Subscription is required." };
+  if (partnerMode === "existing" && !partnerMemberId) return { error: "Select the new second member." };
+  if (partnerMode === "new" && !partnerFullName) return { error: "Enter the new second member's name." };
+
+  try {
+    const result = await changeCouplePartner({
+      subscriptionId,
+      tenantId: profile.tenant_id,
+      performedBy: profile.id,
+      requestingRole: profile.role?.slug ?? null,
+      requestingBranchId: profile.branch_id ?? null,
+      partnerMode,
+      partnerMemberId: partnerMemberId || null,
+      partnerFullName: partnerFullName || null,
+      partnerAge,
+      partnerPhone: partnerPhone || null,
+    });
+
+    const base = profile.role?.slug === "reception" ? "/reception" : "/admin";
+    revalidatePath(`${base}/members/${result.memberId}`);
+    if (result.oldPartnerId) revalidatePath(`${base}/members/${result.oldPartnerId}`);
+    revalidatePath(`${base}/members/${result.newPartnerId}`);
+    return { success: true, newPartnerId: result.newPartnerId };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to change the couple partner." };
   }
 }
 

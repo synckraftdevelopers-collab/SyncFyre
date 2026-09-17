@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { getMemberFormConfiguration } from "@/services/member-form-config.service";
 import { BackButton } from "@/components/ui/back-button";
 import { getMemberDocuments, getMemberNotes } from "@/services/member-notes.service";
+import { getMemberCouplePlanInfo } from "@/services/membership-plan.service";
 import {
   getBranchOptions,
   getDieticianOptions,
@@ -42,7 +43,7 @@ export default async function ReceptionMemberDetailPage({
   const profile = await requireUser(["reception", "admin", "manager"]);
   const supabase = await createClient();
 
-  const [member, subscriptions, payments, attendance, attendanceRecords, progress, workouts, dietPlans, notifications, plans, branches, trainers, dieticians, memberFormFields, receivablesRes, activityRes, notes, documents] = await Promise.all([
+  const [member, subscriptions, payments, attendance, attendanceRecords, progress, workouts, dietPlans, notifications, plans, branches, trainers, dieticians, memberFormFields, receivablesRes, activityRes, notes, documents, activeMembersRes, couplePlanInfo] = await Promise.all([
     getMemberById(id),
     optionalData(getMemberSubscriptions(id), []),
     optionalData(getMemberPayments(id), []),
@@ -61,6 +62,8 @@ export default async function ReceptionMemberDetailPage({
     supabase.from("activity_logs").select("id, action, entity_type, description, created_at").eq("branch_id", profile.branch_id).or(`entity_id.eq.${id},description.ilike.%member%`).order("created_at", { ascending: false }).limit(20),
     optionalData(getMemberNotes(id), []),
     optionalData(getMemberDocuments(id), []),
+    supabase.from("members").select("id, full_name, member_code").eq("branch_id", profile.branch_id).eq("status", "active").order("full_name"),
+    optionalData(getMemberCouplePlanInfo(id), []),
   ]);
 
   if (!member) notFound();
@@ -73,7 +76,7 @@ export default async function ReceptionMemberDetailPage({
           <h1 className="mt-2 text-2xl font-bold">Edit member</h1>
           <p className="text-sm text-muted-foreground">Update {member.full_name}&apos;s profile and assignment details.</p>
         </div>
-        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} memberFormFields={memberFormFields} branches={branches} trainers={trainers} dieticians={dieticians} subscriptions={subscriptions} basePath="/reception/members" /></CardContent></Card>
+        <Card><CardContent className="p-5 md:p-7"><MemberEditForm member={member} memberFormFields={memberFormFields} branches={branches} trainers={trainers} dieticians={dieticians} subscriptions={subscriptions} plans={plans} members={activeMembersRes.data ?? []} couplePlanInfo={couplePlanInfo} basePath="/reception/members" /></CardContent></Card>
       </div>
     );
   }

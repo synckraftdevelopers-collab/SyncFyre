@@ -1,10 +1,11 @@
 "use client";
-import Link from "next/link";
-import { useActionState } from "react";
+import { Fragment, useActionState, useState } from "react";
 import { LoaderCircle, PlusCircle } from "lucide-react";
 import { updateMemberAction } from "@/app/actions/member-actions";
+import { AddMemberPlanForm } from "@/components/members/add-member-plan-form";
+import { ChangeCouplePartnerForm } from "@/components/members/change-couple-partner-form";
 import { MemberDynamicFields } from "@/components/members/member-dynamic-fields";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import type { MemberFormFieldConfiguration, MemberFormFieldKey } from "@/lib/members/member-form-config";
@@ -30,6 +31,19 @@ function formatPlanDate(value: string | null | undefined) {
   }
 }
 
+type MemberOption = { id: string; full_name: string; member_code: string };
+type PlanOption = { id: string; name: string; price: number; duration_months: number; plan_type?: "individual" | "couple" };
+type CouplePlanRow = {
+  subscriptionId: string;
+  isPrimary: boolean;
+  partnerMemberId: string | null;
+  partnerMemberName: string | null;
+};
+
+function subscriptionRowId(item: EditFormSubscription): string {
+  return (item as unknown as { subscription_id?: string }).subscription_id ?? item.id;
+}
+
 export function MemberEditForm({
   member,
   branches,
@@ -37,6 +51,9 @@ export function MemberEditForm({
   dieticians,
   memberFormFields,
   subscriptions = [],
+  plans = [],
+  members = [],
+  couplePlanInfo = [],
   basePath = "/admin/members",
 }: {
   member: Member & {
@@ -59,52 +76,67 @@ export function MemberEditForm({
   branches: { id: string; name: string }[];
   trainers: { id: string; name: string }[];
   subscriptions?: EditFormSubscription[];
+  plans?: PlanOption[];
+  members?: MemberOption[];
+  couplePlanInfo?: CouplePlanRow[];
   basePath?: string;
 }) {
   const [state, action, pending] = useActionState(updateMemberAction, {});
-  // Same "Add Plan" flow as the member's profile page — picks the plan
-  // (couple plans included, with their existing partner picker) and creates
-  // a brand new, separate subscription without touching any plan the
-  // member already has.
-  const isReceptionPortal = basePath.startsWith("/reception");
-  const addPlanHref = isReceptionPortal
-    ? `/reception/memberships/new?member=${member.id}`
-    : `/admin/subscriptions/new?member=${member.id}&returnTo=${encodeURIComponent(`${basePath}/${member.id}?edit=1`)}`;
+  const [showAddPlan, setShowAddPlan] = useState(false);
+  const [changePartnerFor, setChangePartnerFor] = useState<string | null>(null);
   const activeSubscriptions = subscriptions.filter((item) => item.status === "active");
+  const couplePlanById = new Map(couplePlanInfo.map((row) => [row.subscriptionId, row]));
   const enabledFields = memberFormFields.filter((field) => field.enabled);
   const values = member as Partial<Record<MemberFormFieldKey, string | number | null | undefined>>;
   const errors = state.fields ? Object.fromEntries(Object.entries(state.fields).map(([key, messages]) => [key, messages?.[0]])) as Partial<Record<MemberFormFieldKey, string>> : undefined;
+  void basePath;
 
   return (
-    <form action={action} className="space-y-7">
-      <input type="hidden" name="id" value={member.id} />
+    <div className="space-y-7">
+      <form action={action} className="space-y-7">
+        <input type="hidden" name="id" value={member.id} />
 
-      <section>
-        <h2 className="mb-4 font-semibold">Personal information</h2>
-        <MemberDynamicFields fields={enabledFields.filter((field) => field.section === "personal")} values={values} errors={errors} register={(name) => ({ name, defaultValue: values[name] == null ? "" : String(values[name]) })} />
-      </section>
+        <section>
+          <h2 className="mb-4 font-semibold">Personal information</h2>
+          <MemberDynamicFields fields={enabledFields.filter((field) => field.section === "personal")} values={values} errors={errors} register={(name) => ({ name, defaultValue: values[name] == null ? "" : String(values[name]) })} />
+        </section>
 
-      <section>
-        <h2 className="mb-4 font-semibold">Emergency information</h2>
-        <MemberDynamicFields fields={enabledFields.filter((field) => field.section === "emergency")} values={values} errors={errors} register={(name) => ({ name, defaultValue: values[name] == null ? "" : String(values[name]) })} />
-      </section>
+        <section>
+          <h2 className="mb-4 font-semibold">Emergency information</h2>
+          <MemberDynamicFields fields={enabledFields.filter((field) => field.section === "emergency")} values={values} errors={errors} register={(name) => ({ name, defaultValue: values[name] == null ? "" : String(values[name]) })} />
+        </section>
 
-      <section>
-        <h2 className="mb-4 font-semibold">Health & fitness</h2>
-        <MemberDynamicFields fields={enabledFields.filter((field) => field.section === "medical")} values={values} errors={errors} register={(name) => ({ name, defaultValue: values[name] == null ? "" : String(values[name]) })} />
-      </section>
+        <section>
+          <h2 className="mb-4 font-semibold">Health & fitness</h2>
+          <MemberDynamicFields fields={enabledFields.filter((field) => field.section === "medical")} values={values} errors={errors} register={(name) => ({ name, defaultValue: values[name] == null ? "" : String(values[name]) })} />
+        </section>
 
-      <section>
-        <h2 className="mb-4 font-semibold">Status, biometric & assignment</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <label className={fieldClass}>Branch *<select name="branch_id" required defaultValue={member.branch_id} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Select branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-          <label className={fieldClass}>Biometric user ID<Input name="machine_user_id" defaultValue={member.machine_user_id ?? ""} placeholder="Used by face/fingerprint devices" /></label>
-          <label className={fieldClass}>Assigned trainer<select name="assigned_trainer_id" defaultValue={member.assigned_trainer_id ?? ""} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Not assigned</option>{trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
-          <label className={fieldClass}>Assigned dietician<select name="assigned_dietician_id" defaultValue={member.assigned_dietician_id ?? ""} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Not assigned</option>{dieticians.map((dietician) => <option key={dietician.id} value={dietician.id}>{dietician.name}</option>)}</select></label>
-          <label className={fieldClass}>Status<select name="status" defaultValue={member.status} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+        <section>
+          <h2 className="mb-4 font-semibold">Status, biometric & assignment</h2>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <label className={fieldClass}>Branch *<select name="branch_id" required defaultValue={member.branch_id} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Select branch</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+            <label className={fieldClass}>Biometric user ID<Input name="machine_user_id" defaultValue={member.machine_user_id ?? ""} placeholder="Used by face/fingerprint devices" /></label>
+            <label className={fieldClass}>Assigned trainer<select name="assigned_trainer_id" defaultValue={member.assigned_trainer_id ?? ""} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Not assigned</option>{trainers.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
+            <label className={fieldClass}>Assigned dietician<select name="assigned_dietician_id" defaultValue={member.assigned_dietician_id ?? ""} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="">Not assigned</option>{dieticians.map((dietician) => <option key={dietician.id} value={dietician.id}>{dietician.name}</option>)}</select></label>
+            <label className={fieldClass}>Status<select name="status" defaultValue={member.status} className="mt-1.5 h-10 w-full rounded-lg border bg-background px-3"><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+          </div>
+        </section>
+
+        {state.error && (
+          <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600">
+            {state.error}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={() => history.back()}>Cancel</Button>
+          <Button disabled={pending}>{pending && <LoaderCircle className="size-4 animate-spin" />}Save changes</Button>
         </div>
-      </section>
+      </form>
 
+      {/* Kept as a sibling, not nested inside the form above — the Add Plan
+          panel below is its own <form> (server action), and HTML doesn't
+          allow a <form> inside another <form>. */}
       <section>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -115,8 +147,18 @@ export function MemberEditForm({
                 : "A member can hold more than one plan at once — adding a plan never replaces one they already have."}
             </p>
           </div>
-          <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link>
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowAddPlan((current) => !current)}>
+            <PlusCircle className="size-4" />
+            {showAddPlan ? "Close" : "Add Plan"}
+          </Button>
         </div>
+
+        {showAddPlan ? (
+          <div className="mb-4">
+            <AddMemberPlanForm memberId={member.id} memberName={member.full_name} plans={plans} members={members} onDone={() => setShowAddPlan(false)} />
+          </div>
+        ) : null}
+
         {subscriptions.length ? (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[560px] text-sm">
@@ -124,15 +166,53 @@ export function MemberEditForm({
                 <tr><th className="px-3 py-2 font-medium">Plan</th><th className="px-3 py-2 font-medium">Start</th><th className="px-3 py-2 font-medium">Expiry</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Total</th></tr>
               </thead>
               <tbody className="divide-y">
-                {subscriptions.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-3 py-2">{item.plan_name ?? "-"}</td>
-                    <td className="px-3 py-2">{formatPlanDate(item.start_date)}</td>
-                    <td className="px-3 py-2">{formatPlanDate(item.end_date)}</td>
-                    <td className="px-3 py-2 capitalize">{item.status}</td>
-                    <td className="px-3 py-2">{formatCurrency(item.total_amount)}</td>
-                  </tr>
-                ))}
+                {subscriptions.map((item, idx) => {
+                  const rowId = subscriptionRowId(item) || String(idx);
+                  const couple = couplePlanById.get(rowId);
+                  return (
+                    <Fragment key={rowId}>
+                      <tr>
+                        <td className="px-3 py-2">
+                          {item.plan_name ?? "-"}
+                          {couple ? (
+                            <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                              {couple.partnerMemberName ? `Paired with ${couple.partnerMemberName}` : "Couple plan — no partner on record"}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2">{formatPlanDate(item.start_date)}</td>
+                        <td className="px-3 py-2">{formatPlanDate(item.end_date)}</td>
+                        <td className="px-3 py-2 capitalize">{item.status}</td>
+                        <td className="px-3 py-2">
+                          {formatCurrency(item.total_amount)}
+                          {couple && couple.isPrimary ? (
+                            <Button
+                              type="button"
+                              variant="link"
+                              size="sm"
+                              className="ml-2 h-auto p-0 text-xs"
+                              onClick={() => setChangePartnerFor((current) => (current === rowId ? null : rowId))}
+                            >
+                              {changePartnerFor === rowId ? "Close" : "Change partner"}
+                            </Button>
+                          ) : null}
+                        </td>
+                      </tr>
+                      {couple && couple.isPrimary && changePartnerFor === rowId ? (
+                        <tr>
+                          <td colSpan={5} className="px-3 pb-3">
+                            <ChangeCouplePartnerForm
+                              subscriptionId={rowId}
+                              excludeMemberIds={[member.id, couple.partnerMemberId ?? ""].filter(Boolean)}
+                              members={members}
+                              onDone={() => setChangePartnerFor(null)}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -140,17 +220,6 @@ export function MemberEditForm({
           <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No plans yet — use Add Plan to sell this member their first one.</p>
         )}
       </section>
-
-      {state.error && (
-        <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-600">
-          {state.error}
-        </div>
-      )}
-
-      <div className="flex justify-end gap-3">
-        <Button type="button" variant="outline" onClick={() => history.back()}>Cancel</Button>
-        <Button disabled={pending}>{pending && <LoaderCircle className="size-4 animate-spin" />}Save changes</Button>
-      </div>
-    </form>
+    </div>
   );
 }

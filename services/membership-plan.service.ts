@@ -24,10 +24,12 @@ import { createClient } from "@/lib/supabase/server";
 import { calculateGstBreakdown, type GstPricingMode } from "@/lib/finance/gst";
 import { calculatePaymentBalance } from "@/lib/finance/payment-balance";
 import { insertWithSchemaFallback } from "@/lib/supabase/insert-fallback";
+import { selectWithSchemaFallback } from "@/lib/supabase/select-fallback";
+import { inferPlanType } from "@/lib/membership-plan-type";
 import type { MemberInput } from "@/lib/validations/member";
 import { createMember } from "@/services/member.service";
 import { getPlanForSale } from "@/services/plan.service";
-import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
+import { createSubscriptionWithHistory, logActivity, updateSubscriptionWithHistory } from "@/services/workflow.service";
 
 const invoiceSchemaFallbackKeys = [
   ["taxable_amount", "gst_rate", "gst_type", "cgst_amount", "sgst_amount", "igst_amount"],
@@ -273,4 +275,251 @@ export async function sellMembershipPlanToMember(input: SellPlanInput): Promise<
   });
 
   return { subscriptionId, invoiceId: invoice.id, couplePartnerId };
+}
+
+/**
+ * Per-member, per-subscription couple-pairing info for rendering "Change
+ * partner" on the Edit Member page. Reads directly from `subscriptions` /
+ * `membership_plans` (schema-fallback aware, same as everywhere else couple
+ * plans are handled) rather than any report view — report views in this app
+ * have a history of drifting from what's in supabase/migrations (see the
+ * member_register_view payment-columns fix), so a second, separate read path
+ * avoids depending on that surface being current.
+ */
+export interface CouplePlanRowInfo {
+  subscriptionId: string;
+  isPrimary: boolean;
+  partnerSubscriptionId: string | null;
+  partnerMemberId: string | null;
+  partnerMemberName: string | null;
+}
+
+export async function getMemberCouplePlanInfo(memberId: string): Promise<CouplePlanRowInfo[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await selectWithSchemaFallback<
+    Array<{
+      id: string;
+      total_amount: number | null;
+      linked_subscription_id?: string | null;
+      membership_plans: { name: string | null; plan_type?: string | null } | null;
+    }>
+  >(
+    (columns) =>
+      supabase
+        .from("subscriptions")
+        .select(columns)
+        .eq("member_id", memberId)
+        .in("status", ["active", "paused", "pending"]) as unknown as PromiseLike<{
+        data: Array<{
+          id: string;
+          total_amount: number | null;
+          linked_subscription_id?: string | null;
+          membership_plans: { name: string | null; plan_type?: string | null } | null;
+        }> | null;
+        error: { code?: string | null; message?: string | null } | null;
+      }>,
+    [
+      "id, total_amount, linked_subscription_id, membership_plans(name, plan_type)",
+      "id, total_amount, membership_plans(name, plan_type)",
+      "id, total_amount, membership_plans(name)",
+    ],
+  );
+  if (error) throw new Error(error.message ?? "Unable to load couple-plan info.");
+
+  const rows = data ?? [];
+  const coupleRows = rows.filter((row) => inferPlanType(row.membership_plans?.plan_type, row.membership_plans?.name) === "couple");
+  if (!coupleRows.length) return [];
+
+  const linkedIds = [...new Set(coupleRows.map((row) => row.linked_subscription_id).filter((id): id is string => Boolean(id)))];
+  const partnerByLinkedSub = new Map<string, { member_id: string; full_name: string | null }>();
+  if (linkedIds.length) {
+    const { data: partnerSubs } = await supabase
+      .from("subscriptions")
+      .select("id, member_id, members(full_name)")
+      .in("id", linkedIds);
+    for (const partnerSub of (partnerSubs ?? []) as Array<{ id: string; member_id: string; members: { full_name: string | null } | null }>) {
+      partnerByLinkedSub.set(partnerSub.id, { member_id: partnerSub.member_id, full_name: partnerSub.members?.full_name ?? null });
+    }
+  }
+
+  return coupleRows.map((row) => {
+    const partner = row.linked_subscription_id ? partnerByLinkedSub.get(row.linked_subscription_id) ?? null : null;
+    return {
+      subscriptionId: row.id,
+      isPrimary: Number(row.total_amount ?? 0) > 0,
+      partnerSubscriptionId: row.linked_subscription_id ?? null,
+      partnerMemberId: partner?.member_id ?? null,
+      partnerMemberName: partner?.full_name ?? null,
+    };
+  });
+}
+
+export interface ChangeCouplePartnerInput {
+  subscriptionId: string;
+  tenantId: string;
+  performedBy: string;
+  requestingRole?: string | null;
+  requestingBranchId?: string | null;
+  partnerMode: "existing" | "new";
+  partnerMemberId?: string | null;
+  partnerFullName?: string | null;
+  partnerAge?: number | null;
+  partnerPhone?: string | null;
+}
+
+export interface ChangeCouplePartnerResult {
+  memberId: string;
+  oldPartnerId?: string;
+  newPartnerId: string;
+  newPartnerSubscriptionId: string;
+}
+
+/**
+ * Swaps who a member's already-sold couple plan is paired with. Must be
+ * called with the subscription belonging to the member who was actually
+ * billed (total_amount > 0) — that row is the source of truth for the plan
+ * and dates; the partner's row is always the ₹0 linked one.
+ *
+ * The old partner's linked subscription is cancelled (not deleted — it stays
+ * in their history, just no longer active), and a new ₹0 subscription is
+ * created for the new partner on the same plan/start/end dates, re-linking
+ * both sides via `linked_subscription_id`. Nothing about the primary
+ * member's own subscription (price, dates, invoice) changes.
+ */
+export async function changeCouplePartner(input: ChangeCouplePartnerInput): Promise<ChangeCouplePartnerResult> {
+  const supabase = await createClient();
+
+  const { data: subscription, error: subError } = await selectWithSchemaFallback<{
+    id: string;
+    member_id: string;
+    branch_id: string;
+    plan_id: string;
+    start_date: string;
+    end_date: string;
+    status: "pending" | "active" | "expired" | "cancelled" | "paused";
+    total_amount: number | null;
+    linked_subscription_id?: string | null;
+    membership_plans: { name: string | null; plan_type?: string | null } | null;
+  }>(
+    (columns) =>
+      supabase
+        .from("subscriptions")
+        .select(columns)
+        .eq("id", input.subscriptionId)
+        .eq("tenant_id", input.tenantId)
+        .maybeSingle() as unknown as PromiseLike<{
+        data: {
+          id: string;
+          member_id: string;
+          branch_id: string;
+          plan_id: string;
+          start_date: string;
+          end_date: string;
+          status: "pending" | "active" | "expired" | "cancelled" | "paused";
+          total_amount: number | null;
+          linked_subscription_id?: string | null;
+          membership_plans: { name: string | null; plan_type?: string | null } | null;
+        } | null;
+        error: { code?: string | null; message?: string | null } | null;
+      }>,
+    [
+      "id, member_id, branch_id, plan_id, start_date, end_date, status, total_amount, linked_subscription_id, membership_plans(name, plan_type)",
+      "id, member_id, branch_id, plan_id, start_date, end_date, status, total_amount, membership_plans(name, plan_type)",
+    ],
+  );
+  if (subError) throw new Error(subError.message ?? "Unable to load the subscription.");
+  if (!subscription) throw new Error("Subscription not found.");
+
+  if (input.requestingRole === "reception" && input.requestingBranchId && subscription.branch_id !== input.requestingBranchId) {
+    throw new Error("Reception staff can only manage subscriptions at their assigned branch.");
+  }
+
+  const isCouplePlan = inferPlanType(subscription.membership_plans?.plan_type, subscription.membership_plans?.name) === "couple";
+  if (!isCouplePlan) throw new Error("This plan isn't a couple plan.");
+  if (Number(subscription.total_amount ?? 0) <= 0) {
+    throw new Error("Change the partner from the member who was billed for this plan, not their paired partner.");
+  }
+
+  const linkedSubscriptionId = subscription.linked_subscription_id ?? null;
+  let oldPartnerId: string | undefined;
+  if (linkedSubscriptionId) {
+    const { data: oldPartnerSub } = await supabase
+      .from("subscriptions")
+      .select("id, member_id, status")
+      .eq("id", linkedSubscriptionId)
+      .maybeSingle();
+    if (oldPartnerSub) {
+      oldPartnerId = oldPartnerSub.member_id;
+      if (oldPartnerSub.status !== "cancelled") {
+        await updateSubscriptionWithHistory({
+          subscriptionId: oldPartnerSub.id,
+          performedBy: input.performedBy,
+          status: "cancelled",
+          action: "cancelled",
+          remarks: "Un-paired — couple plan partner changed.",
+        });
+      }
+    }
+  }
+
+  let newPartnerId: string;
+  if (input.partnerMode === "new") {
+    if (!input.partnerFullName) throw new Error("Enter the new second member's name.");
+    const newMember = await createMember(
+      {
+        full_name: input.partnerFullName,
+        phone: input.partnerPhone || null,
+        age: input.partnerAge ?? null,
+        branch_id: subscription.branch_id,
+        status: "active",
+      } as MemberInput,
+      input.performedBy,
+      input.tenantId,
+    );
+    newPartnerId = newMember.id;
+  } else {
+    if (!input.partnerMemberId) throw new Error("Select the new second member.");
+    if (input.partnerMemberId === subscription.member_id) throw new Error("The second member must be a different person.");
+    const { data: partnerMember } = await supabase
+      .from("members")
+      .select("id")
+      .eq("id", input.partnerMemberId)
+      .eq("branch_id", subscription.branch_id)
+      .eq("status", "active")
+      .maybeSingle();
+    if (!partnerMember) throw new Error("The selected member is unavailable for this branch.");
+    newPartnerId = partnerMember.id;
+  }
+
+  const newPartnerSub = (await createSubscriptionWithHistory({
+    memberId: newPartnerId,
+    planId: subscription.plan_id,
+    branchId: subscription.branch_id,
+    tenantId: input.tenantId,
+    startDate: subscription.start_date,
+    endDate: subscription.end_date,
+    status: subscription.status === "pending" ? "pending" : "active",
+    price: 0,
+    discountAmount: 0,
+    gstAmount: 0,
+    totalAmount: 0,
+    performedBy: input.performedBy,
+    action: "created",
+    remarks: "Couple plan — paired via partner change.",
+    linkedSubscriptionId: subscription.id,
+  })) as { id?: string } | null;
+  if (!newPartnerSub?.id) throw new Error("Unable to create the new partner's subscription.");
+
+  await logActivity({
+    performedBy: input.performedBy,
+    branchId: subscription.branch_id,
+    action: "couple_partner_changed",
+    entityType: "subscription",
+    entityId: subscription.id,
+    description: "Changed couple plan partner",
+    metadata: { subscription_id: subscription.id, old_partner_id: oldPartnerId ?? null, new_partner_id: newPartnerId },
+  });
+
+  return { memberId: subscription.member_id, oldPartnerId, newPartnerId, newPartnerSubscriptionId: newPartnerSub.id };
 }

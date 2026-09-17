@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, Suspense } from "react";
 import { PortalHeader } from "@/components/layout/portal-header";
 import { PortalSidebar } from "@/components/layout/portal-sidebar";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
@@ -105,7 +105,9 @@ function PortalShellFrame({
           tenantTimezone={tenantTimezone}
           branchTimezone={branchTimezone}
         />
-        <main className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">{children}</main>
+        <main suppressHydrationWarning className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">
+          <Suspense>{children}</Suspense>
+        </main>
         <MobileBottomNav portal={portal} userRole={userRole} visibleNavHrefs={visibleNavHrefs} onMore={handleMenu} commercialPlanTier={commercialPlanTier} phaseSnapshot={phaseSnapshot} currentPlanKey={currentPlanKey} />
       </div>
     </div>
