@@ -1,23 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Lock, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getPortalNavItems, portalLabel, type PortalKey } from "@/lib/nav";
-import { buildCommercialUpgradeUrl, getCommercialRouteRule, type CommercialPlanTier } from "@/lib/entitlements";
+import type { CommercialPlanTier } from "@/lib/entitlements";
 import type { UserRole } from "@/types";
 import { PhaseLockedMenuItem } from "@/components/phase/phase-locked-menu-item";
-import { FeatureUpgradeModal } from "@/components/upgrade/feature-upgrade-modal";
-import {
-  getFeatureDisplay,
-  getPlanForFeature,
-  COMMERCIAL_PLANS,
-  type CommercialPlanKey,
-} from "@/lib/plans/config";
-import type { SaaSFeatureKey } from "@/lib/entitlements/registry";
+import { FEATURE_REGISTRY as PHASE_FEATURE_REGISTRY } from "@/lib/phases/registry";
+import type { CommercialPlanKey } from "@/lib/plans/config";
 import type { PhaseSnapshot } from "@/services/phase.service";
 
 interface PortalSidebarProps {
@@ -34,98 +27,6 @@ interface PortalSidebarProps {
    * Defaults to "essential" when not provided.
    */
   currentPlanKey?: CommercialPlanKey;
-}
-
-/**
- * Inline locked nav item that shows the contextual upgrade modal on click.
- * Used for the "commercial route rule" items (crm, finance, pt, biometric…)
- * that are locked on the Essential plan but not caught by the phaseSnapshot.
- */
-function CommercialLockedNavItem({
-  href,
-  navLabel,
-  Icon,
-  active,
-  desktopExpanded,
-  featureKey,
-  currentPlanKey,
-  onMobileClose,
-}: {
-  href: string;
-  navLabel: string;
-  Icon: React.ComponentType<{ className?: string }>;
-  active: boolean;
-  desktopExpanded: boolean;
-  featureKey: string;
-  currentPlanKey: CommercialPlanKey;
-  onMobileClose: () => void;
-}) {
-  const [modalOpen, setModalOpen] = useState(false);
-  const saasKey = featureKey as SaaSFeatureKey;
-  const featureDisplay = getFeatureDisplay(saasKey);
-  const requiredPlan = getPlanForFeature(saasKey);
-  const upgradeHref = `/admin/upgrade?feature=${encodeURIComponent(featureKey)}&next=${encodeURIComponent(href)}`;
-
-  const handleClick = (e: React.MouseEvent) => {
-    if (featureDisplay && requiredPlan) {
-      e.preventDefault();
-      e.stopPropagation();
-      onMobileClose();
-      setModalOpen(true);
-    }
-  };
-
-  return (
-    <>
-      <a
-        href={featureDisplay && requiredPlan ? "#" : buildCommercialUpgradeUrl(href)}
-        onClick={handleClick}
-        title={`${navLabel} — ${requiredPlan?.name ?? "Growth"} Plan required`}
-        aria-label={`${navLabel} — ${requiredPlan?.name ?? "Growth"} Plan required`}
-        aria-disabled
-        role="button"
-        className={cn(
-          "group flex cursor-pointer items-center gap-3 rounded-2xl text-sm font-medium transition-all duration-150",
-          "min-h-[52px] text-white/70 hover:bg-white/8 hover:text-white",
-          desktopExpanded ? "px-3 py-3" : "px-3 py-3 lg:justify-center lg:px-0",
-          "border border-dashed border-white/15 bg-white/4 text-white/45 hover:bg-white/8 hover:text-white/55",
-        )}
-      >
-        <span
-          className={cn(
-            "grid shrink-0 place-items-center rounded-2xl bg-white/5 transition-all",
-            desktopExpanded ? "size-10" : "size-12 lg:size-12",
-          )}
-        >
-          <Lock className={cn("shrink-0", desktopExpanded ? "size-4" : "size-6")} />
-        </span>
-        <span
-          className={cn(
-            "whitespace-nowrap leading-none transition-all duration-300",
-            desktopExpanded ? "lg:block" : "lg:hidden",
-            "block",
-          )}
-        >
-          {navLabel}
-        </span>
-        {desktopExpanded && (
-          <span className="ml-auto shrink-0 rounded-full border border-white/20 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/50">
-            {requiredPlan?.name ?? "Growth"}
-          </span>
-        )}
-      </a>
-      {featureDisplay && requiredPlan && (
-        <FeatureUpgradeModal
-          open={modalOpen}
-          onOpenChange={setModalOpen}
-          feature={featureDisplay}
-          requiredPlan={requiredPlan}
-          currentPlanName={COMMERCIAL_PLANS[currentPlanKey].name}
-          upgradeHref={upgradeHref}
-        />
-      )}
-    </>
-  );
 }
 
 export function PortalSidebar({
@@ -177,13 +78,15 @@ export function PortalSidebar({
       const available: (typeof filteredNavigation)[number][] = [];
 
       for (const item of filteredNavigation) {
-        const phaseFeature = item.featureKey && phaseSnapshot
-          ? phaseSnapshot.featureMap[item.featureKey]
-          : null;
+        // Required tier comes from the static feature registry (which plan
+        // tier this feature belongs to), not from the platform-wide phase
+        // rollout status — that status is the same for every tenant and
+        // isn't what decides what THIS tenant's plan includes.
+        const requiredPhase = item.featureKey ? PHASE_FEATURE_REGISTRY[item.featureKey]?.phase : null;
         // Phase 3 items are not shown to Growth users at all — they are simply
         // absent from the nav rather than shown as locked upgrade prompts.
         // Backend middleware still protects these routes; this is UI-only.
-        const isPhase3 = phaseFeature?.phase === "PHASE_3";
+        const isPhase3 = requiredPhase === "PHASE_3";
         if (!isPhase3) {
           available.push(item);
         }
@@ -198,16 +101,13 @@ export function PortalSidebar({
     const scaleLocked: (typeof filteredNavigation)[number][] = [];
 
     for (const item of filteredNavigation) {
-      const phaseFeature = item.featureKey && phaseSnapshot
-        ? phaseSnapshot.featureMap[item.featureKey]
-        : null;
-      const phaseLocked = phaseFeature?.status === "locked";
-      const isPhase3 = phaseFeature?.phase === "PHASE_3";
-      const hasLockedRule = !phaseLocked ? Boolean(getCommercialRouteRule(item.href)) : false;
+      const requiredPhase = item.featureKey ? PHASE_FEATURE_REGISTRY[item.featureKey]?.phase : null;
+      const isPhase3 = requiredPhase === "PHASE_3";
+      const isPhase2 = requiredPhase === "PHASE_2";
 
       if (isPhase3) {
         scaleLocked.push(item);
-      } else if (phaseLocked || hasLockedRule) {
+      } else if (isPhase2) {
         growthLocked.push(item);
       } else {
         available.push(item);
@@ -319,14 +219,15 @@ export function PortalSidebar({
             }
 
             const { label: navLabel, href, icon: Icon, exact, featureKey } = group.item;
-            const phaseFeature = featureKey && phaseSnapshot ? phaseSnapshot.featureMap[featureKey] : null;
+            // Required tier comes from the static feature registry — the
+            // same source middleware.ts uses to actually enforce access —
+            // compared against this tenant's own plan (currentPlanKey).
             // Phase 3 items are filtered out of navGroups before reaching here for Growth users.
             // For Essential users, Phase 3 items appear in the scaleLocked bucket below.
-            const isPhase3Feature = phaseFeature?.phase === "PHASE_3";
-            const phaseLocked = phaseFeature?.status === "locked" && (
-              isPhase3Feature ? !isScale : !isGrowthOrAbove
-            );
-            const lockedRule = !phaseLocked && !isGrowthOrAbove ? getCommercialRouteRule(href) : null;
+            const requiredPhase = featureKey ? PHASE_FEATURE_REGISTRY[featureKey]?.phase : null;
+            const isPhase3Feature = requiredPhase === "PHASE_3";
+            const isPhase2Feature = requiredPhase === "PHASE_2";
+            const phaseLocked = (isPhase3Feature && !isScale) || (isPhase2Feature && !isGrowthOrAbove);
             const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
 
             if (phaseLocked) {
@@ -342,22 +243,7 @@ export function PortalSidebar({
                   desktopExpanded={desktopExpanded}
                   onClick={onMobileClose}
                   currentPlanKey={currentPlanKey}
-                />
-              );
-            }
-
-            if (lockedRule) {
-              return (
-                <CommercialLockedNavItem
-                  key={href}
-                  href={href}
-                  navLabel={navLabel}
-                  Icon={Icon}
-                  active={active}
-                  desktopExpanded={desktopExpanded}
-                  featureKey={lockedRule.featureKey}
-                  currentPlanKey={currentPlanKey}
-                  onMobileClose={onMobileClose}
+                  locked={phaseLocked}
                 />
               );
             }

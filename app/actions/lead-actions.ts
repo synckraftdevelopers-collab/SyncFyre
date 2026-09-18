@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { hasCurrentFeature } from "@/lib/entitlements/server";
-import { convertLead, createLead, LEAD_STAGES, recordLeadActivity, updateLeadStage } from "@/services/lead.service";
+import { assignLead, convertLead, createLead, LEAD_STAGES, recordLeadActivity, updateLeadStage } from "@/services/lead.service";
 
 const leadSchema = z.object({
   full_name: z.string().trim().min(2, "Lead name is required.").max(120),
@@ -14,6 +14,7 @@ const leadSchema = z.object({
   plan_interest: z.string().trim().max(120).optional(),
   follow_up_at: z.string().trim().optional().or(z.literal("")),
   notes: z.string().trim().max(2000).optional(),
+  assigned_to: z.string().trim().optional().or(z.literal("")),
 });
 
 export async function createLeadAction(formData: FormData): Promise<{ error?: string; success?: string }> {
@@ -23,11 +24,27 @@ export async function createLeadAction(formData: FormData): Promise<{ error?: st
   const parsed = leadSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Review the lead details." };
   try {
-    await createLead({ tenantId: profile.tenant_id, branchId: profile.branch_id, fullName: parsed.data.full_name, phone: parsed.data.phone, email: parsed.data.email, source: parsed.data.source, planInterest: parsed.data.plan_interest, followUpAt: parsed.data.follow_up_at || null, notes: parsed.data.notes, createdBy: profile.id });
+    await createLead({ tenantId: profile.tenant_id, branchId: profile.branch_id, fullName: parsed.data.full_name, phone: parsed.data.phone, email: parsed.data.email, source: parsed.data.source, planInterest: parsed.data.plan_interest, followUpAt: parsed.data.follow_up_at || null, notes: parsed.data.notes, assignedTo: parsed.data.assigned_to || null, createdBy: profile.id });
     revalidatePath("/admin/leads");
     return { success: "Lead created." };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Unable to create lead." };
+  }
+}
+
+export async function assignLeadAction(formData: FormData): Promise<{ error?: string; success?: string }> {
+  const profile = await requireUser(["owner", "admin", "manager", "reception"]);
+  if (!(await hasCurrentFeature("crm"))) return { error: "CRM is not included in the current plan." };
+  if (!profile.tenant_id || !profile.branch_id) return { error: "Your account must be assigned to an organization and branch." };
+  const leadId = String(formData.get("lead_id") ?? "");
+  const assignedToRaw = String(formData.get("assigned_to") ?? "").trim();
+  if (!leadId) return { error: "Select a lead." };
+  try {
+    await assignLead({ leadId, tenantId: profile.tenant_id, branchId: profile.branch_id, assignedTo: assignedToRaw || null, performedBy: profile.id });
+    revalidatePath("/admin/leads");
+    return { success: assignedToRaw ? "Lead assigned." : "Lead unassigned." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to assign lead." };
   }
 }
 

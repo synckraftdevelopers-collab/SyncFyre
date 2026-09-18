@@ -14,12 +14,13 @@ export interface LeadInput {
   followUpAt?: string | null;
   trialAt?: string | null;
   notes?: string | null;
+  assignedTo?: string | null;
   createdBy: string;
 }
 
 export async function listLeads(tenantId: string, branchId?: string | null, stage?: LeadStage | "all") {
   const supabase = await createClient();
-  let query = supabase.from("leads").select("id, branch_id, full_name, phone, email, source, plan_interest, stage, follow_up_at, trial_at, lost_reason, converted_member_id, created_at, branches(name), users!leads_assigned_to_fkey(full_name)").eq("tenant_id", tenantId).order("follow_up_at", { ascending: true, nullsFirst: false });
+  let query = supabase.from("leads").select("id, branch_id, full_name, phone, email, source, plan_interest, stage, follow_up_at, trial_at, lost_reason, converted_member_id, created_at, assigned_to, branches(name), users!leads_assigned_to_fkey(full_name)").eq("tenant_id", tenantId).order("follow_up_at", { ascending: true, nullsFirst: false });
   if (branchId) query = query.eq("branch_id", branchId);
   if (stage && stage !== "all") query = query.eq("stage", stage);
   const { data, error } = await query;
@@ -31,7 +32,7 @@ export async function createLead(input: LeadInput) {
   const supabase = await createClient();
   const { data: branch, error: branchError } = await supabase.from("branches").select("id").eq("id", input.branchId).eq("tenant_id", input.tenantId).eq("status", "active").maybeSingle();
   if (branchError || !branch) throw new Error("Select an active branch in your organization.");
-  const payload = { tenant_id: input.tenantId, branch_id: input.branchId, full_name: input.fullName.trim(), phone: input.phone?.trim() || null, email: input.email?.trim().toLowerCase() || null, source: input.source?.trim() || "walk_in", plan_interest: input.planInterest?.trim() || null, follow_up_at: input.followUpAt || null, trial_at: input.trialAt || null, notes: input.notes?.trim() || null, created_by: input.createdBy, updated_by: input.createdBy };
+  const payload = { tenant_id: input.tenantId, branch_id: input.branchId, full_name: input.fullName.trim(), phone: input.phone?.trim() || null, email: input.email?.trim().toLowerCase() || null, source: input.source?.trim() || "walk_in", plan_interest: input.planInterest?.trim() || null, follow_up_at: input.followUpAt || null, trial_at: input.trialAt || null, notes: input.notes?.trim() || null, assigned_to: input.assignedTo || null, created_by: input.createdBy, updated_by: input.createdBy };
   const { data, error } = await supabase.from("leads").insert(payload).select("id, branch_id, tenant_id, full_name, stage").single();
   if (error || !data) throw new Error(error?.message ?? "Unable to create lead.");
   const { error: activityError } = await supabase.from("lead_activities").insert({ lead_id: data.id, tenant_id: data.tenant_id, branch_id: data.branch_id, activity_type: "created", description: "Lead created", next_stage: data.stage, performed_by: input.createdBy });
@@ -49,6 +50,28 @@ export async function updateLeadStage(input: { leadId: string; tenantId: string;
   const { error: activityError } = await supabase.from("lead_activities").insert({ lead_id: lead.id, tenant_id: input.tenantId, branch_id: input.branchId, activity_type: input.stage === "lost" ? "lost" : "stage_changed", description: `Stage changed from ${lead.stage} to ${input.stage}`, previous_stage: lead.stage, next_stage: input.stage, performed_by: input.performedBy });
   if (activityError) throw new Error(activityError.message);
 }
+/**
+ * Assigns (or unassigns, when assignedTo is null) a lead to a salesperson.
+ * The assignee must be an active staff member of the same tenant/branch —
+ * checked here rather than trusted from the caller, since this is settable
+ * by any of the roles that can work leads (owner/admin/manager/reception),
+ * not just the person the lead is being handed to.
+ */
+export async function assignLead(input: { leadId: string; tenantId: string; branchId: string; assignedTo: string | null; performedBy: string }) {
+  const supabase = await createClient();
+  const { data: lead, error: lookupError } = await supabase.from("leads").select("id, stage, assigned_to").eq("id", input.leadId).eq("tenant_id", input.tenantId).eq("branch_id", input.branchId).maybeSingle();
+  if (lookupError || !lead) throw new Error("Lead not found or you do not have access.");
+  if (input.assignedTo) {
+    const { data: assignee, error: assigneeError } = await supabase.from("users").select("id, full_name, status").eq("id", input.assignedTo).eq("tenant_id", input.tenantId).eq("branch_id", input.branchId).maybeSingle();
+    if (assigneeError || !assignee) throw new Error("Select a staff member from your branch.");
+    if (assignee.status !== "active") throw new Error("That staff member's account is not active.");
+  }
+  const { error } = await supabase.from("leads").update({ assigned_to: input.assignedTo, updated_by: input.performedBy }).eq("id", lead.id).eq("tenant_id", input.tenantId).eq("branch_id", input.branchId);
+  if (error) throw new Error(error.message);
+  const { error: activityError } = await supabase.from("lead_activities").insert({ lead_id: lead.id, tenant_id: input.tenantId, branch_id: input.branchId, activity_type: "note", description: input.assignedTo ? "Lead assigned" : "Lead unassigned", previous_stage: lead.stage, next_stage: lead.stage, performed_by: input.performedBy });
+  if (activityError) throw new Error(activityError.message);
+}
+
 export async function convertLead(input: { leadId: string; memberId: string; tenantId: string; branchId: string; performedBy: string }) {
   const supabase = await createClient();
   const [{ data: lead, error: leadError }, { data: member, error: memberError }] = await Promise.all([

@@ -9,6 +9,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getLocalDateKey } from "@/lib/time";
 import {
+  calculatePaymentBalance,
   computeReceivableDisplayStatus,
   type ReceivableDisplayStatus,
 } from "@/lib/finance/payment-balance";
@@ -80,7 +81,7 @@ export async function getOutstandingReceivablesSummary(
   // balance + due_date on every request instead.
   let query = supabase
     .from("receivables")
-    .select("status, balance_amount, due_date")
+    .select("status, balance_amount, due_date, is_installment, next_installment_due_date")
     .gt("balance_amount", 0)
     .neq("status", "written_off");
 
@@ -98,7 +99,8 @@ export async function getOutstandingReceivablesSummary(
         balance,
         row.due_date as string | null,
         row.status as string,
-        todayKey
+        todayKey,
+        { isInstallment: Boolean(row.is_installment), nextInstallmentDueDate: row.next_installment_due_date as string | null }
       );
       // Fully paid or written off despite balance drift — never counts as outstanding.
       if (displayStatus === "paid" || displayStatus === "written_off") return summary;
@@ -407,7 +409,7 @@ export async function getReceivableAging(
   // snapshot says.
   let q = supabase
     .from("receivables")
-    .select("balance_amount, due_date")
+    .select("balance_amount, due_date, is_installment, next_installment_due_date")
     .gt("balance_amount", 0)
     .neq("status", "written_off");
   if (branchId) q = q.eq("branch_id", branchId);
@@ -421,9 +423,16 @@ export async function getReceivableAging(
   };
   const today = new Date();
   for (const row of data ?? []) {
-    if (!row.due_date) continue;
+    // An installment plan's next_installment_due_date is what "aging"
+    // should count from, not the invoice's original due_date — same
+    // effective-due-date rule as computeReceivableDisplayStatus. A row
+    // with no due date at all (and no installment date) still has
+    // nothing to age from and is skipped, as before.
+    const effectiveDueDate =
+      row.is_installment && row.next_installment_due_date ? row.next_installment_due_date : row.due_date;
+    if (!effectiveDueDate) continue;
     const days = Math.floor(
-      (today.getTime() - new Date(row.due_date as string).getTime()) /
+      (today.getTime() - new Date(effectiveDueDate as string).getTime()) /
         86400000
     );
     const key =
@@ -947,7 +956,8 @@ export async function listReceivables(
       Number(row.balance_amount ?? 0),
       row.due_date,
       row.status,
-      todayKey
+      todayKey,
+      { isInstallment: Boolean(row.is_installment), nextInstallmentDueDate: row.next_installment_due_date }
     ),
   }));
 
@@ -970,6 +980,175 @@ export async function listReceivables(
     pageSize,
     total,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+// ─── Lightweight installments (migration 0054) ───────────────────────────────
+//
+// Two writes, both scoped to a single invoice by id (and, when given, by
+// branch — matching the same manual branch-scoping convention already used
+// by app/actions/subscription-actions.ts rather than a second RLS layer):
+//   - setInvoiceInstallmentPlan: mark (or clear) the plan without moving
+//     any money. Used when staff decide upfront that a partially-paid
+//     invoice's balance is expected on a later date, not right now.
+//   - recordReceivablePayment: the missing capability this feature also
+//     had to add — there was previously no way at all to collect a later,
+//     additional payment against an invoice that already exists. Inserts a
+//     payments row and updates invoices.amount_paid; the 0047/0054 DB
+//     trigger (sync_receivable_from_invoice) then re-syncs the matching
+//     receivables row automatically, so nothing here writes to
+//     `receivables` directly.
+//
+// Both are plain amount/date operations — no proration, no schedule table,
+// no partial-installment breakdown. See migration 0054's header for the
+// full scope note.
+
+/**
+ * Marks (or clears, by passing `nextInstallmentDueDate: null`) an
+ * invoice's lightweight installment plan. Does not move money — see
+ * recordReceivablePayment for collecting a payment. Throws if the invoice
+ * has no remaining balance (an installment plan only makes sense while
+ * something is still owed).
+ */
+export async function setInvoiceInstallmentPlan(input: {
+  invoiceId: string;
+  branchId?: string | null;
+  nextInstallmentDueDate: string | null;
+}): Promise<void> {
+  const supabase = await createClient();
+
+  let invoiceQuery = supabase
+    .from("invoices")
+    .select("id, total_amount, amount_paid, status")
+    .eq("id", input.invoiceId);
+  if (input.branchId) invoiceQuery = invoiceQuery.eq("branch_id", input.branchId);
+  const { data: invoice, error } = await invoiceQuery.maybeSingle();
+  if (error) throw new Error(`[finance.service] setInvoiceInstallmentPlan: ${error.message}`);
+  if (!invoice) throw new Error("Invoice not found.");
+  if (invoice.status === "void") throw new Error("Cannot set an installment plan on a voided invoice.");
+
+  const balance = calculatePaymentBalance(Number(invoice.total_amount ?? 0), Number(invoice.amount_paid ?? 0)).pendingAmount;
+  if (balance <= 0) throw new Error("This invoice has no remaining balance to put on an installment plan.");
+
+  const { error: updateError } = await supabase
+    .from("invoices")
+    .update({
+      is_installment: Boolean(input.nextInstallmentDueDate),
+      next_installment_due_date: input.nextInstallmentDueDate,
+    })
+    .eq("id", invoice.id);
+  if (updateError) throw new Error(`[finance.service] setInvoiceInstallmentPlan: ${updateError.message}`);
+}
+
+export interface RecordReceivablePaymentInput {
+  invoiceId: string;
+  branchId?: string | null;
+  amount: number;
+  method: "cash" | "upi" | "card" | "online" | "check";
+  transactionRef?: string | null;
+  collectedBy: string;
+  /**
+   * Undefined = leave the invoice's existing installment plan untouched.
+   * A date string = set/replace the next installment due date (also
+   * implies is_installment = true). Explicit null = clear the plan (this
+   * was the last expected installment, or staff no longer want it tracked
+   * as one). Ignored entirely when this payment fully clears the balance —
+   * a fully paid invoice is never left flagged as an installment.
+   */
+  nextInstallmentDueDate?: string | null;
+}
+
+export interface RecordReceivablePaymentResult {
+  invoiceId: string;
+  paymentId: string;
+  remainingBalance: number;
+  isInstallment: boolean;
+  nextInstallmentDueDate: string | null;
+}
+
+/**
+ * Records a payment against an invoice that already exists — the
+ * "partial-payment continuation" half of the installments feature. Inserts
+ * a `payments` row and updates `invoices.amount_paid`/`status`; the DB
+ * trigger from 0047/0054 re-syncs the matching `receivables` row.
+ */
+export async function recordReceivablePayment(
+  input: RecordReceivablePaymentInput
+): Promise<RecordReceivablePaymentResult> {
+  const supabase = await createClient();
+
+  let invoiceQuery = supabase
+    .from("invoices")
+    .select("id, member_id, subscription_id, branch_id, tenant_id, total_amount, amount_paid, status, is_installment, next_installment_due_date")
+    .eq("id", input.invoiceId);
+  if (input.branchId) invoiceQuery = invoiceQuery.eq("branch_id", input.branchId);
+  const { data: invoice, error: invoiceError } = await invoiceQuery.maybeSingle();
+  if (invoiceError) throw new Error(`[finance.service] recordReceivablePayment: ${invoiceError.message}`);
+  if (!invoice) throw new Error("Invoice not found.");
+  if (invoice.status === "void") throw new Error("Cannot record a payment against a voided invoice.");
+
+  if (!(input.amount > 0)) throw new Error("Payment amount must be greater than zero.");
+
+  const currentPaid = Number(invoice.amount_paid ?? 0);
+  const total = Number(invoice.total_amount ?? 0);
+  const balanceBefore = calculatePaymentBalance(total, currentPaid).pendingAmount;
+  if (input.amount > balanceBefore) {
+    throw new Error(`Payment of ${input.amount.toFixed(2)} exceeds the remaining balance of ${balanceBefore.toFixed(2)}.`);
+  }
+
+  const afterBalance = calculatePaymentBalance(total, currentPaid + input.amount);
+  const fullyPaid = afterBalance.pendingAmount <= 0;
+
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .insert({
+      invoice_id: invoice.id,
+      member_id: invoice.member_id,
+      subscription_id: invoice.subscription_id,
+      branch_id: invoice.branch_id,
+      tenant_id: invoice.tenant_id,
+      amount: input.amount,
+      method: input.method,
+      status: "completed",
+      transaction_reference: input.transactionRef ?? null,
+      paid_at: new Date().toISOString(),
+      collected_by: input.collectedBy,
+    })
+    .select("id")
+    .single();
+  if (paymentError || !payment) throw new Error(paymentError?.message ?? "Unable to record payment.");
+
+  // Resolve what the invoice's installment plan should be after this
+  // payment: cleared if fully paid; otherwise whatever the caller asked
+  // for, or left exactly as it was if the caller didn't touch it.
+  const nextIsInstallment = fullyPaid
+    ? false
+    : input.nextInstallmentDueDate !== undefined
+      ? Boolean(input.nextInstallmentDueDate)
+      : Boolean(invoice.is_installment);
+  const nextInstallmentDueDate = fullyPaid
+    ? null
+    : input.nextInstallmentDueDate !== undefined
+      ? input.nextInstallmentDueDate
+      : (invoice.next_installment_due_date as string | null);
+
+  const { error: updateError } = await supabase
+    .from("invoices")
+    .update({
+      amount_paid: afterBalance.amountPaid,
+      status: fullyPaid ? "paid" : "partial",
+      is_installment: nextIsInstallment,
+      next_installment_due_date: nextInstallmentDueDate,
+    })
+    .eq("id", invoice.id);
+  if (updateError) throw new Error(`[finance.service] recordReceivablePayment: ${updateError.message}`);
+
+  return {
+    invoiceId: invoice.id,
+    paymentId: payment.id,
+    remainingBalance: afterBalance.pendingAmount,
+    isInstallment: nextIsInstallment,
+    nextInstallmentDueDate,
   };
 }
 

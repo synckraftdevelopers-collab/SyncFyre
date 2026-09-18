@@ -26,10 +26,15 @@ export const adminNav: NavItem[] = [
   { label: "Reports",                href: "/admin/reports",              icon: ChartNoAxesCombined, featureKey: "reports" },
   { label: "Notifications",          href: "/admin/notifications",        icon: Bell,                featureKey: "notifications" },
   { label: "Settings",               href: "/admin/settings",             icon: Settings },
+  // CRM & Leads is a Growth-tier feature (see lib/plans/config.ts's
+  // GROWTH_DELTA_FEATURES "CRM & Sales" bullet and lib/phases/registry.ts's
+  // "crm" = PHASE_2). It must use the "crm" featureKey, not "advanced_crm"
+  // (PHASE_3/Scale) — using the latter hid this page from Growth-plan
+  // tenants entirely, even though CRM is included starting at Growth.
+  { label: "CRM & Leads",            href: "/admin/leads",                icon: BarChart2,           featureKey: "crm" },
   // ── Phase 3 / Scale features ─────────────────────────────────────────────
   { label: "Branches",               href: "/admin/branches",             icon: Building2,           featureKey: "multi_branch" },
   { label: "Audit Logs",             href: "/admin/audit-logs",           icon: ClipboardList,       featureKey: "audit_logs" },
   { label: "Revenue Intelligence",   href: "/admin/reports/revenue",      icon: TrendingUp,          featureKey: "revenue_intelligence" },
-  { label: "Advanced CRM Analytics", href: "/admin/leads",                icon: BarChart2,           featureKey: "advanced_crm" },
   { label: "Retention Intelligence", href: "/admin/retention",            icon: UserMinus,           featureKey: "retention_intelligence" },
 ];

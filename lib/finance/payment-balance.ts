@@ -49,21 +49,37 @@ export type ReceivableDisplayStatus = "overdue" | "pending" | "paid" | "written_
  * Canonical status for a receivable, computed fresh every call:
  *   - stored status === 'written_off'      -> written_off (manual, never re-derived)
  *   - balance <= 0                          -> paid        (excluded from Outstanding)
- *   - balance > 0 and due_date < today      -> overdue
- *   - balance > 0 and (no due date, or due_date >= today) -> pending
+ *   - balance > 0 and effective due date < today -> overdue
+ *   - balance > 0 and (no effective due date, or it's >= today) -> pending
  *
  * `todayDateKey` must be a "YYYY-MM-DD" string in the app's canonical
  * timezone (see lib/time.ts#getLocalDateKey) — never the browser's local
  * date, and never a value cached across requests.
+ *
+ * `installment` (optional) is the lightweight installment plan on the
+ * underlying invoice/receivable (see migration 0054 and
+ * services/finance.service.ts#setInvoiceInstallmentPlan). When
+ * `isInstallment` is true and `nextInstallmentDueDate` is set, that date —
+ * not the invoice's original `dueDate` — is what determines overdue vs
+ * pending. This is the whole point of marking something an installment:
+ * a partially-paid invoice whose original due date has already passed
+ * should read as "pending, next installment due <date>" rather than
+ * "overdue", right up until that next installment date itself passes, at
+ * which point it correctly flips back to overdue like anything else.
  */
 export function computeReceivableDisplayStatus(
   balanceAmount: number,
   dueDate: string | null,
   storedStatus: string,
-  todayDateKey: string
+  todayDateKey: string,
+  installment?: { isInstallment: boolean; nextInstallmentDueDate: string | null } | null
 ): ReceivableDisplayStatus {
   if (storedStatus === "written_off") return "written_off";
   if (roundMoney(balanceAmount) <= 0) return "paid";
-  if (dueDate && dueDate < todayDateKey) return "overdue";
+  const effectiveDueDate =
+    installment?.isInstallment && installment.nextInstallmentDueDate
+      ? installment.nextInstallmentDueDate
+      : dueDate;
+  if (effectiveDueDate && effectiveDueDate < todayDateKey) return "overdue";
   return "pending";
 }

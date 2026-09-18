@@ -4,10 +4,11 @@ import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { getPortalNavItems, type PortalKey } from "@/lib/nav";
-import { buildCommercialUpgradeUrl, getCommercialRouteRule, type CommercialPlanTier } from "@/lib/entitlements";
+import type { CommercialPlanTier } from "@/lib/entitlements";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
 import { PhaseLockedMenuItem } from "@/components/phase/phase-locked-menu-item";
+import { FEATURE_REGISTRY as PHASE_FEATURE_REGISTRY } from "@/lib/phases/registry";
 import type { PhaseSnapshot } from "@/services/phase.service";
 import type { CommercialPlanKey } from "@/lib/plans/config";
 
@@ -45,19 +46,19 @@ export function MobileBottomNav({
       className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/95 px-1 pb-[max(0.35rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-8px_24px_rgba(7,29,56,.08)] backdrop-blur lg:hidden print:hidden"
     >
       {visibleItems.map(({ label, href, icon: Icon, featureKey }) => {
-        const phaseFeature = featureKey && phaseSnapshot ? phaseSnapshot.featureMap[featureKey] : null;
-        const isPhase3Feature = phaseFeature?.phase === "PHASE_3";
+        // Required tier comes from the static feature registry — the same
+        // source middleware.ts uses to actually enforce access — compared
+        // against this tenant's own plan (currentPlanKey), not the
+        // platform-wide phase rollout status (which is the same for every
+        // tenant regardless of what plan any one of them is on).
+        const requiredPhase = featureKey ? PHASE_FEATURE_REGISTRY[featureKey]?.phase : null;
+        const isPhase3Feature = requiredPhase === "PHASE_3";
+        const isPhase2Feature = requiredPhase === "PHASE_2";
 
         // Three-tier locking:
         // Phase 3 items locked unless Scale; Phase 2 items locked unless Growth+
-        const phaseLocked =
-          phaseFeature?.status === "locked" &&
-          (isPhase3Feature ? !isScale : !isGrowthOrAbove);
+        const phaseLocked = (isPhase3Feature && !isScale) || (isPhase2Feature && !isGrowthOrAbove);
 
-        const lockedRule =
-          !phaseLocked && !isGrowthOrAbove ? getCommercialRouteRule(href) : null;
-
-        const targetHref = lockedRule ? buildCommercialUpgradeUrl(href, lockedRule.featureLabel) : href;
         const active = pathname === href || pathname.startsWith(`${href}/`);
 
         if (phaseLocked) {
@@ -73,6 +74,7 @@ export function MobileBottomNav({
               desktopExpanded={false}
               mobile
               currentPlanKey={currentPlanKey}
+              locked={phaseLocked}
             />
           );
         }
@@ -80,7 +82,7 @@ export function MobileBottomNav({
         return (
           <Link
             key={href}
-            href={targetHref}
+            href={href}
             className={cn(
               "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-medium",
               active ? "text-primary" : "text-muted-foreground",

@@ -28,7 +28,7 @@ export default async function LeadsPage() {
     );
 
   const supabase = await createClient();
-  const [leads, activities, membersResult, isScale] = await Promise.all([
+  const [leads, activities, membersResult, staffResult, isScale] = await Promise.all([
     listLeads(profile.tenant_id, profile.branch_id),
     listLeadActivities(profile.tenant_id, profile.branch_id),
     supabase
@@ -39,6 +39,14 @@ export default async function LeadsPage() {
       .eq("status", "active")
       .order("full_name")
       .limit(300),
+    supabase
+      .from("users")
+      .select("id, full_name, role:roles(slug)")
+      .eq("tenant_id", profile.tenant_id)
+      .eq("branch_id", profile.branch_id)
+      .eq("status", "active")
+      .order("full_name")
+      .limit(200),
     hasCurrentFeature("advanced_crm"),
   ]);
 
@@ -50,6 +58,11 @@ export default async function LeadsPage() {
   }
 
   const members = membersResult.data ?? [];
+  const SALES_ROLES = new Set(["owner", "admin", "manager", "reception"]);
+  const staff = (staffResult.data ?? []).filter((user: any) => {
+    const role = Array.isArray(user.role) ? user.role[0] : user.role;
+    return role?.slug ? SALES_ROLES.has(role.slug) : false;
+  }).map((user: any) => ({ id: user.id as string, full_name: user.full_name as string }));
   const overdue = leads.filter(
     (lead: any) =>
       lead.follow_up_at &&
@@ -109,6 +122,15 @@ export default async function LeadsPage() {
               </select>
               <input name="plan_interest" placeholder="Plan interest" className="h-10 w-full rounded-lg border bg-background px-3 text-sm" />
               <label className="block text-sm font-medium">
+                Assign to
+                <select name="assigned_to" defaultValue="" className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm">
+                  <option value="">Unassigned</option>
+                  {staff.map((person) => (
+                    <option key={person.id} value={person.id}>{person.full_name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-medium">
                 Follow-up
                 <input name="follow_up_at" type="datetime-local" className="mt-1 h-10 w-full rounded-lg border bg-background px-3 text-sm" />
               </label>
@@ -149,6 +171,12 @@ export default async function LeadsPage() {
                         <p className="mt-1 text-xs text-muted-foreground">
                           {lead.source} · {lead.plan_interest ?? "No plan selected"}
                         </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {(() => {
+                            const assignee = Array.isArray(lead.users) ? lead.users[0] : lead.users;
+                            return assignee?.full_name ? `Assigned to ${assignee.full_name}` : "Unassigned";
+                          })()}
+                        </p>
                       </td>
                       <td className="p-3 align-top">
                         <p className="capitalize">{lead.stage.replace(/_/g, " ")}</p>
@@ -179,7 +207,7 @@ export default async function LeadsPage() {
                         </details>
                       </td>
                       <td className="p-3 align-top">
-                        <LeadActions lead={{ id: lead.id, stage: lead.stage }} members={members} />
+                        <LeadActions lead={{ id: lead.id, stage: lead.stage, assigned_to: lead.assigned_to ?? null }} members={members} staff={staff} />
                       </td>
                     </tr>
                   );

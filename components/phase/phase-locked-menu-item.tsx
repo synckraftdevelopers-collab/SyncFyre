@@ -3,7 +3,7 @@
 import { useState, type ComponentType } from "react";
 import { Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PhaseFeatureKey } from "@/lib/phases/registry";
+import { FEATURE_REGISTRY, type PhaseFeatureKey } from "@/lib/phases/registry";
 import type { PhaseSnapshot } from "@/services/phase.service";
 import { FeatureUpgradeModal } from "@/components/upgrade/feature-upgrade-modal";
 import {
@@ -27,6 +27,17 @@ type PhaseLockedMenuItemProps = {
   mobile?: boolean;
   /** Current commercial plan key — drives the modal's "Current plan" label */
   currentPlanKey?: CommercialPlanKey;
+  /**
+   * Explicit locked state, computed by the caller from the tenant's actual
+   * commercial plan (essential/growth/scale) vs. this feature's required
+   * tier. When provided, this takes precedence over deriving "locked" from
+   * `phaseSnapshot`, which reflects the platform-wide rollout phase (a
+   * product-maturity flag set once for every tenant) rather than any one
+   * tenant's plan — using it alone to gate a specific tenant's sidebar can
+   * show a feature as unlocked for every tenant once that phase has been
+   * turned on platform-wide, regardless of what plan a given tenant is on.
+   */
+  locked?: boolean;
 };
 
 function getLockedTarget(featureKey: PhaseFeatureKey | undefined, phaseSnapshot?: PhaseSnapshot) {
@@ -55,9 +66,12 @@ export function PhaseLockedMenuItem({
   className,
   mobile = false,
   currentPlanKey = "essential",
+  locked: lockedOverride,
 }: PhaseLockedMenuItemProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const locked = getLockedTarget(featureKey, phaseSnapshot);
+  const derivedLocked = getLockedTarget(featureKey, phaseSnapshot);
+  const locked = lockedOverride ?? Boolean(derivedLocked);
+  const lockedPhase = derivedLocked?.phase ?? (featureKey ? FEATURE_REGISTRY[featureKey]?.phase : undefined);
 
   // Resolve display info for the upgrade modal
   const saasKey = featureKey as SaaSFeatureKey | undefined;
@@ -67,7 +81,7 @@ export function PhaseLockedMenuItem({
 
   // Fallback href for when no modal data exists
   const fallbackHref = locked
-    ? `/phase-locked?feature=${encodeURIComponent(featureKey ?? "")}&name=${encodeURIComponent(label)}&phase=${encodeURIComponent(locked.phase)}`
+    ? `/phase-locked?feature=${encodeURIComponent(featureKey ?? "")}&name=${encodeURIComponent(label)}&phase=${encodeURIComponent(lockedPhase ?? "")}`
     : href;
 
   const handleClick = (e: React.MouseEvent) => {

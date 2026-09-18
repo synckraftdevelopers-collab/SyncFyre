@@ -1,6 +1,8 @@
 import { CircleAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReceivableRowActions } from "@/components/finance/receivable-row-actions";
 import { getCurrentProfile } from "@/lib/auth";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { formatCurrency } from "@/lib/utils";
 import { getOutstandingReceivablesSummary, listReceivables } from "@/services/finance.service";
 
@@ -32,9 +34,14 @@ export default async function OutstandingPage() {
   // shows every currently-outstanding row for a normal-sized gym in one
   // page; the KPI cards above are always computed from the full, unpaginated
   // dataset regardless of this limit.
-  const [{ data: all, total }, summary] = await Promise.all([
+  const [{ data: all, total }, summary, canUseInstallments] = await Promise.all([
     listReceivables({ branchId, page: 1, pageSize: 500 }),
     getOutstandingReceivablesSummary(branchId),
+    // Installments / partial-payment continuation is an Advanced Membership
+    // Operations capability — Growth+ only (lib/entitlements/registry.ts's
+    // `advanced_membership` key). Essential-tier tenants still see every
+    // column below except the per-row "Manage" actions.
+    hasCurrentFeature("advanced_membership"),
   ]);
 
   return (
@@ -107,11 +114,15 @@ export default async function OutstandingPage() {
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Balance</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Due Date</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    {canUseInstallments ? (
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {all.map((row) => {
                     const m = row.members as { full_name: string; member_code: string } | null;
+                    const balance = Number(row.balance_amount);
                     return (
                       <tr key={row.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3">
@@ -121,13 +132,38 @@ export default async function OutstandingPage() {
                         <td className="px-4 py-3 capitalize">{row.receivable_type}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(Number(row.original_amount))}</td>
                         <td className="px-4 py-3 text-right text-green-600">{formatCurrency(Number(row.paid_amount))}</td>
-                        <td className="px-4 py-3 text-right font-bold text-red-600">{formatCurrency(Number(row.balance_amount))}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">{row.due_date ?? "—"}</td>
+                        <td className="px-4 py-3 text-right font-bold text-red-600">{formatCurrency(balance)}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {row.is_installment && row.next_installment_due_date ? (
+                            <>
+                              <span className="mr-1.5 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                                Installment
+                              </span>
+                              <span className="text-xs text-muted-foreground">Next due {row.next_installment_due_date}</span>
+                            </>
+                          ) : (
+                            (row.due_date ?? "—")
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[row.display_status] ?? "bg-gray-100 text-gray-600"}`}>
                             {row.display_status.replace("_", " ")}
                           </span>
                         </td>
+                        {canUseInstallments ? (
+                          <td className="px-4 py-3">
+                            {row.invoice_id && balance > 0 ? (
+                              <ReceivableRowActions
+                                row={{
+                                  invoiceId: row.invoice_id,
+                                  balance,
+                                  isInstallment: Boolean(row.is_installment),
+                                  nextInstallmentDueDate: row.next_installment_due_date,
+                                }}
+                              />
+                            ) : null}
+                          </td>
+                        ) : null}
                       </tr>
                     );
                   })}

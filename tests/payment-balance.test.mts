@@ -103,3 +103,52 @@ test("payment update walks a receivable from overdue through partial payments to
   // Final +4,000 payment -> Due 0 -> paid, drops out of Outstanding entirely.
   assert.equal(computeReceivableDisplayStatus(0, YESTERDAY, "partial", TODAY), "paid");
 });
+
+// ─── computeReceivableDisplayStatus — lightweight installments (0054) ───────
+// An installment plan's next_installment_due_date overrides the invoice's
+// original due_date for the overdue/pending computation, exactly like the
+// grace period overrides a subscription's raw end_date server-side.
+
+test("installment: original due date has passed, but next installment date is still ahead -> pending, not overdue", () => {
+  const status = computeReceivableDisplayStatus(3000, YESTERDAY, "partial", TODAY, {
+    isInstallment: true,
+    nextInstallmentDueDate: TOMORROW,
+  });
+  assert.equal(status, "pending");
+});
+
+test("installment: next installment date has itself now passed -> overdue again", () => {
+  const status = computeReceivableDisplayStatus(3000, "2026-09-08", "partial", TODAY, {
+    isInstallment: true,
+    nextInstallmentDueDate: YESTERDAY,
+  });
+  assert.equal(status, "overdue");
+});
+
+test("installment: next installment date is exactly today -> not yet overdue", () => {
+  const status = computeReceivableDisplayStatus(3000, YESTERDAY, "partial", TODAY, {
+    isInstallment: true,
+    nextInstallmentDueDate: TODAY,
+  });
+  assert.equal(status, "pending");
+});
+
+test("installment flag false is ignored even if a next_installment_due_date value is present — falls back to due_date", () => {
+  const status = computeReceivableDisplayStatus(3000, YESTERDAY, "partial", TODAY, {
+    isInstallment: false,
+    nextInstallmentDueDate: TOMORROW,
+  });
+  assert.equal(status, "overdue");
+});
+
+test("installment: balance fully paid off still reads paid regardless of the installment plan", () => {
+  const status = computeReceivableDisplayStatus(0, YESTERDAY, "partial", TODAY, {
+    isInstallment: true,
+    nextInstallmentDueDate: TOMORROW,
+  });
+  assert.equal(status, "paid");
+});
+
+test("no installment argument at all behaves exactly as before (backward compatible)", () => {
+  assert.equal(computeReceivableDisplayStatus(5000, YESTERDAY, "partial", TODAY), "overdue");
+});
