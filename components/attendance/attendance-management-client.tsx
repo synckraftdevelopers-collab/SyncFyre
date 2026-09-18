@@ -185,16 +185,19 @@ export function AttendanceManagementClient() {
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
   useEffect(() => {
     const timer = window.setInterval(() => { void load(); }, POLL_MS);
     return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to, query]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void load(); }, 250);
     return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
   const visibleAttendance = attendanceTab === "mapped" ? mappedAttendance : unmappedAttendance;

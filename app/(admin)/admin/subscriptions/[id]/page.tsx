@@ -43,7 +43,7 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
 
   const { data: subscription, error } = await selectWithSchemaFallback(runSubscriptionQuery, [withCoupleColumns, baseColumns]);
   if (error || !subscription) notFound();
-  const subscriptionRow = subscription as Record<string, unknown>;
+  const subscriptionRow = subscription as unknown as Record<string, unknown>;
 
   // Type-safe accessors for fields accessed directly
   const sub = subscriptionRow as {

@@ -25,7 +25,6 @@ export function MembersTable({
     helper.accessor("fitness_goal", { header: "Fitness goal", cell: ({ getValue }) => <span className="line-clamp-1 max-w-40">{getValue() ?? "—"}</span> }),
     helper.accessor("status", { header: "Status", cell: ({ getValue }) => <Badge variant={getValue() === "active" ? "success" : "outline"}>{getValue()}</Badge> }),
     helper.display({ id: "actions", cell: ({ row }) => <Link href={`${basePath}/${row.original.id}`} className={buttonVariants({ variant: "ghost", size: "icon" })} aria-label={`View ${row.original.full_name}`}><MoreHorizontal className="size-4"/></Link> }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [basePath]);
 
   const table = useReactTable({ data, columns, getCoreRowModel: getCoreRowModel() });

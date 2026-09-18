@@ -58,9 +58,9 @@ export async function listMembershipPlans(params: {
   }
 
   const { data, error } = await selectWithSchemaFallback(run, [PLAN_COLUMNS_WITH_TYPE, PLAN_COLUMNS_BASE]);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message ?? "Unable to load membership plans.");
 
-  return ((data ?? []) as Record<string, unknown>[]).map((plan) => ({
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((plan) => ({
     id: String(plan.id),
     branch_id: (plan.branch_id as string | null) ?? null,
     name: String(plan.name ?? ""),
@@ -84,9 +84,9 @@ export async function getMembershipPlanById(id: string, branchId?: string | null
   }
 
   const { data, error } = await selectWithSchemaFallback(run, [PLAN_COLUMNS_WITH_TYPE, PLAN_COLUMNS_BASE]);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message ?? "Unable to load the membership plan.");
   if (!data) return null;
-  const row = data as Record<string, unknown>;
+  const row = data as unknown as Record<string, unknown>;
 
   return {
     id: String(row.id),
@@ -130,9 +130,9 @@ export async function getPlanForSale(planId: string, branchId?: string | null): 
   }
 
   const { data, error } = await selectWithSchemaFallback(run, [withPlanType, baseColumns]);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(error.message ?? "Unable to load the plan.");
   if (!data) return null;
-  const row = data as Record<string, unknown>;
+  const row = data as unknown as Record<string, unknown>;
 
   return {
     id: String(row.id),

@@ -328,12 +328,12 @@ export function AddMemberWizard({ branches, plans, trainers, members = [], membe
                         Payment completed for this plan
                         <Input {...register("extra_payment_amount")} type="number" min="0" max={extraTotalAmt} step="1" placeholder="0" />
                         {errors.extra_payment_amount && <p className="text-xs text-red-600">{errors.extra_payment_amount.message}</p>}
-                        {extraPaymentInvalid && <p className="text-xs text-red-600">Payment cannot be greater than this plan's total.</p>}
+                        {extraPaymentInvalid && <p className="text-xs text-red-600">Payment cannot be greater than this plan&apos;s total.</p>}
                       </label>
                       <label className={fieldClass}>
                         Discount for this plan
                         <Input {...register("extra_discount_amount")} type="number" min="0" max={extraMaxDiscount} step="1" placeholder="0" />
-                        {extraDiscountInvalid && <p className="text-xs text-red-600">Discount cannot exceed this plan's amount.</p>}
+                        {extraDiscountInvalid && <p className="text-xs text-red-600">Discount cannot exceed this plan&apos;s amount.</p>}
                       </label>
                     </div>
                     <div className="rounded-lg bg-muted/40 p-3 text-sm">

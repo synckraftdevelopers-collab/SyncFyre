@@ -638,7 +638,7 @@ export async function getPlanOptions(branchId?: string | null) {
   }
 
   const { data } = await selectWithSchemaFallback(run, [withPlanType, baseColumns]);
-  const rows = (data ?? []) as { id: string; name: string; price: number; gst_percent: number; discount_percent: number; duration_months: number; plan_type?: "individual" | "couple" }[];
+  const rows = (data ?? []) as unknown as { id: string; name: string; price: number; gst_percent: number; discount_percent: number; duration_months: number; plan_type?: "individual" | "couple" }[];
   return rows.map((row) => ({ ...row, plan_type: inferPlanType(row.plan_type, row.name) }));
 }
 

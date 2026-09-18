@@ -338,7 +338,7 @@ export async function getMemberCouplePlanInfo(memberId: string): Promise<CoupleP
       .from("subscriptions")
       .select("id, member_id, members(full_name)")
       .in("id", linkedIds);
-    for (const partnerSub of (partnerSubs ?? []) as Array<{ id: string; member_id: string; members: { full_name: string | null } | null }>) {
+    for (const partnerSub of (partnerSubs ?? []) as unknown as Array<{ id: string; member_id: string; members: { full_name: string | null } | null }>) {
       partnerByLinkedSub.set(partnerSub.id, { member_id: partnerSub.member_id, full_name: partnerSub.members?.full_name ?? null });
     }
   }
