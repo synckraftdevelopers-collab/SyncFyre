@@ -6,7 +6,7 @@ import { assertSafeDeviceUrl, UnsafeUrlError } from "@/lib/ssrf-guard";
 
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getCurrentProfile();
-  if (!profile || !["admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!profile || !["owner", "admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const supabase = await createClient();
   const admin = createAdminClient();

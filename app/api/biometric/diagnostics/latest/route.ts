@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function GET() {
-  await requireUser(["admin", "manager"]);
+  await requireUser(["owner", "admin", "manager"]);
   if (process.env.BIOMETRIC_DIAGNOSTIC_MODE !== "true") {
     return NextResponse.json({ error: "Diagnostic mode disabled." }, { status: 403 });
   }

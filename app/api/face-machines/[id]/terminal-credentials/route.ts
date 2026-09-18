@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 /** Rotates a terminal secret. The plaintext response is intentionally one-time only. */
 export async function POST(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const profile = await getCurrentProfile();
-  if (!profile || !["admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!profile || !["owner", "admin", "manager"].includes(profile.role?.slug ?? "")) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   const supabase = await createClient();
   let machineQuery = supabase.from("face_machine_settings").select("id,device_id,branch_id,status").eq("id", id);

@@ -4,6 +4,6 @@ import { requireUser } from "@/lib/auth";
 export const metadata = { title: "Attendance" };
 
 export default async function AdminAttendancePage() {
-  await requireUser(["admin", "manager", "reception"]);
+  await requireUser(["owner", "admin", "manager", "reception"]);
   return <AttendanceManagementClient />;
 }
