@@ -18,31 +18,9 @@ export default async function RetentionPage() {
   const isScale = await hasCurrentFeature("retention_intelligence");
 
   if (!isScale) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Retention Intelligence</h1>
-          <p className="text-sm text-muted-foreground">
-            Identify at-risk members before they churn.
-          </p>
-        </div>
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <div className="grid size-14 place-items-center rounded-full bg-muted">
-              <UserMinus className="size-6 text-muted-foreground" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-lg font-semibold">Retention Intelligence</p>
-              <p className="text-sm text-muted-foreground max-w-md">
-                Automatically score every active member for churn risk based on their attendance,
-                subscription expiry, and payment history. Available on the Scale plan.
-              </p>
-            </div>
-            <Badge variant="secondary">Scale Plan required</Badge>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    // Middleware already blocks this route for non-Scale tenants.
+    // This fallback is defence-in-depth — show nothing rather than a promo card.
+    return null;
   }
 
   const result = await getRetentionIntelligenceAction(200);

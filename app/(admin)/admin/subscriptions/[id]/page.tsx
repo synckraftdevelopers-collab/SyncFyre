@@ -45,22 +45,41 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
   if (error || !subscription) notFound();
   const subscriptionRow = subscription as Record<string, unknown>;
 
+  // Type-safe accessors for fields accessed directly
+  const sub = subscriptionRow as {
+    id: string;
+    member_id: string;
+    plan_id: string;
+    branch_id: string;
+    start_date: string | null;
+    end_date: string | null;
+    status: string;
+    auto_renew: boolean;
+    price: number | string;
+    discount_amount: number | string;
+    gst_amount: number | string;
+    total_amount: number | string;
+    linked_subscription_id?: string | null;
+    members: unknown;
+    membership_plans: unknown;
+  };
+
   const { data: history } = await supabase
     .from("subscription_history")
     .select("id, action, previous_status, new_status, previous_end_date, new_start_date, new_end_date, remarks, performed_at, performed_by, users(full_name)")
     .eq("subscription_id", id)
     .order("performed_at", { ascending: false });
 
-  const member = subscriptionRow.members as unknown as { full_name: string | null; member_code: string | null } | null;
-  const planRaw = subscriptionRow.membership_plans as unknown as { name: string | null; duration_months: number | null; plan_type?: string | null } | null;
+  const member = sub.members as unknown as { full_name: string | null; member_code: string | null } | null;
+  const planRaw = sub.membership_plans as unknown as { name: string | null; duration_months: number | null; plan_type?: string | null } | null;
   const plan = planRaw ? { ...planRaw, plan_type: inferPlanType(planRaw.plan_type, planRaw.name) } : null;
 
   let linkedMember: { full_name: string | null; member_code: string | null } | null = null;
-  if (subscriptionRow.linked_subscription_id) {
+  if (sub.linked_subscription_id) {
     const { data: linkedSubscription } = await supabase
       .from("subscriptions")
       .select("members(full_name, member_code)")
-      .eq("id", String(subscriptionRow.linked_subscription_id))
+      .eq("id", String(sub.linked_subscription_id))
       .maybeSingle();
     linkedMember = (linkedSubscription?.members as unknown as { full_name: string | null; member_code: string | null } | null) ?? null;
   }
@@ -79,10 +98,10 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{plan?.name ?? "Membership"}</h1>
-              <SubscriptionStatusBadge status={subscription.status} />
+              <SubscriptionStatusBadge status={sub.status} />
             </div>
             <p className="text-sm text-muted-foreground">
-              <Link href={`/admin/members/${subscription.member_id}`} className="font-medium hover:text-primary hover:underline">
+              <Link href={`/admin/members/${sub.member_id}`} className="font-medium hover:text-primary hover:underline">
                 {member?.full_name ?? "Unknown member"}
               </Link>
               {member?.member_code ? ` · ${member.member_code}` : ""}
@@ -97,41 +116,41 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
             )}
 
             <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-              <Detail label="Start date" value={formatDate(subscription.start_date)} />
+              <Detail label="Start date" value={formatDate(sub.start_date)} />
               <div>
                 <dt className="text-xs text-muted-foreground">End date</dt>
                 <dd className="mt-0.5 font-medium">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span>{formatDate(subscription.end_date)}</span>
-                    <SubscriptionExpiryBadge endDate={subscription.end_date} />
+                    <span>{formatDate(sub.end_date)}</span>
+                    <SubscriptionExpiryBadge endDate={sub.end_date} />
                   </div>
                 </dd>
               </div>
               <Detail label="Duration" value={plan?.duration_months ? `${plan.duration_months} month${plan.duration_months === 1 ? "" : "s"}` : "—"} />
-              <Detail label="Auto renew" value={subscription.auto_renew ? "Yes" : "No"} />
-              <Detail label="Price" value={formatCurrency(Number(subscription.price))} />
-              <Detail label="Discount" value={formatCurrency(Number(subscription.discount_amount))} />
-              <Detail label="GST" value={formatCurrency(Number(subscription.gst_amount))} />
-              <Detail label="Total" value={formatCurrency(Number(subscription.total_amount))} />
+              <Detail label="Auto renew" value={sub.auto_renew ? "Yes" : "No"} />
+              <Detail label="Price" value={formatCurrency(Number(sub.price))} />
+              <Detail label="Discount" value={formatCurrency(Number(sub.discount_amount))} />
+              <Detail label="GST" value={formatCurrency(Number(sub.gst_amount))} />
+              <Detail label="Total" value={formatCurrency(Number(sub.total_amount))} />
             </dl>
           </div>
 
           <div className="flex flex-col gap-2 md:w-48">
-            {subscription.status === "active" && (
+            {sub.status === "active" && (
               <>
-                <form action={renewSubscriptionAction.bind(null, subscription.id)}>
+                <form action={renewSubscriptionAction.bind(null, sub.id)}>
                   <button className={buttonVariants({ className: "w-full" })}>
                     <RefreshCw className="size-3.5" />
                     Renew
                   </button>
                 </form>
-                <form action={updateSubscriptionStatusAction.bind(null, subscription.id, "paused")}>
+                <form action={updateSubscriptionStatusAction.bind(null, sub.id, "paused")}>
                   <button className={buttonVariants({ variant: "outline", className: "w-full" })}>
                     <Pause className="size-3.5" />
                     Pause
                   </button>
                 </form>
-                <form action={updateSubscriptionStatusAction.bind(null, subscription.id, "cancelled")}>
+                <form action={updateSubscriptionStatusAction.bind(null, sub.id, "cancelled")}>
                   <button className={buttonVariants({ variant: "destructive", className: "w-full" })}>
                     <XCircle className="size-3.5" />
                     Cancel
@@ -139,15 +158,15 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
                 </form>
               </>
             )}
-            {subscription.status === "paused" && (
+            {sub.status === "paused" && (
               <>
-                <form action={updateSubscriptionStatusAction.bind(null, subscription.id, "active")}>
+                <form action={updateSubscriptionStatusAction.bind(null, sub.id, "active")}>
                   <button className={buttonVariants({ className: "w-full" })}>
                     <Play className="size-3.5" />
                     Resume
                   </button>
                 </form>
-                <form action={updateSubscriptionStatusAction.bind(null, subscription.id, "cancelled")}>
+                <form action={updateSubscriptionStatusAction.bind(null, sub.id, "cancelled")}>
                   <button className={buttonVariants({ variant: "destructive", className: "w-full" })}>
                     <XCircle className="size-3.5" />
                     Cancel
@@ -155,7 +174,7 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
                 </form>
               </>
             )}
-            {["pending", "expired", "cancelled"].includes(subscription.status) && (
+            {["pending", "expired", "cancelled"].includes(sub.status) && (
               <p className="text-center text-xs text-muted-foreground">No actions available for this status.</p>
             )}
           </div>
