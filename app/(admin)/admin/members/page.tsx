@@ -14,7 +14,7 @@ import { MemberFilters } from "@/components/members/member-filters";
 import { MemberExcelImportDialog } from "@/components/members/member-excel-import-dialog";
 import { MemberViewToggle } from "@/components/members/member-view-toggle";
 import { ExpiringPlansCard } from "@/components/members/expiring-plans-card";
-import { EXPIRY_QUICK_FILTERS, getExpiringWithinDays, getExpiryDateRange } from "@/lib/member-expiry";
+import { EXPIRY_QUICK_FILTERS, buildExpiredOrFilter, getExpiringWithinDays, getExpiryDateRange } from "@/lib/member-expiry";
 
 export const metadata = { title: "Members Register" };
 
@@ -86,7 +86,12 @@ export default async function AdminMembersPage({
         bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "active")),
         bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "inactive")),
         bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active"))),
-        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "expired"))),
+        // subscriptions.status is a write-time snapshot that nothing flips to
+        // 'expired' when end_date simply passes (see
+        // docs/MEMBER_EXPIRY_REALTIME_IMPLEMENTATION.md) — a subscription
+        // still stored as status='active' with end_date < today must count
+        // as expired here too, or the "Expired" filter badge undercounts.
+        bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).or(buildExpiredOrFilter("status", "end_date", today)))),
         bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "pending"))),
         bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "paused"))),
         bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "cancelled"))),

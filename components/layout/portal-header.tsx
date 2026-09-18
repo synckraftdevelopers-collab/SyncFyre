@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown, Menu, Search, Settings, User, LogOut } from "lucide-react";
+import { ChevronDown, Menu, Search, Settings, User, LogOut, X } from "lucide-react";
 import Link from "next/link";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -9,7 +9,7 @@ import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { HistoryBackButton } from "@/components/ui/history-back-button";
 import { logoutAction } from "@/app/(auth)/actions";
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
 import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
 import type { NotificationPortal } from "@/lib/notifications/destination";
 
@@ -48,6 +48,42 @@ export function PortalHeader({
     trainer: "/trainer/dashboard",
     member: "/member/dashboard",
   };
+  // The mobile/PWA search entry point below md is an icon button that opens
+  // this same searchAction form full-width, in place of the rest of the
+  // header — it does not call a different search path than desktop, it just
+  // makes the existing one reachable on a small screen. See
+  // docs/PWA_SEARCH_FIX.md: the button previously had no onClick at all, so
+  // tapping it (in a fresh browser, mobile responsive mode, or the installed
+  // PWA) did nothing.
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
+  if (mobileSearchOpen) {
+    return (
+      <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:hidden">
+        <form action={searchAction} className="relative flex min-w-0 flex-1 items-center gap-2">
+          <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            name="q"
+            type="search"
+            enterKeyHint="search"
+            autoFocus
+            className="h-11 min-w-0 flex-1 rounded-xl border-0 bg-muted/75 pl-11 shadow-none focus-visible:ring-1"
+            placeholder={searchPlaceholder}
+          />
+        </form>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Close search"
+          className="shrink-0"
+          onClick={() => setMobileSearchOpen(false)}
+        >
+          <X className="size-5" />
+        </Button>
+      </header>
+    );
+  }
 
   return (
     <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
@@ -66,7 +102,14 @@ export function PortalHeader({
       <RealtimeGreetingClock tenantTimezone={tenantTimezone} branchTimezone={branchTimezone} />
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        <Button variant="ghost" size="icon" aria-label="Search" className="md:hidden">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Search"
+          className="md:hidden"
+          onClick={() => setMobileSearchOpen(true)}
+        >
           <Search className="size-5" />
         </Button>
         <ThemeToggle />

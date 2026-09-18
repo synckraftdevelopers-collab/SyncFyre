@@ -11,6 +11,8 @@ import type { MemberRegisterRow } from "@/types";
 import { selectWithSchemaFallback } from "@/lib/supabase/select-fallback";
 import { inferPlanType } from "@/lib/membership-plan-type";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
+import { getLocalDateKey } from "@/lib/time";
+import { buildExpiredOrFilter } from "@/lib/member-expiry";
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Rich member list (from member_register_view) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
@@ -78,8 +80,23 @@ export async function listMembersRich(
     if (gender && gender !== "all")       query = query.eq("gender", gender);
     if (planId && planId !== "all")       query = query.eq("plan_id", planId);
     if (trainerId && trainerId !== "all") query = query.eq("trainer_id", trainerId);
-    if (subscriptionStatus && subscriptionStatus !== "all")
-      query = query.eq("subscription_status", subscriptionStatus);
+    if (subscriptionStatus && subscriptionStatus !== "all") {
+      if (subscriptionStatus === "expired") {
+        // member_register_view.subscription_status is sourced from
+        // subscriptions.status, which is only written at invoice/payment/
+        // renewal time — it is never revisited just because subscription_end
+        // has since passed (see docs/MEMBER_EXPIRY_REALTIME_IMPLEMENTATION.md).
+        // A member can be subscription_status='active' with subscription_end
+        // already in the past and must still appear under the Expired
+        // filter. Active / Pending / Paused / Cancelled filters are left
+        // exactly as before — this task is scoped to the active-but-
+        // date-expired gap only.
+        const todayKey = getLocalDateKey(new Date(), "Asia/Kolkata");
+        query = query.or(buildExpiredOrFilter("subscription_status", "subscription_end", todayKey));
+      } else {
+        query = query.eq("subscription_status", subscriptionStatus);
+      }
+    }
     if (joinDateFrom)   query = query.gte("joined_date", joinDateFrom);
     if (joinDateTo)     query = query.lte("joined_date", joinDateTo);
     if (expiryDateFrom) query = query.gte("subscription_end", expiryDateFrom);

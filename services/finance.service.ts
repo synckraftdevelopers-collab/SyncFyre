@@ -7,6 +7,11 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getLocalDateKey } from "@/lib/time";
+import {
+  computeReceivableDisplayStatus,
+  type ReceivableDisplayStatus,
+} from "@/lib/finance/payment-balance";
 import type { PaginatedResult } from "@/types";
 import type {
   IncomeCategory,
@@ -47,15 +52,37 @@ function pageRange(page: number, size: number): [number, number] {
   return [from, from + size - 1];
 }
 
+// Canonical timezone for every date-aware receivable/dues calculation in
+// this file — matches the convention already used elsewhere in the app
+// (services/dashboard.service.ts, lib/member-expiry.ts) rather than the
+// browser's local date or a bare UTC slice. See lib/time.ts#getLocalDateKey
+// and docs/OUTSTANDING_DUES_REALTIME_IMPLEMENTATION.md.
+const FINANCE_TIME_ZONE = "Asia/Kolkata";
+
+/** Fresh "today" (YYYY-MM-DD) in the canonical finance timezone — never cached. */
+function financeTodayKey(): string {
+  return getLocalDateKey(new Date(), FINANCE_TIME_ZONE);
+}
+
 export async function getOutstandingReceivablesSummary(
   branchId?: string | null
 ): Promise<OutstandingReceivablesSummary> {
   const supabase = await createClient();
+  const todayKey = financeTodayKey();
+
+  // Only `balance_amount > 0` and "not manually written off" are filtered at
+  // the DB — those two facts are always trustworthy (balance_amount is kept
+  // exactly in sync with original_amount - paid_amount by the invoice/payment
+  // triggers, and written_off is a real, deliberate, manually-set terminal
+  // state). The pending/overdue split is NOT filtered here because the
+  // stored `status` column is a stale snapshot (see computeReceivableDisplayStatus
+  // in lib/finance/payment-balance.ts) — it is recomputed below from
+  // balance + due_date on every request instead.
   let query = supabase
     .from("receivables")
-    .select("status, balance_amount")
+    .select("status, balance_amount, due_date")
     .gt("balance_amount", 0)
-    .in("status", ["pending", "partial", "overdue"]);
+    .neq("status", "written_off");
 
   if (branchId) query = query.eq("branch_id", branchId);
 
@@ -67,8 +94,17 @@ export async function getOutstandingReceivablesSummary(
       const balance = Number(row.balance_amount ?? 0);
       if (balance <= 0) return summary;
 
+      const displayStatus = computeReceivableDisplayStatus(
+        balance,
+        row.due_date as string | null,
+        row.status as string,
+        todayKey
+      );
+      // Fully paid or written off despite balance drift — never counts as outstanding.
+      if (displayStatus === "paid" || displayStatus === "written_off") return summary;
+
       summary.totalOutstanding += balance;
-      if (row.status === "overdue") {
+      if (displayStatus === "overdue") {
         summary.overdueCount += 1;
         summary.overdueAmount += balance;
       } else {
@@ -365,10 +401,15 @@ export async function getReceivableAging(
   branchId?: string | null
 ): Promise<FinanceReceivableAgingPoint[]> {
   const supabase = await createClient();
+  // Same rule as getOutstandingReceivablesSummary: balance_amount > 0 and
+  // "not written off" are the only trustworthy stored facts; a row still
+  // belongs in the aging table regardless of what its stale `status`
+  // snapshot says.
   let q = supabase
     .from("receivables")
     .select("balance_amount, due_date")
-    .in("status", ["pending", "partial", "overdue"]);
+    .gt("balance_amount", 0)
+    .neq("status", "written_off");
   if (branchId) q = q.eq("branch_id", branchId);
 
   const { data } = await q;
@@ -858,25 +899,78 @@ export async function getGstSummary(
 
 // ─── Receivables ──────────────────────────────────────────────────────────────
 
+export type ReceivableWithDisplayStatus = Receivable & {
+  display_status: ReceivableDisplayStatus;
+};
+
+/**
+ * Lists receivables with a fresh, date-aware `display_status` computed on
+ * every call (see computeReceivableDisplayStatus). `status` in `params`
+ * filters on that computed status ("overdue" | "pending" | "paid" |
+ * "written_off"), not on the stale stored column — except "written_off"
+ * itself, which IS a reliable, manually-set DB value and can be pushed down
+ * to the query.
+ *
+ * Filtering/pagination happen after the status is derived (in memory) rather
+ * than in the SQL query, since the stored `status` column can't be trusted
+ * for "overdue" vs "pending". This is a single, non-paginated fetch of a
+ * branch's open receivables (no per-row extra queries), which stays cheap
+ * for the realistic size of this table; if that ever changes, the aggregate
+ * counts (getOutstandingReceivablesSummary) already do the same balance/date
+ * math directly in Postgres-fetched rows without loading full payment
+ * history, so this can be swapped for a DB view without touching callers.
+ */
 export async function listReceivables(
   params: ReceivableParams = {}
-): Promise<PaginatedResult<Receivable>> {
+): Promise<PaginatedResult<ReceivableWithDisplayStatus>> {
   const { branchId, page = 1, pageSize = 30, status, receivableType, memberId } = params;
   const supabase = await createClient();
-  const [from, to] = pageRange(page, pageSize);
+  const todayKey = financeTodayKey();
+
   let q = supabase
     .from("receivables")
-    .select("*, members(full_name,member_code,phone)", { count: "exact" });
+    .select("*, members(full_name,member_code,phone)");
   if (branchId) q = q.eq("branch_id", branchId);
-  if (status && status !== "all") q = q.eq("status", status);
   if (receivableType && receivableType !== "all") q = q.eq("receivable_type", receivableType);
   if (memberId) q = q.eq("member_id", memberId);
-  const { data, count, error } = await q
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .range(from, to);
+  // written_off is the one status value that's actually trustworthy in the
+  // DB (a deliberate manual action, never a time-based snapshot) — safe to
+  // filter at the query level.
+  if (status === "written_off") q = q.eq("status", "written_off");
+
+  const { data, error } = await q.order("due_date", { ascending: true, nullsFirst: false });
   assertNoError(error, "listReceivables");
-  const total = count ?? 0;
-  return { data: (data ?? []) as Receivable[], page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+
+  const withStatus: ReceivableWithDisplayStatus[] = ((data ?? []) as Receivable[]).map((row) => ({
+    ...row,
+    display_status: computeReceivableDisplayStatus(
+      Number(row.balance_amount ?? 0),
+      row.due_date,
+      row.status,
+      todayKey
+    ),
+  }));
+
+  const filtered =
+    !status || status === "all"
+      ? // Default / "all" = the Outstanding Dues view: everything actually
+        // owed right now, regardless of what its stored status says.
+        withStatus.filter((row) => row.display_status === "overdue" || row.display_status === "pending")
+      : status === "written_off"
+      ? withStatus // already narrowed by the DB query above
+      : withStatus.filter((row) => row.display_status === status);
+
+  const total = filtered.length;
+  const [from, to] = pageRange(page, pageSize);
+  const paged = filtered.slice(from, to + 1);
+
+  return {
+    data: paged,
+    page,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
 }
 
 // ─── P&L Summary ──────────────────────────────────────────────────────────────

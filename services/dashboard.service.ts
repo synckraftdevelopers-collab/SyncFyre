@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getLocalDateKey } from "@/lib/time";
+import { buildExpiredOrFilter } from "@/lib/member-expiry";
 import type { DashboardMetrics } from "@/types";
 import { getOutstandingReceivablesSummary } from "@/services/finance.service";
 
@@ -16,7 +17,12 @@ export async function getDashboardData(branchId?: string | null, timeZone = "Asi
     branch(supabase.from("members").select("id", { count: "exact", head: true }).eq("status", "active")),
     branch(supabase.from("attendance").select("id", { count: "exact", head: true }).eq("attendance_date", today)),
     branch(supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").lte("end_date", inThirtyDays).gte("end_date", today)),
-    branch(supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "expired")),
+    // subscriptions.status is a write-time snapshot — nothing flips it to
+    // 'expired' just because end_date has passed (see
+    // docs/MEMBER_EXPIRY_REALTIME_IMPLEMENTATION.md). A subscription that is
+    // still status='active' with end_date < today must count as expired here
+    // too, or this KPI silently undercounts.
+    branch(supabase.from("subscriptions").select("id", { count: "exact", head: true }).or(buildExpiredOrFilter("status", "end_date", today))),
     branch(supabase.from("payments").select("amount").eq("status", "completed").gte("paid_at", `${today}T00:00:00Z`)),
     branch(supabase.from("payments").select("amount").eq("status", "pending")),
     getOutstandingReceivablesSummary(branchId),

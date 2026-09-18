@@ -6,20 +6,34 @@ import { getOutstandingReceivablesSummary, listReceivables } from "@/services/fi
 
 export const metadata = { title: "Outstanding Dues" };
 
+// Keys are the dynamically COMPUTED status (display_status), never the
+// stale stored `receivables.status` column — see
+// lib/finance/payment-balance.ts#computeReceivableDisplayStatus.
 const STATUS_STYLES: Record<string, string> = {
   pending:    "bg-yellow-100 text-yellow-700",
-  partial:    "bg-blue-100 text-blue-700",
-  paid:       "bg-green-100 text-green-700",
   overdue:    "bg-red-100 text-red-700",
+  paid:       "bg-green-100 text-green-700",
   written_off:"bg-gray-100 text-gray-500",
 };
 
 export default async function OutstandingPage() {
+  // No explicit `export const dynamic` needed: lib/supabase/server.ts's
+  // createClient() reads cookies() on every call, which already opts this
+  // route into dynamic (uncached, per-request) rendering — the same
+  // convention every other page in this app relies on. Combined with the
+  // date-aware status computed below, that means a fresh page load always
+  // reflects the current database state: new invoices, new payments, and
+  // pending -> overdue date transitions all show up on the next load/refresh
+  // without any manual data edit or cron job.
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
 
-  const [{ data: all }, summary] = await Promise.all([
-    listReceivables({ branchId, page: 1, pageSize: 100 }),
+  // pageSize is generous rather than the field default (30) so the table
+  // shows every currently-outstanding row for a normal-sized gym in one
+  // page; the KPI cards above are always computed from the full, unpaginated
+  // dataset regardless of this limit.
+  const [{ data: all, total }, summary] = await Promise.all([
+    listReceivables({ branchId, page: 1, pageSize: 500 }),
     getOutstandingReceivablesSummary(branchId),
   ]);
 
@@ -110,8 +124,8 @@ export default async function OutstandingPage() {
                         <td className="px-4 py-3 text-right font-bold text-red-600">{formatCurrency(Number(row.balance_amount))}</td>
                         <td className="px-4 py-3 whitespace-nowrap">{row.due_date ?? "—"}</td>
                         <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[row.status] ?? "bg-gray-100 text-gray-600"}`}>
-                            {row.status}
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_STYLES[row.display_status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {row.display_status.replace("_", " ")}
                           </span>
                         </td>
                       </tr>
@@ -119,6 +133,11 @@ export default async function OutstandingPage() {
                   })}
                 </tbody>
               </table>
+              {total > all.length ? (
+                <p className="px-4 py-3 text-xs text-muted-foreground">
+                  Showing {all.length} of {total} outstanding receivables.
+                </p>
+              ) : null}
             </div>
           )}
         </CardContent>

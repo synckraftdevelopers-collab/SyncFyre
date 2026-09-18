@@ -22,3 +22,11 @@ export function getExpiringWithinDays(value?: string) {
   const days = Number(value);
   return Number.isInteger(days) && days >= 0 && days <= 3650 ? days : undefined;
 }
+
+// Real-time "is this expired right now" check + the PostgREST filter builder
+// built on it. Kept in a separate, dependency-free module
+// (lib/subscription-expiry.ts) so it can be unit-tested directly with this
+// project's plain `node --test` runner, the same way lib/membership-dates.ts
+// and lib/finance/*.ts already are — re-exported here so every existing
+// caller of lib/member-expiry.ts keeps working unchanged.
+export { isExpiredByDate, buildExpiredOrFilter } from "./subscription-expiry";

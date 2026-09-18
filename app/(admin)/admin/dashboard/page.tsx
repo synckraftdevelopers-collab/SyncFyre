@@ -1,10 +1,6 @@
 import {
   Activity,
-  Bell,
-  Building2,
-  CalendarDays,
   CircleDollarSign,
-  Dumbbell,
   IndianRupee,
   Plus,
   ShieldAlert,
@@ -14,8 +10,6 @@ import {
   UserRoundCog,
   UsersRound,
   UserX,
-  Wrench,
-  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
@@ -39,22 +33,6 @@ import {
 } from "@/services/dashboard.service";
 
 export const metadata = { title: "Dashboard" };
-
-// ─── Quick actions config ────────────────────────────────────────────────────
-
-const quickActions = [
-  { label: "Add Member",         href: "/admin/members/new",      icon: UserPlus,          tone: "primary" },
-  { label: "Record Payment",     href: "/admin/payments",          icon: IndianRupee,       tone: "green" },
-  { label: "Renew Membership",   href: "/admin/renewals",           icon: ShieldCheck,       tone: "green" },
-  { label: "Mark Attendance",    href: "/admin/attendance",        icon: Activity,          tone: "blue" },
-  { label: "Appointments",       href: "/admin/appointments",        icon: CalendarDays,      tone: "purple" },
-  { label: "Search Member",      href: "/admin/members",            icon: UsersRound,        tone: "primary" },
-  { label: "Add Trainer",        href: "/admin/trainers/new",      icon: UserRoundCog,      tone: "orange" },
-  { label: "Add Staff",          href: "/admin/staff/new",         icon: UsersRound,        tone: "primary" },
-  { label: "Add Expense",        href: "/admin/finance/expenses/new", icon: CircleDollarSign, tone: "red" },
-  { label: "Create Invoice",     href: "/admin/invoices/new",      icon: ShieldCheck,       tone: "green" },
-  { label: "Add Equipment",      href: "/admin/equipment/new",     icon: Dumbbell,          tone: "blue" },
-] as const;
 
 export default async function AdminDashboardPage() {
   const profile = await getPortalContext();
@@ -163,7 +141,7 @@ export default async function AdminDashboardPage() {
       {/* ── KPI Cards — Row 3: Finance ───────────────────────────────────── */}
       <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Finance</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <MetricCard
             label="Revenue Today"
             value={formatCurrency(metrics.revenue)}
@@ -177,83 +155,11 @@ export default async function AdminDashboardPage() {
             icon={CircleDollarSign}
             href="/admin/finance/outstanding"
           />
-          <MetricCard
-            label="Appointments Today"
-            value={metrics.appointments}
-            icon={CalendarDays}
-            tone="blue"
-            href="/admin/appointments"
-          />
-          <MetricCard
-            label="Equipment"
-            value={metrics.machines}
-            icon={Dumbbell}
-            href="/admin/equipment"
-          />
-        </div>
-      </section>
-
-      {/* ── KPI Cards — Row 4: Infrastructure ───────────────────────────── */}
-      <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Infrastructure</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Total Branches"
-            value={metrics.branches}
-            icon={Building2}
-            tone="blue"
-            href="/admin/settings"
-          />
-          <MetricCard
-            label="Unread Notifications"
-            value={metrics.notifications}
-            icon={Bell}
-            href="/admin/notifications"
-          />
-          <MetricCard
-            label="Equipment"
-            value={metrics.machines}
-            icon={Wrench}
-            href="/admin/equipment"
-          />
-          <MetricCard
-            label="Trainers"
-            value={metrics.trainers}
-            icon={UserRoundCog}
-            tone="purple"
-            href="/admin/trainers"
-          />
         </div>
       </section>
 
       {/* ── Charts ──────────────────────────────────────────────────────── */}
       <DashboardCharts revenueData={revenue} attendanceData={attendance} planData={plans} />
-
-      {/* ── Quick Actions ────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Zap className="size-4 text-primary" />
-            Quick Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {quickActions.map((action) => (
-              <Link
-                key={action.href}
-                href={action.href}
-                className="group flex flex-col items-center gap-2 rounded-xl border bg-card p-3 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-              >
-                <div className="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-                  <action.icon className="size-4" />
-                </div>
-                <span className="text-xs font-medium leading-tight">{action.label}</span>
-              </Link>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* ── Recent Activity Feed ─────────────────────────────────────────── */}
       <div className="grid gap-5 lg:grid-cols-2">
