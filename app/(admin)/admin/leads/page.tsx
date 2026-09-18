@@ -197,24 +197,8 @@ export default async function LeadsPage() {
         </Card>
       </div>
 
-      {/* ── Advanced CRM Analytics — Scale only ── */}
-      {!isScale ? (
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="grid size-12 place-items-center rounded-full bg-muted">
-              <Lock className="size-5 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="font-semibold">Advanced CRM Analytics</p>
-              <p className="text-sm text-muted-foreground">
-                Conversion funnel, average days to convert, and pipeline velocity are available on
-                the Scale plan.
-              </p>
-            </div>
-            <Badge variant="secondary" className="mt-1">Scale Plan required</Badge>
-          </CardContent>
-        </Card>
-      ) : crmAnalytics ? (
+      {/* ── Advanced CRM Analytics — Scale only, hidden for non-Scale plans ── */}
+      {!isScale ? null : crmAnalytics ? (
         <div className="space-y-5">
           <div className="flex items-center gap-2">
             <BarChart2 className="size-5 text-primary" />

@@ -172,34 +172,24 @@ export function PortalSidebar({
       return filteredNavigation.map((item) => ({ type: "item" as const, item }));
     }
 
-    // Growth: Phase 2 available, Phase 3 locked
+    // Growth: Phase 2 available, Phase 3 hidden (not locked — simply absent)
     if (isGrowthOrAbove) {
       const available: (typeof filteredNavigation)[number][] = [];
-      const scaleLocked: (typeof filteredNavigation)[number][] = [];
 
       for (const item of filteredNavigation) {
         const phaseFeature = item.featureKey && phaseSnapshot
           ? phaseSnapshot.featureMap[item.featureKey]
           : null;
-        // Phase 3 items have phase_number 3 > current phase 2 → status "locked"
-        const isPhase3Locked = phaseFeature?.phase === "PHASE_3";
-
-        if (isPhase3Locked) {
-          scaleLocked.push(item);
-        } else {
+        // Phase 3 items are not shown to Growth users at all — they are simply
+        // absent from the nav rather than shown as locked upgrade prompts.
+        // Backend middleware still protects these routes; this is UI-only.
+        const isPhase3 = phaseFeature?.phase === "PHASE_3";
+        if (!isPhase3) {
           available.push(item);
         }
       }
 
-      if (!scaleLocked.length) {
-        return available.map((item) => ({ type: "item" as const, item }));
-      }
-
-      return [
-        ...available.map((item) => ({ type: "item" as const, item })),
-        { type: "separator" as const, label: "Scale features", key: "scale-separator" },
-        ...scaleLocked.map((item) => ({ type: "item" as const, item })),
-      ];
+      return available.map((item) => ({ type: "item" as const, item }));
     }
 
     // Essential: Phase 2 locked, Phase 3 also locked
@@ -330,7 +320,8 @@ export function PortalSidebar({
 
             const { label: navLabel, href, icon: Icon, exact, featureKey } = group.item;
             const phaseFeature = featureKey && phaseSnapshot ? phaseSnapshot.featureMap[featureKey] : null;
-            // An item is phase-locked when the snapshot says locked AND the user is not on a plan that allows it
+            // Phase 3 items are filtered out of navGroups before reaching here for Growth users.
+            // For Essential users, Phase 3 items appear in the scaleLocked bucket below.
             const isPhase3Feature = phaseFeature?.phase === "PHASE_3";
             const phaseLocked = phaseFeature?.status === "locked" && (
               isPhase3Feature ? !isScale : !isGrowthOrAbove
