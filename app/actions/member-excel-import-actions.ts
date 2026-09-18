@@ -265,7 +265,16 @@ export async function importMemberExcelAction(request: Request): Promise<MemberE
             total_amount: total,
             tenant_id: branch.tenant_id,
             amount_paid: paymentAmount,
-            due_date: candidate.membershipEndDate,
+            // due_date is the *payment* due date, not the membership expiry —
+            // it must be the date the sale/membership starts, matching every
+            // other invoice-creation path in the app (see
+            // supabase/migrations/0048_fix_invoice_due_dates.sql, which fixed
+            // this exact bug for createMemberAction/generateMemberInvoiceAction/
+            // sellMembershipPlanToMember but never touched this importer).
+            // Using membershipEndDate here clustered every imported member's
+            // invoice onto whatever shared end date their plan happened to
+            // have, instead of their own real due date.
+            due_date: candidate.membershipStartDate,
             status: paymentAmount >= total ? "paid" : paymentAmount > 0 ? "partial" : "unpaid",
             line_items: [{ description: plan.name, amount: total, taxable_amount: gst.taxableAmount, gst_amount: gst.gstAmount }],
             notes: candidate.notes,
