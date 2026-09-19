@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import { requirePortalContext } from "@/lib/auth";
 import { AuditLogClient } from "./audit-log-client";
+import type { AuditLogSortColumn } from "@/app/actions/audit-log-actions";
+
+const SORT_COLUMNS: AuditLogSortColumn[] = ["created_at", "action", "entity_type"];
 
 export const metadata = { title: "Audit Logs" };
 
@@ -18,6 +21,9 @@ export default async function AuditLogsPage({
   const to = typeof sp.to === "string" ? sp.to : "";
   const action = typeof sp.action === "string" ? sp.action : "";
   const entityType = typeof sp.entityType === "string" ? sp.entityType : "";
+  const sortColumnRaw = typeof sp.sortColumn === "string" ? sp.sortColumn : "";
+  const initialSortColumn = SORT_COLUMNS.find((c) => c === sortColumnRaw);
+  const initialSortDir: "asc" | "desc" | undefined = sp.sortDir === "asc" ? "asc" : sp.sortDir === "desc" ? "desc" : undefined;
 
   return (
     <div className="space-y-6">
@@ -34,6 +40,8 @@ export default async function AuditLogsPage({
           initialTo={to}
           initialAction={action}
           initialEntityType={entityType}
+          initialSortColumn={initialSortColumn}
+          initialSortDir={initialSortDir}
         />
       </Suspense>
     </div>

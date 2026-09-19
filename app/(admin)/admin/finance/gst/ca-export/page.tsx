@@ -4,25 +4,82 @@ import { GstNav } from "@/components/finance/gst-nav";
 import { getCurrentProfile } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { getFinancialYearOptions, getGstCaExportRows, listFinanceBranches, resolveGstDateRange } from "@/services/finance-gst.service";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "GST CA Export" };
+
+const SORTABLE_COLUMNS = [
+  { label: "Date", column: "date" as const },
+  { label: "Invoice Number", column: "invoice" as const },
+  { label: "Member ID", column: "member_id" as const },
+  { label: "Member Name", column: "member_name" as const },
+  { label: "Package", column: "package" as const },
+  { label: "Branch", column: "branch" as const },
+  { label: "Payment", column: "payment" as const, align: "right" as const },
+  { label: "Taxable Amount", column: "taxable" as const, align: "right" as const },
+  { label: "GST Rate", column: "gst_rate" as const, align: "right" as const },
+  { label: "CGST", column: "cgst" as const, align: "right" as const },
+  { label: "SGST", column: "sgst" as const, align: "right" as const },
+  { label: "IGST", column: "igst" as const, align: "right" as const },
+  { label: "Total GST", column: "total_gst" as const, align: "right" as const },
+  { label: "Grand Total", column: "grand_total" as const, align: "right" as const },
+  { label: "Payment Method", column: "payment_method" as const },
+  { label: "Payment Status", column: "payment_status" as const },
+];
 
 export default async function GstCaExportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ branch_id?: string; date_from?: string; date_to?: string; financial_year?: string; search?: string }>;
+  searchParams: Promise<{ branch_id?: string; date_from?: string; date_to?: string; financial_year?: string; search?: string; colSort?: string; colDir?: string }>;
 }) {
   const profile = await getCurrentProfile();
   const params = await searchParams;
   const branchId = params.branch_id ?? profile?.branch_id ?? undefined;
   const search = params.search?.trim() ?? "";
   const range = resolveGstDateRange({ dateFrom: params.date_from, dateTo: params.date_to, financialYear: params.financial_year, search });
-  const [rows, branches] = await Promise.all([
+  const [rowsData, branches] = await Promise.all([
     getGstCaExportRows({ branchId, tenantId: profile?.tenant_id, dateFrom: range.dateFrom, dateTo: range.dateTo, financialYear: range.financialYear, search }),
     listFinanceBranches(profile?.tenant_id, profile?.branch_id),
   ]);
+  let rows = rowsData;
   const financialYears = getFinancialYearOptions(new Date(), 5);
   const query = `branch_id=${branchId ?? ""}&date_from=${range.dateFrom}&date_to=${range.dateTo}&financial_year=${range.financialYear}&search=${encodeURIComponent(search)}`;
+
+  const { sort: colSort, dir: colDir } = readSort(
+    params as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (row: (typeof rows)[number]): string | number => {
+      switch (colSort) {
+        case "date": return row.date ?? "";
+        case "invoice": return row.invoiceNumber ?? "";
+        case "member_id": return row.memberId ?? "";
+        case "member_name": return row.memberName ?? "";
+        case "package": return row.packageName ?? row.description ?? "";
+        case "branch": return row.branch ?? "";
+        case "payment": return row.paymentAmount ?? 0;
+        case "taxable": return row.taxableAmount ?? 0;
+        case "gst_rate": return row.gstRate ?? 0;
+        case "cgst": return row.cgst ?? 0;
+        case "sgst": return row.sgst ?? 0;
+        case "igst": return row.igst ?? 0;
+        case "total_gst": return row.totalGst ?? 0;
+        case "grand_total": return row.grandTotal ?? 0;
+        case "payment_method": return row.paymentMethod ?? "";
+        case "payment_status": return row.paymentStatus ?? "";
+        default: return "";
+      }
+    };
+    rows = [...rows].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -74,8 +131,19 @@ export default async function GstCaExportPage({
               <table className="w-full min-w-[1500px] text-sm">
                 <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
                   <tr>
-                    {["Date", "Invoice Number", "Member ID", "Member Name", "Package", "Branch", "Payment", "Taxable Amount", "GST Rate", "CGST", "SGST", "IGST", "Total GST", "Grand Total", "Payment Method", "Payment Status"].map((header) => (
-                      <th key={header} className="px-4 py-3 font-medium">{header}</th>
+                    {SORTABLE_COLUMNS.map(({ label, column, align }) => (
+                      <SortableTh
+                        key={column}
+                        label={label}
+                        column={column}
+                        basePath="/admin/finance/gst/ca-export"
+                        searchParams={params as Record<string, string | undefined>}
+                        currentSort={colSort}
+                        currentDir={colDir}
+                        align={align}
+                        paramNames={{ sort: "colSort", dir: "colDir" }}
+                        className="px-4 py-3 font-medium"
+                      />
                     ))}
                   </tr>
                 </thead>

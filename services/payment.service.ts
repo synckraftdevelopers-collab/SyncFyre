@@ -93,14 +93,18 @@ export interface Invoice {
 const invoiceDetailSelectExtended = "*, members(full_name, member_code, phone, email, address), branches(name, address, city, state, postal_code, country, phone, email, timezone, finance_settings(gstin, legal_business_name, business_address, business_city, business_state, business_state_code, business_pincode, pan), tenants(name, address, city, state, postal_code, country, phone, email, logo_url, gst_number)), subscriptions(start_date, end_date, membership_plans(name)), payments(*)";
 const invoiceDetailSelectFallback = "*, members(full_name, member_code, phone, email, address), branches(name, address, city, state, postal_code, country, phone, email, timezone, finance_settings(gstin), tenants(name, address, city, state, postal_code, country, phone, email, logo_url, gst_number)), subscriptions(start_date, end_date, membership_plans(name)), payments(*)";
 
+export type PaymentSortColumn = "member" | "amount" | "method" | "status" | "date" | "ref" | "invoice";
+
 export async function listPayments(params: {
   page?: number;
   pageSize?: number;
   branchId?: string | null;
   status?: string;
   memberId?: string;
+  sortColumn?: PaymentSortColumn;
+  sortDir?: "asc" | "desc";
 }): Promise<PaginatedResult<Payment>> {
-  const { page = 1, pageSize = 15, branchId, status, memberId } = params;
+  const { page = 1, pageSize = 15, branchId, status, memberId, sortColumn, sortDir = "asc" } = params;
   const supabase = await createClient();
 
   let query = supabase
@@ -111,10 +115,38 @@ export async function listPayments(params: {
   if (status && status !== "all") query = query.eq("status", status);
   if (memberId) query = query.eq("member_id", memberId);
 
+  // Column sort (the sort-toggle buttons on the Payments table header).
+  // Defaults to newest-first by created_at, same as before, when no column
+  // is selected.
+  const ascending = sortDir === "asc";
+  switch (sortColumn) {
+    case "member":
+      query = query.order("full_name", { foreignTable: "members", ascending });
+      break;
+    case "amount":
+      query = query.order("amount", { ascending });
+      break;
+    case "method":
+      query = query.order("method", { ascending });
+      break;
+    case "status":
+      query = query.order("status", { ascending });
+      break;
+    case "date":
+      query = query.order("paid_at", { ascending, nullsFirst: false }).order("created_at", { ascending });
+      break;
+    case "ref":
+      query = query.order("transaction_reference", { ascending, nullsFirst: false });
+      break;
+    case "invoice":
+      query = query.order("invoice_id", { ascending, nullsFirst: false });
+      break;
+    default:
+      query = query.order("created_at", { ascending: false });
+  }
+
   const from = (page - 1) * pageSize;
-  const { data, count, error } = await query
-    .order("created_at", { ascending: false })
-    .range(from, from + pageSize - 1);
+  const { data, count, error } = await query.range(from, from + pageSize - 1);
 
   if (error) throw new Error(error.message);
   const total = count ?? 0;

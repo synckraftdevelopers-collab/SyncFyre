@@ -7,13 +7,22 @@ import { Input } from "@/components/ui/input";
 import { requireUser } from "@/lib/auth";
 import { getTrainerReport } from "@/services/report.service";
 import { TrainerRowActions } from "@/components/trainers/trainer-row-actions";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Trainers" };
+
+const SORTABLE_COLUMNS = [
+  { label: "Name", column: "name" as const },
+  { label: "Experience", column: "experience" as const },
+  { label: "Assigned", column: "assigned" as const },
+  { label: "Upcoming Apts", column: "upcoming" as const },
+  { label: "Status", column: "status" as const },
+];
 
 export default async function AdminTrainersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; page?: string; colSort?: string; colDir?: string }>;
 }) {
   const sp = await searchParams;
   const profile = await requireUser(["admin", "manager"]);
@@ -26,7 +35,7 @@ export default async function AdminTrainersPage({
   const search = (sp.q ?? "").toLowerCase().trim();
   const statusFilter = sp.status ?? "all";
 
-  const filtered = allTrainers.filter((trainer) => {
+  let filtered = allTrainers.filter((trainer) => {
     const matchSearch =
       !search ||
       trainer.trainer_name.toLowerCase().includes(search) ||
@@ -34,6 +43,31 @@ export default async function AdminTrainersPage({
     const matchStatus = statusFilter === "all" || trainer.trainer_status === statusFilter;
     return matchSearch && matchStatus;
   });
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (trainer: (typeof filtered)[number]): string | number => {
+      switch (colSort) {
+        case "name": return trainer.trainer_name ?? "";
+        case "experience": return trainer.experience_years ?? 0;
+        case "assigned": return trainer.active_assigned_members ?? 0;
+        case "upcoming": return trainer.upcoming_appointments ?? 0;
+        case "status": return trainer.trainer_status ?? "";
+        default: return "";
+      }
+    };
+    filtered = [...filtered].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   const pageSize = 20;
   const currentPage = Math.max(1, Number(sp.page ?? 1));
@@ -44,6 +78,7 @@ export default async function AdminTrainersPage({
     const params = new URLSearchParams();
     if (sp.q) params.set("q", sp.q);
     if (sp.status && sp.status !== "all") params.set("status", sp.status);
+    if (colSort) { params.set("colSort", colSort); params.set("colDir", colDir); }
     params.set("page", String(page));
     return `/admin/trainers?${params.toString()}`;
   }
@@ -123,11 +158,31 @@ export default async function AdminTrainersPage({
             <table className="w-full min-w-[750px] text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  {["Name", "Specializations", "Experience", "Assigned", "Upcoming Apts", "Status", "Actions"].map((heading) => (
-                    <th key={heading} className="px-4 py-3 font-medium">
-                      {heading}
-                    </th>
+                  <SortableTh
+                    label="Name"
+                    column="name"
+                    basePath="/admin/trainers"
+                    searchParams={sp as Record<string, string | undefined>}
+                    currentSort={colSort}
+                    currentDir={colDir}
+                    paramNames={{ sort: "colSort", dir: "colDir" }}
+                    className="px-4 py-3 font-medium"
+                  />
+                  <th className="px-4 py-3 font-medium">Specializations</th>
+                  {SORTABLE_COLUMNS.filter((c) => c.column !== "name").map(({ label, column }) => (
+                    <SortableTh
+                      key={column}
+                      label={label}
+                      column={column}
+                      basePath="/admin/trainers"
+                      searchParams={sp as Record<string, string | undefined>}
+                      currentSort={colSort}
+                      currentDir={colDir}
+                      paramNames={{ sort: "colSort", dir: "colDir" }}
+                      className="px-4 py-3 font-medium"
+                    />
                   ))}
+                  <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">

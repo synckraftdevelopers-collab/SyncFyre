@@ -5,7 +5,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentProfile } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
-import { listPayments } from "@/services/payment.service";
+import { listPayments, type PaymentSortColumn } from "@/services/payment.service";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Payments" };
 
@@ -14,20 +15,42 @@ const statusVariant: Record<string, "success" | "warning" | "danger" | "outline"
 };
 const methodLabel: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", online: "Online" };
 
+const SORTABLE_COLUMNS: { label: string; column: PaymentSortColumn }[] = [
+  { label: "Member", column: "member" },
+  { label: "Amount", column: "amount" },
+  { label: "Method", column: "method" },
+  { label: "Status", column: "status" },
+  { label: "Date", column: "date" },
+  { label: "Ref", column: "ref" },
+  { label: "Invoice", column: "invoice" },
+];
+
 export default async function AdminPaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; page?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; colSort?: string; colDir?: string }>;
 }) {
   const query = await searchParams;
   const profile = await getCurrentProfile();
   const currentPage = Math.max(1, Number(query.page ?? 1));
-  const result = await listPayments({ page: currentPage, branchId: profile?.branch_id, status: query.status });
+  const { sort: colSort, dir: colDir } = readSort(
+    query as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  const result = await listPayments({
+    page: currentPage,
+    branchId: profile?.branch_id,
+    status: query.status,
+    sortColumn: colSort,
+    sortDir: colDir,
+  });
   const totalPages = Math.max(1, result.totalPages);
 
   function pageUrl(p: number) {
     const params = new URLSearchParams();
     if (query.status && query.status !== "all") params.set("status", query.status);
+    if (colSort) { params.set("colSort", colSort); params.set("colDir", colDir); }
     params.set("page", String(p));
     return `/admin/payments?${params.toString()}`;
   }
@@ -79,8 +102,18 @@ export default async function AdminPaymentsPage({
             <table className="w-full min-w-[700px] text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  {["Member","Amount","Method","Status","Date","Ref","Invoice"].map(h => (
-                    <th key={h} className="px-4 py-3 font-medium">{h}</th>
+                  {SORTABLE_COLUMNS.map(({ label, column }) => (
+                    <SortableTh
+                      key={column}
+                      label={label}
+                      column={column}
+                      basePath="/admin/payments"
+                      searchParams={query as Record<string, string | undefined>}
+                      currentSort={colSort}
+                      currentDir={colDir}
+                      paramNames={{ sort: "colSort", dir: "colDir" }}
+                      className="px-4 py-3 font-medium"
+                    />
                   ))}
                 </tr>
               </thead>

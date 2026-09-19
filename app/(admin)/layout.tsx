@@ -38,6 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       visibleNavHrefs={sidebarSetting?.source === "default" ? null : (sidebarSetting?.value ?? null)}
       phaseSnapshot={phaseSnapshot}
       currentPlanKey={currentPlanKey}
+      gymName={profile.branch_name}
     >
       {children}
     </PortalShell>

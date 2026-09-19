@@ -4,8 +4,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentProfile } from "@/lib/auth";
 import { listJournalEntries, listChartOfAccounts, getTrialBalance } from "@/services/finance.service";
 import { formatCurrency } from "@/lib/utils";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Accounting" };
+
+const SORTABLE_COLUMNS = [
+  { label: "Journal No", column: "journal_no" as const },
+  { label: "Date", column: "date" as const },
+  { label: "Narration", column: "narration" as const },
+  { label: "Debit", column: "debit" as const, align: "right" as const },
+  { label: "Credit", column: "credit" as const, align: "right" as const },
+  { label: "Status", column: "status" as const },
+];
 
 const subModules = [
   { label: "Chart of Accounts",  href: "/admin/finance/accounting/chart-of-accounts", icon: List,             desc: "Account hierarchy" },
@@ -15,18 +25,50 @@ const subModules = [
   { label: "Profit & Loss",      href: "/admin/finance/reports/profit-loss",           icon: BadgeIndianRupee, desc: "Income vs Expenses" },
 ];
 
-export default async function AccountingPage() {
+export default async function AccountingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
 
-  const [{ data: journals }, accounts, trialBalance] = await Promise.all([
+  const [{ data: journalsData }, accounts, trialBalance] = await Promise.all([
     listJournalEntries({ branchId, page: 1, pageSize: 10 }),
     listChartOfAccounts(branchId),
     getTrialBalance(branchId),
   ]);
+  let journals = journalsData;
 
   const totalDebit  = trialBalance.reduce((s, r) => s + (r.debit  as number), 0);
   const totalCredit = trialBalance.reduce((s, r) => s + (r.credit as number), 0);
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (j: (typeof journals)[number]): string | number => {
+      switch (colSort) {
+        case "journal_no": return j.journal_number ?? "";
+        case "date": return j.entry_date ?? "";
+        case "narration": return j.narration ?? "";
+        case "debit": return Number(j.total_debit) || 0;
+        case "credit": return Number(j.total_credit) || 0;
+        case "status": return j.status ?? "";
+        default: return "";
+      }
+    };
+    journals = [...journals].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -89,12 +131,20 @@ export default async function AccountingPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Journal No</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Narration</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Debit</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Credit</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    {SORTABLE_COLUMNS.map(({ label, column, align }) => (
+                      <SortableTh
+                        key={column}
+                        label={label}
+                        column={column}
+                        basePath="/admin/finance/accounting"
+                        searchParams={sp as Record<string, string | undefined>}
+                        currentSort={colSort}
+                        currentDir={colDir}
+                        align={align}
+                        paramNames={{ sort: "colSort", dir: "colDir" }}
+                        className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">

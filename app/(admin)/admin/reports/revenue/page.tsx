@@ -5,14 +5,28 @@ import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { getRevenueIntelligenceAction } from "@/app/actions/report-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Revenue Report" };
+
+const SORTABLE_COLUMNS = [
+  { label: "Month", column: "month" as const },
+  { label: "Transactions", column: "transactions" as const },
+  { label: "Gross", column: "gross" as const },
+  { label: "Refunds", column: "refunds" as const },
+  { label: "Net Revenue", column: "net" as const },
+];
 
 function fmt(n: number) {
   return "₹" + n.toLocaleString("en-IN");
 }
 
-export default async function RevenueReport() {
+export default async function RevenueReport({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await requirePortalContext(["owner", "admin", "manager"]);
 
   // Soft checks — both sections render for all plans;
@@ -21,9 +35,34 @@ export default async function RevenueReport() {
   const isScale = await hasCurrentFeature("revenue_intelligence");
 
   // Only fetch actual data when the plan allows it
-  const rows = hasRevenueReport
+  let rows = hasRevenueReport
     ? await getMonthlyRevenueSummary({ branchId: profile.branch_id })
     : [];
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (row: (typeof rows)[number]): string | number => {
+      switch (colSort) {
+        case "month": return row.revenue_month_label ?? "";
+        case "transactions": return row.transaction_count ?? 0;
+        case "gross": return row.gross_amount ?? 0;
+        case "refunds": return row.total_refunds ?? 0;
+        case "net": return row.net_revenue ?? 0;
+        default: return "";
+      }
+    };
+    rows = [...rows].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   // Fetch intelligence only for Scale tenants
   const intelligence = isScale
@@ -61,8 +100,18 @@ export default async function RevenueReport() {
           <table className="w-full min-w-[700px] text-sm">
             <thead className="border-b text-left text-xs uppercase text-muted-foreground">
               <tr>
-                {["Month", "Transactions", "Gross", "Refunds", "Net Revenue"].map((h) => (
-                  <th className="p-3" key={h}>{h}</th>
+                {SORTABLE_COLUMNS.map(({ label, column }) => (
+                  <SortableTh
+                    key={column}
+                    label={label}
+                    column={column}
+                    basePath="/admin/reports/revenue"
+                    searchParams={sp as Record<string, string | undefined>}
+                    currentSort={colSort}
+                    currentDir={colDir}
+                    paramNames={{ sort: "colSort", dir: "colDir" }}
+                    className="p-3 font-medium"
+                  />
                 ))}
               </tr>
             </thead>

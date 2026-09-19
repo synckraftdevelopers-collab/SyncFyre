@@ -49,6 +49,7 @@ function PortalShellFrame({
   commercialPlanTier,
   phaseSnapshot,
   currentPlanKey,
+  gymName,
 }: {
   children: React.ReactNode;
   name: string;
@@ -63,6 +64,7 @@ function PortalShellFrame({
   commercialPlanTier?: CommercialPlanTier;
   phaseSnapshot?: PhaseSnapshot;
   currentPlanKey?: CommercialPlanKey;
+  gymName?: string | null;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopExpanded, setDesktopExpanded] = useState(false);
@@ -78,7 +80,7 @@ function PortalShellFrame({
 
   return (
     <div className="min-h-screen bg-background">
-      <LoginWelcomeDialog />
+      <LoginWelcomeDialog gymName={gymName} />
       <PortalSidebar
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
@@ -132,6 +134,7 @@ export function PortalShell({
   commercialPlanTier,
   phaseSnapshot,
   currentPlanKey,
+  gymName,
 }: {
   children: React.ReactNode;
   name: string;
@@ -150,6 +153,7 @@ export function PortalShell({
   commercialPlanTier?: CommercialPlanTier;
   phaseSnapshot?: PhaseSnapshot;
   currentPlanKey?: CommercialPlanKey;
+  gymName?: string | null;
 }) {
   return (
     <NotificationProvider
@@ -171,6 +175,7 @@ export function PortalShell({
         commercialPlanTier={commercialPlanTier}
         phaseSnapshot={phaseSnapshot}
         currentPlanKey={currentPlanKey}
+        gymName={gymName}
       >
         {children}
       </PortalShellFrame>

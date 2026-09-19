@@ -59,7 +59,7 @@ export function PortalHeader({
 
   if (mobileSearchOpen) {
     return (
-      <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:hidden">
+      <header className="print:hidden sticky top-0 z-30 flex min-h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:hidden">
         <form action={searchAction} className="relative flex min-w-0 flex-1 items-center gap-2">
           <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -86,7 +86,7 @@ export function PortalHeader({
   }
 
   return (
-    <header className="print:hidden sticky top-0 z-30 flex h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:gap-3 md:px-8">
+    <header className="print:hidden sticky top-0 z-30 flex min-h-20 min-w-0 items-center gap-2 border-b border-border/70 bg-background/88 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl md:gap-3 md:px-8">
       <HistoryBackButton fallbackHref={backHrefByPortal[portal] ?? "/"} className="shrink-0" />
       <Button variant="ghost" size="icon" onClick={onMenu} aria-label="Toggle navigation" className="shrink-0">
         <Menu className="size-5" />

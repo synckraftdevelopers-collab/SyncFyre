@@ -4,8 +4,22 @@ import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Demo Bookings" };
+
+const SORTABLE_COLUMNS = [
+  { label: "Contact", column: "contact" as const },
+  { label: "Gym / Business", column: "gym" as const },
+  { label: "Email & Phone", column: "email" as const },
+  { label: "Location", column: "location" as const },
+  { label: "Branches", column: "branches" as const },
+  { label: "Members", column: "members" as const },
+  { label: "Current Software", column: "software" as const },
+  { label: "Urgency", column: "urgency" as const },
+  { label: "Source", column: "source" as const },
+  { label: "Date", column: "date" as const },
+];
 
 type DemoBooking = {
   id: string;
@@ -27,9 +41,10 @@ type DemoBooking = {
   created_at: string;
 };
 
-export default async function DemosPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
+export default async function DemosPage({ searchParams }: { searchParams: Promise<{ page?: string; colSort?: string; colDir?: string }> }) {
   await requireUser(["super_admin"]);
-  const { page: pageParam } = await searchParams;
+  const sp = await searchParams;
+  const { page: pageParam } = sp;
   const page = Math.max(1, Number(pageParam ?? 1) || 1);
   const pageSize = 25;
   const { data, count, error } = await createAdminClient()
@@ -37,9 +52,34 @@ export default async function DemosPage({ searchParams }: { searchParams: Promis
     .select("id, contact_name, email, phone, gym_name, business_type, city, location_count, member_count, current_software, migration_urgency, preferred_date, preferred_time, notes, source, submitted_at, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
-  const demos = (data ?? []) as DemoBooking[];
+  let demos = (data ?? []) as DemoBooking[];
   const total = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (demo: DemoBooking): string => {
+      switch (colSort) {
+        case "contact": return demo.contact_name ?? "";
+        case "gym": return demo.gym_name ?? "";
+        case "email": return demo.email ?? "";
+        case "location": return demo.city ?? "";
+        case "branches": return String(demo.location_count ?? "");
+        case "members": return String(demo.member_count ?? "");
+        case "software": return demo.current_software ?? "";
+        case "urgency": return demo.migration_urgency ?? "";
+        case "source": return demo.source ?? "";
+        case "date": return demo.submitted_at ?? demo.created_at ?? "";
+        default: return "";
+      }
+    };
+    demos = [...demos].sort((a, b) => sortValue(a).localeCompare(sortValue(b)) * dirMul);
+  }
 
   return (
     <div className="space-y-5">
@@ -63,16 +103,19 @@ export default async function DemosPage({ searchParams }: { searchParams: Promis
               <table className="w-full min-w-[1200px] text-sm">
                 <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-3 font-medium">Contact</th>
-                    <th className="px-4 py-3 font-medium">Gym / Business</th>
-                    <th className="px-4 py-3 font-medium">Email &amp; Phone</th>
-                    <th className="px-4 py-3 font-medium">Location</th>
-                    <th className="px-4 py-3 font-medium">Branches</th>
-                    <th className="px-4 py-3 font-medium">Members</th>
-                    <th className="px-4 py-3 font-medium">Current Software</th>
-                    <th className="px-4 py-3 font-medium">Urgency</th>
-                    <th className="px-4 py-3 font-medium">Source</th>
-                    <th className="px-4 py-3 font-medium">Date</th>
+                    {SORTABLE_COLUMNS.map(({ label, column }) => (
+                      <SortableTh
+                        key={column}
+                        label={label}
+                        column={column}
+                        basePath="/superadmin/demos"
+                        searchParams={sp as Record<string, string | undefined>}
+                        currentSort={colSort}
+                        currentDir={colDir}
+                        paramNames={{ sort: "colSort", dir: "colDir" }}
+                        className="px-4 py-3 font-medium"
+                      />
+                    ))}
                     <th className="px-4 py-3 font-medium">Notes</th>
                     <th className="px-4 py-3 font-medium"><span className="sr-only">Actions</span></th>
                   </tr>
@@ -157,10 +200,10 @@ export default async function DemosPage({ searchParams }: { searchParams: Promis
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
                 {page > 1 && (
-                  <Link href={`/superadmin/demos?page=${page - 1}`} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted">Prev</Link>
+                  <Link href={`/superadmin/demos?page=${page - 1}${colSort ? `&colSort=${colSort}&colDir=${colDir}` : ""}`} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted">Prev</Link>
                 )}
                 {page < totalPages && (
-                  <Link href={`/superadmin/demos?page=${page + 1}`} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted">Next</Link>
+                  <Link href={`/superadmin/demos?page=${page + 1}${colSort ? `&colSort=${colSort}&colDir=${colDir}` : ""}`} className="rounded-lg border px-3 py-1.5 text-xs hover:bg-muted">Next</Link>
                 )}
               </div>
             </div>

@@ -24,6 +24,7 @@ export default async function MemberLayout({ children }: { children: React.React
       userRole={profile.role?.slug ?? null}
       commercialPlanTier={getCommercialPlanTier(profile.tenant_plan)}
       phaseSnapshot={phaseSnapshot}
+      gymName={profile.branch_name}
     >
       {children}
     </PortalShell>

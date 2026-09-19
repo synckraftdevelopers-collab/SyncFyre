@@ -1,6 +1,7 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -12,9 +13,10 @@ function greetingForNow() {
   return "Good Night!";
 }
 
-export function LoginWelcomeDialog() {
+export function LoginWelcomeDialog({ gymName }: { gymName?: string | null }) {
   const [open, setOpen] = useState(false);
   const [greeting, setGreeting] = useState("Good Morning!");
+  const displayName = gymName?.trim() || "SyncFyre";
 
   useEffect(() => {
     if (!document.cookie.includes("syncfyre_login_welcome=1")) return;
@@ -27,8 +29,9 @@ export function LoginWelcomeDialog() {
     <Dialog.Portal>
       <Dialog.Overlay className="fixed inset-0 z-50 bg-slate-950/35 backdrop-blur-sm" />
       <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background p-6 shadow-2xl focus:outline-none sm:p-8">
+        <Image src="/syncfyre-logo.png" alt="SyncFyre" width={140} height={48} className="mb-5 h-10 w-auto" priority />
         <Dialog.Title className="text-2xl font-semibold tracking-tight text-[#071d38] dark:text-foreground">{greeting}</Dialog.Title>
-        <Dialog.Description className="mt-4 text-sm leading-6 text-muted-foreground">Welcome to SyncFyre.<br />Here&apos;s what&apos;s happening in your gym today.</Dialog.Description>
+        <Dialog.Description className="mt-4 text-sm leading-6 text-muted-foreground">Welcome to {displayName}.<br />Here&apos;s what&apos;s happening in your gym today.</Dialog.Description>
         <div className="mt-7 flex justify-end"><Dialog.Close asChild><Button>Continue</Button></Dialog.Close></div>
       </Dialog.Content>
     </Dialog.Portal>

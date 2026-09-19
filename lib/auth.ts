@@ -10,6 +10,7 @@ export type PortalContext = UserProfile & {
   tenant_plan?: string | null;
   tenant_timezone?: string | null;
   branch_timezone?: string | null;
+  branch_name?: string | null;
 };
 
 export const getCurrentProfile = cache(async (): Promise<UserProfile | null> => {
@@ -40,6 +41,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
   let onboardingCompletedAt: string | null = null;
   let tenantTimezone: string | null = null;
   let branchTimezone: string | null = null;
+  let branchName: string | null = null;
 
   if (data.tenant_id) {
     const { data: tenant, error: tenantError } = await supabase
@@ -61,7 +63,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
   if (data.branch_id) {
     const { data: branch, error: branchError } = await supabase
       .from("branches")
-      .select("timezone")
+      .select("name, timezone")
       .eq("id", data.branch_id)
       .maybeSingle();
 
@@ -69,6 +71,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
       console.error("[getPortalContext] Unable to load branch context", branchError);
     } else {
       branchTimezone = branch?.timezone ?? null;
+      branchName = branch?.name ?? null;
     }
   }
 
@@ -79,6 +82,7 @@ export const getPortalContext = cache(async (): Promise<PortalContext | null> =>
     tenant_plan: tenantPlan,
     tenant_timezone: tenantTimezone,
     branch_timezone: branchTimezone,
+    branch_name: branchName,
   };
 });
 

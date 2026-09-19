@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Device Integration" };
 
@@ -18,12 +19,51 @@ type Device = {
   tenants: { name: string } | null;
 };
 
-export default async function SuperAdminDevicesPage() {
+const SORTABLE_COLUMNS = [
+  { label: "Machine", column: "machine" as const },
+  { label: "Machine Type", column: "type" as const },
+  { label: "Device ID", column: "device_id" as const },
+  { label: "Gym", column: "gym" as const },
+  { label: "Branch", column: "branch" as const },
+  { label: "Connection Status", column: "connection" as const },
+  { label: "Integration Status", column: "status" as const },
+  { label: "Last Sync", column: "last_sync" as const },
+];
+
+export default async function SuperAdminDevicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   await requireUser(["super_admin"]);
   const admin = createAdminClient();
   const { data, error } = await admin.from("face_machine_settings").select("id,machine_name,provider,device_id,device_identifier,status,connection_status,last_sync_at,branches(name),tenants(name)").order("created_at", { ascending: false });
   if (error) throw error;
-  const devices = (data ?? []) as unknown as Device[];
+  let devices = (data ?? []) as unknown as Device[];
 
-  return <div className="space-y-6"><div><h1 className="text-2xl font-bold">Machine Integration</h1><p className="text-sm text-muted-foreground">Biometric and attendance devices connected to gym branches.</p></div><Card><CardHeader className="flex-row items-center justify-between"><CardTitle>Connected machines</CardTitle><Badge variant="secondary">{devices.length} total</Badge></CardHeader><CardContent className="overflow-x-auto">{devices.length ? <table className="w-full min-w-[980px] text-sm"><thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground"><tr><th className="px-4 py-3">Machine</th><th className="px-4 py-3">Machine Type</th><th className="px-4 py-3">Device ID</th><th className="px-4 py-3">Gym</th><th className="px-4 py-3">Branch</th><th className="px-4 py-3">Connection Status</th><th className="px-4 py-3">Integration Status</th><th className="px-4 py-3">Last Sync</th></tr></thead><tbody className="divide-y">{devices.map((device) => <tr key={device.id}><td className="px-4 py-3 font-medium">{device.machine_name}</td><td className="px-4 py-3 text-muted-foreground capitalize">{device.provider ?? "generic"}</td><td className="px-4 py-3 font-mono text-xs">{device.device_identifier ?? device.device_id}</td><td className="px-4 py-3">{device.tenants?.name ?? "Unassigned"}</td><td className="px-4 py-3 text-muted-foreground">{device.branches?.name ?? "Unassigned"}</td><td className="px-4 py-3"><Badge variant={device.connection_status === "online" ? "success" : device.connection_status === "error" ? "danger" : "outline"}>{device.connection_status}</Badge></td><td className="px-4 py-3"><Badge variant={device.status === "active" ? "success" : "outline"}>{device.status}</Badge></td><td className="px-4 py-3 text-xs text-muted-foreground">{device.last_sync_at ? new Date(device.last_sync_at).toLocaleString("en-IN") : "Never"}</td></tr>)}</tbody></table> : <p className="py-12 text-center text-sm text-muted-foreground">No biometric devices are configured.</p>}</CardContent></Card></div>;
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (device: Device): string => {
+      switch (colSort) {
+        case "machine": return device.machine_name ?? "";
+        case "type": return device.provider ?? "generic";
+        case "device_id": return device.device_identifier ?? device.device_id ?? "";
+        case "gym": return device.tenants?.name ?? "";
+        case "branch": return device.branches?.name ?? "";
+        case "connection": return device.connection_status ?? "";
+        case "status": return device.status ?? "";
+        case "last_sync": return device.last_sync_at ?? "";
+        default: return "";
+      }
+    };
+    devices = [...devices].sort((a, b) => sortValue(a).localeCompare(sortValue(b)) * dirMul);
+  }
+
+  return <div className="space-y-6"><div><h1 className="text-2xl font-bold">Machine Integration</h1><p className="text-sm text-muted-foreground">Biometric and attendance devices connected to gym branches.</p></div><Card><CardHeader className="flex-row items-center justify-between"><CardTitle>Connected machines</CardTitle><Badge variant="secondary">{devices.length} total</Badge></CardHeader><CardContent className="overflow-x-auto">{devices.length ? <table className="w-full min-w-[980px] text-sm"><thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground"><tr>{SORTABLE_COLUMNS.map(({ label, column }) => <SortableTh key={column} label={label} column={column} basePath="/superadmin/devices" searchParams={sp as Record<string, string | undefined>} currentSort={colSort} currentDir={colDir} paramNames={{ sort: "colSort", dir: "colDir" }} className="px-4 py-3 font-medium" />)}</tr></thead><tbody className="divide-y">{devices.map((device) => <tr key={device.id}><td className="px-4 py-3 font-medium">{device.machine_name}</td><td className="px-4 py-3 text-muted-foreground capitalize">{device.provider ?? "generic"}</td><td className="px-4 py-3 font-mono text-xs">{device.device_identifier ?? device.device_id}</td><td className="px-4 py-3">{device.tenants?.name ?? "Unassigned"}</td><td className="px-4 py-3 text-muted-foreground">{device.branches?.name ?? "Unassigned"}</td><td className="px-4 py-3"><Badge variant={device.connection_status === "online" ? "success" : device.connection_status === "error" ? "danger" : "outline"}>{device.connection_status}</Badge></td><td className="px-4 py-3"><Badge variant={device.status === "active" ? "success" : "outline"}>{device.status}</Badge></td><td className="px-4 py-3 text-xs text-muted-foreground">{device.last_sync_at ? new Date(device.last_sync_at).toLocaleString("en-IN") : "Never"}</td></tr>)}</tbody></table> : <p className="py-12 text-center text-sm text-muted-foreground">No biometric devices are configured.</p>}</CardContent></Card></div>;
 }

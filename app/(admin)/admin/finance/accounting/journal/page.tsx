@@ -7,25 +7,63 @@ import { getCurrentProfile } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { listJournalEntries } from "@/services/finance.service";
 import { PostJournalButton } from "@/components/finance/post-journal-button";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Journal Entries" };
+
+const SORTABLE_COLUMNS = [
+  { label: "Journal No", column: "journal_no" as const },
+  { label: "Date", column: "date" as const },
+  { label: "Narration", column: "narration" as const },
+  { label: "Debit", column: "debit" as const, align: "right" as const },
+  { label: "Credit", column: "credit" as const, align: "right" as const },
+  { label: "Status", column: "status" as const },
+];
 
 export default async function JournalEntriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; status?: string }>;
+  searchParams: Promise<{ page?: string; status?: string; colSort?: string; colDir?: string }>;
 }) {
-  const { page: pageStr, status } = await searchParams;
+  const sp = await searchParams;
+  const { page: pageStr, status } = sp;
   const page = Math.max(1, Number(pageStr ?? 1));
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
 
-  const { data: entries, total, totalPages } = await listJournalEntries({
+  const { data: entriesData, total, totalPages } = await listJournalEntries({
     branchId,
     page,
     pageSize: 20,
     status: (status as "draft" | "posted" | "voided" | undefined) ?? undefined,
   });
+  let entries = entriesData;
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (j: (typeof entries)[number]): string | number => {
+      switch (colSort) {
+        case "journal_no": return j.journal_number ?? "";
+        case "date": return j.entry_date ?? "";
+        case "narration": return j.narration ?? "";
+        case "debit": return Number(j.total_debit) || 0;
+        case "credit": return Number(j.total_credit) || 0;
+        case "status": return j.status ?? "";
+        default: return "";
+      }
+    };
+    entries = [...entries].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   const draftCount  = entries.filter((e) => e.status === "draft").length;
   const postedCount = entries.filter((e) => e.status === "posted").length;
@@ -114,12 +152,20 @@ export default async function JournalEntriesPage({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40">
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Journal No</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Narration</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Debit</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Credit</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                      {SORTABLE_COLUMNS.map(({ label, column, align }) => (
+                        <SortableTh
+                          key={column}
+                          label={label}
+                          column={column}
+                          basePath="/admin/finance/accounting/journal"
+                          searchParams={sp as Record<string, string | undefined>}
+                          currentSort={colSort}
+                          currentDir={colDir}
+                          align={align}
+                          paramNames={{ sort: "colSort", dir: "colDir" }}
+                          className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}
+                        />
+                      ))}
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
@@ -159,7 +205,7 @@ export default async function JournalEntriesPage({
                   <div className="flex gap-2">
                     {page > 1 && (
                       <Link
-                        href={`/admin/finance/accounting/journal?page=${page - 1}${status ? `&status=${status}` : ""}`}
+                        href={`/admin/finance/accounting/journal?page=${page - 1}${status ? `&status=${status}` : ""}${colSort ? `&colSort=${colSort}&colDir=${colDir}` : ""}`}
                         className={buttonVariants({ variant: "outline", size: "sm" })}
                       >
                         Previous
@@ -167,7 +213,7 @@ export default async function JournalEntriesPage({
                     )}
                     {page < totalPages && (
                       <Link
-                        href={`/admin/finance/accounting/journal?page=${page + 1}${status ? `&status=${status}` : ""}`}
+                        href={`/admin/finance/accounting/journal?page=${page + 1}${status ? `&status=${status}` : ""}${colSort ? `&colSort=${colSort}&colDir=${colDir}` : ""}`}
                         className={buttonVariants({ variant: "outline", size: "sm" })}
                       >
                         Next

@@ -7,6 +7,7 @@ import { getPortalContext } from "@/lib/auth";
 import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { createClient } from "@/lib/supabase/server";
 import { listLeadActivities, listLeads, LEAD_STAGES } from "@/services/lead.service";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Leads" };
 
@@ -18,7 +19,17 @@ function formatDate(value: string | null) {
     : "—";
 }
 
-export default async function LeadsPage() {
+const SORTABLE_COLUMNS = [
+  { label: "Lead", column: "lead" as const },
+  { label: "Stage / follow-up", column: "stage" as const },
+];
+
+export default async function LeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await getPortalContext();
   if (!profile?.tenant_id || !profile.branch_id)
     return (
@@ -49,6 +60,30 @@ export default async function LeadsPage() {
       .limit(200),
     hasCurrentFeature("advanced_crm"),
   ]);
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  let sortedLeads = leads;
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (lead: any): string | number => {
+      if (colSort === "lead") return lead.full_name ?? "";
+      if (colSort === "stage") return lead.follow_up_at ?? "";
+      return "";
+    };
+    sortedLeads = [...leads].sort((a: any, b: any) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (av === "" && bv === "") return 0;
+      if (av === "") return 1;
+      if (bv === "") return -1;
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   const activitiesByLead = new Map<string, any[]>();
   for (const activity of activities as any[]) {
@@ -150,14 +185,25 @@ export default async function LeadsPage() {
             <table className="w-full min-w-[980px] text-sm">
               <thead className="border-b text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="p-3">Lead</th>
-                  <th className="p-3">Stage / follow-up</th>
+                  {SORTABLE_COLUMNS.map(({ label, column }) => (
+                    <SortableTh
+                      key={column}
+                      label={label}
+                      column={column}
+                      basePath="/admin/leads"
+                      searchParams={sp as Record<string, string | undefined>}
+                      currentSort={colSort}
+                      currentDir={colDir}
+                      paramNames={{ sort: "colSort", dir: "colDir" }}
+                      className="p-3 font-medium"
+                    />
+                  ))}
                   <th className="p-3">History</th>
                   <th className="p-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {leads.map((lead: any) => {
+                {sortedLeads.map((lead: any) => {
                   const leadActivities = activitiesByLead.get(lead.id) ?? [];
                   const isOverdue =
                     lead.follow_up_at &&

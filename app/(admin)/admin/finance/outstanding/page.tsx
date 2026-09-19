@@ -5,6 +5,7 @@ import { getCurrentProfile } from "@/lib/auth";
 import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { formatCurrency } from "@/lib/utils";
 import { getOutstandingReceivablesSummary, listReceivables } from "@/services/finance.service";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Outstanding Dues" };
 
@@ -18,7 +19,21 @@ const STATUS_STYLES: Record<string, string> = {
   written_off:"bg-gray-100 text-gray-500",
 };
 
-export default async function OutstandingPage() {
+const SORTABLE_COLUMNS = [
+  { label: "Member", column: "member" as const, align: "left" as const },
+  { label: "Type", column: "type" as const, align: "left" as const },
+  { label: "Original", column: "original" as const, align: "right" as const },
+  { label: "Paid", column: "paid" as const, align: "right" as const },
+  { label: "Balance", column: "balance" as const, align: "right" as const },
+  { label: "Due Date", column: "due_date" as const, align: "left" as const },
+  { label: "Status", column: "status" as const, align: "left" as const },
+];
+
+export default async function OutstandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
   // No explicit `export const dynamic` needed: lib/supabase/server.ts's
   // createClient() reads cookies() on every call, which already opts this
   // route into dynamic (uncached, per-request) rendering — the same
@@ -29,12 +44,13 @@ export default async function OutstandingPage() {
   // without any manual data edit or cron job.
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
+  const sp = await searchParams;
 
   // pageSize is generous rather than the field default (30) so the table
   // shows every currently-outstanding row for a normal-sized gym in one
   // page; the KPI cards above are always computed from the full, unpaginated
   // dataset regardless of this limit.
-  const [{ data: all, total }, summary, canUseInstallments] = await Promise.all([
+  const [{ data: allUnsorted, total }, summary, canUseInstallments] = await Promise.all([
     listReceivables({ branchId, page: 1, pageSize: 500 }),
     getOutstandingReceivablesSummary(branchId),
     // Installments / partial-payment continuation is an Advanced Membership
@@ -43,6 +59,44 @@ export default async function OutstandingPage() {
     // column below except the per-row "Manage" actions.
     hasCurrentFeature("advanced_membership"),
   ]);
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+
+  let all = allUnsorted;
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (row: (typeof all)[number]): string | number => {
+      const m = row.members as { full_name: string; member_code: string } | null;
+      switch (colSort) {
+        case "member":
+          return m?.full_name ?? "";
+        case "type":
+          return row.receivable_type ?? "";
+        case "original":
+          return Number(row.original_amount) || 0;
+        case "paid":
+          return Number(row.paid_amount) || 0;
+        case "balance":
+          return Number(row.balance_amount) || 0;
+        case "due_date":
+          return row.next_installment_due_date ?? row.due_date ?? "";
+        case "status":
+          return row.display_status ?? "";
+        default:
+          return "";
+      }
+    };
+    all = [...all].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -107,13 +161,20 @@ export default async function OutstandingPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Member</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Type</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Original</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Paid</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Balance</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Due Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    {SORTABLE_COLUMNS.map(({ label, column, align }) => (
+                      <SortableTh
+                        key={column}
+                        label={label}
+                        column={column}
+                        align={align}
+                        basePath="/admin/finance/outstanding"
+                        searchParams={sp as Record<string, string | undefined>}
+                        currentSort={colSort}
+                        currentDir={colDir}
+                        paramNames={{ sort: "colSort", dir: "colDir" }}
+                        className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}
+                      />
+                    ))}
                     {canUseInstallments ? (
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
                     ) : null}

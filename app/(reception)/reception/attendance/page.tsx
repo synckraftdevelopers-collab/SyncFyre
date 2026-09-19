@@ -3,10 +3,24 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Attendance" };
 
-export default async function ReceptionAttendancePage() {
+const SORTABLE_COLUMNS = [
+  { label: "Member", column: "member" as const },
+  { label: "Entry", column: "entry" as const },
+  { label: "Exit", column: "exit" as const },
+  { label: "Duration", column: "duration" as const },
+  { label: "Device", column: "device" as const },
+];
+
+export default async function ReceptionAttendancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await requireUser(["reception"]);
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -18,8 +32,30 @@ export default async function ReceptionAttendancePage() {
     .limit(50);
   if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
   const { data } = await query;
+  let logs = data ?? [];
 
-  const todayCount = (data ?? []).filter((r) => r.attendance_date === today).length;
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (log: (typeof logs)[number]): string => {
+      const member = log.members as unknown as { full_name: string } | null;
+      switch (colSort) {
+        case "member": return member?.full_name ?? "";
+        case "entry": return log.entry_time ?? "";
+        case "exit": return log.exit_time ?? "";
+        case "duration": return String(log.duration_minutes ?? "");
+        case "device": return log.device_id ?? "";
+        default: return "";
+      }
+    };
+    logs = [...logs].sort((a, b) => sortValue(a).localeCompare(sortValue(b)) * dirMul);
+  }
+
+  const todayCount = logs.filter((r) => r.attendance_date === today).length;
 
   return (
     <div className="space-y-5">
@@ -39,10 +75,24 @@ export default async function ReceptionAttendancePage() {
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[600px] text-sm">
             <thead className="border-b text-left text-muted-foreground">
-              <tr><th className="pb-3 font-medium">Member</th><th className="font-medium">Entry</th><th className="font-medium">Exit</th><th className="font-medium">Duration</th><th className="font-medium">Device</th></tr>
+              <tr>
+                {SORTABLE_COLUMNS.map(({ label, column }) => (
+                  <SortableTh
+                    key={column}
+                    label={label}
+                    column={column}
+                    basePath="/reception/attendance"
+                    searchParams={sp as Record<string, string | undefined>}
+                    currentSort={colSort}
+                    currentDir={colDir}
+                    paramNames={{ sort: "colSort", dir: "colDir" }}
+                    className="pb-3 font-medium"
+                  />
+                ))}
+              </tr>
             </thead>
             <tbody className="divide-y">
-              {(data ?? []).map((log) => (
+              {logs.map((log) => (
                 <tr key={log.id}>
                   <td className="py-3 font-medium">{(log.members as unknown as { full_name: string } | null)?.full_name ?? "—"}</td>
                   <td>{log.entry_time ? new Date(log.entry_time).toLocaleTimeString("en-IN") : "—"}</td>
@@ -53,7 +103,7 @@ export default async function ReceptionAttendancePage() {
               ))}
             </tbody>
           </table>
-          {!data?.length && <p className="py-12 text-center text-muted-foreground">No attendance records yet.</p>}
+          {!logs.length && <p className="py-12 text-center text-muted-foreground">No attendance records yet.</p>}
         </CardContent>
       </Card>
     </div>

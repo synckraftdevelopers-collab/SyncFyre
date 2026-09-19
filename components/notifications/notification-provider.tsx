@@ -215,8 +215,15 @@ export function NotificationProvider({
         const oldId = typeof (payload.old as Record<string, unknown>).id === "string" ? String((payload.old as Record<string, unknown>).id) : "";
         if (oldId) setNotifications((current) => current.filter((item) => item.id !== oldId));
       })
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("[notifications] realtime subscription unavailable", status);
+      .subscribe((status, err) => {
+        // Logged unconditionally (not just on error) so DevTools shows a clear
+        // positive confirmation when the realtime channel connects, instead of
+        // silence looking identical to a dropped/never-connected subscription.
+        if (status === "SUBSCRIBED") {
+          console.info("[notifications] realtime channel connected", channelName);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          console.warn("[notifications] realtime subscription unavailable", status, err?.message ?? "");
+        }
       });
 
     return () => {

@@ -5,6 +5,14 @@ import { GstNav } from "@/components/finance/gst-nav";
 import { getCurrentProfile } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { getFinancialYearOptions, getGstDashboardSnapshot, listFinanceBranches } from "@/services/finance-gst.service";
+import { SortableTh } from "@/components/ui/sortable-th";
+
+const HEADER_SORT_COLUMNS: Record<string, "member_name" | "payment_date" | "payment_amount" | "invoice_date"> = {
+  "Member Name": "member_name",
+  "Payment Date": "payment_date",
+  "Payment Amount": "payment_amount",
+  "Invoice Date": "invoice_date",
+};
 
 export const metadata = { title: "Finance GST" };
 
@@ -210,9 +218,27 @@ export default async function GstPage({
                         "Invoice Number",
                         "Invoice Date",
                         "Payment Status",
-                      ].map((header) => (
-                        <th key={header} className="whitespace-nowrap px-4 py-3 text-left font-medium text-muted-foreground">{header}</th>
-                      ))}
+                      ].map((header) => {
+                        const sortColumn = HEADER_SORT_COLUMNS[header];
+                        if (!sortColumn) {
+                          return (
+                            <th key={header} className="whitespace-nowrap px-4 py-3 text-left font-medium text-muted-foreground">{header}</th>
+                          );
+                        }
+                        return (
+                          <SortableTh
+                            key={header}
+                            label={header}
+                            column={sortColumn}
+                            basePath="/admin/finance/gst"
+                            searchParams={Object.fromEntries(currentQuery.entries())}
+                            currentSort={sortBy}
+                            currentDir={sortDir}
+                            paramNames={{ sort: "sort_by", dir: "sort_dir" }}
+                            className="whitespace-nowrap px-4 py-3 font-medium text-muted-foreground"
+                          />
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody className="divide-y">

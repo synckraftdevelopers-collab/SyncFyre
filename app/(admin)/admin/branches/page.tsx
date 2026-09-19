@@ -7,11 +7,27 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateBranchForm } from "@/components/branches/create-branch-form";
 import { DeleteBranchButton } from "@/components/branches/delete-branch-button";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Branches" };
 
-export default async function AdminBranchesPage() {
+const SORTABLE_COLUMNS = [
+  { label: "Branch", column: "branch" as const },
+  { label: "Code", column: "code" as const },
+  { label: "Location", column: "location" as const },
+  { label: "Members", column: "members" as const },
+  { label: "Staff", column: "staff" as const },
+  { label: "Machines", column: "machines" as const },
+  { label: "Status", column: "status" as const },
+];
+
+export default async function AdminBranchesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
   const profile = await requirePortalContext(["owner", "admin", "manager"]);
+  const sp = await searchParams;
 
   if (!profile.tenant_id) {
     return (
@@ -23,8 +39,35 @@ export default async function AdminBranchesPage() {
   }
 
   const branches = await getBranchesWithStats(profile.tenant_id);
-  const activeBranches = branches.filter((b) => b.status === "active");
+  let activeBranches = branches.filter((b) => b.status === "active");
   const isOwnerOrAdmin = profile.role?.slug === "owner" || profile.role?.slug === "admin";
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (branch: (typeof activeBranches)[number]): string | number => {
+      switch (colSort) {
+        case "branch": return branch.name ?? "";
+        case "code": return branch.code ?? "";
+        case "location": return [branch.city, branch.state].filter(Boolean).join(", ");
+        case "members": return branch.memberCount ?? 0;
+        case "staff": return branch.staffCount ?? 0;
+        case "machines": return branch.machineCount ?? 0;
+        case "status": return branch.status ?? "";
+        default: return "";
+      }
+    };
+    activeBranches = [...activeBranches].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -93,13 +136,19 @@ export default async function AdminBranchesPage() {
             <table className="w-full min-w-[640px] text-sm">
               <thead className="border-b bg-muted/30 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Branch</th>
-                  <th className="px-4 py-3 font-medium">Code</th>
-                  <th className="px-4 py-3 font-medium">Location</th>
-                  <th className="px-4 py-3 font-medium">Members</th>
-                  <th className="px-4 py-3 font-medium">Staff</th>
-                  <th className="px-4 py-3 font-medium">Machines</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
+                  {SORTABLE_COLUMNS.map(({ label, column }) => (
+                    <SortableTh
+                      key={column}
+                      label={label}
+                      column={column}
+                      basePath="/admin/branches"
+                      searchParams={sp as Record<string, string | undefined>}
+                      currentSort={colSort}
+                      currentDir={colDir}
+                      paramNames={{ sort: "colSort", dir: "colDir" }}
+                      className="px-4 py-3 font-medium"
+                    />
+                  ))}
                   {isOwnerOrAdmin ? <th className="px-4 py-3 font-medium">Actions</th> : null}
                 </tr>
               </thead>

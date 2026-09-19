@@ -282,7 +282,7 @@ export function MembersRegisterTable({
         ),
       }),
       helper.accessor("phone", {
-        header: "Mobile",
+        header: ({ column }) => <SortHeader column={column} label="Mobile" />,
         cell: ({ getValue }) => (
           <span className="whitespace-nowrap text-sm text-primary hover:underline">
             {getValue()}
@@ -366,74 +366,87 @@ export function MembersRegisterTable({
           return <SubscriptionStatusBadge status={getValue()} />;
         },
       }),
-      helper.display({
-        id: "payment_status",
-        header: "Payment",
-        cell: ({ row }) => {
-          const status = row.original.payment_status || paymentMap[row.original.member_id];
-          if (!status) return <Badge variant="outline">-</Badge>;
-          const variants: Record<string, { label: string; variant: "success" | "warning" | "danger" | "outline" }> = {
-            paid: { label: "Paid", variant: "success" },
-            partial: { label: "Partial", variant: "warning" },
-            unpaid: { label: "Unpaid", variant: "danger" },
-            void: { label: "Void", variant: "outline" },
-          };
-          const config = variants[status] ?? { label: status, variant: "outline" as const };
-          return <Badge variant={config.variant}>{config.label}</Badge>;
+      helper.accessor(
+        (row) => row.payment_status || paymentMap[row.member_id] || "",
+        {
+          id: "payment_status",
+          header: ({ column }) => <SortHeader column={column} label="Payment" />,
+          cell: ({ getValue }) => {
+            const status = getValue();
+            if (!status) return <Badge variant="outline">-</Badge>;
+            const variants: Record<string, { label: string; variant: "success" | "warning" | "danger" | "outline" }> = {
+              paid: { label: "Paid", variant: "success" },
+              partial: { label: "Partial", variant: "warning" },
+              unpaid: { label: "Unpaid", variant: "danger" },
+              void: { label: "Void", variant: "outline" },
+            };
+            const config = variants[status] ?? { label: status, variant: "outline" as const };
+            return <Badge variant={config.variant}>{config.label}</Badge>;
+          },
         },
-      }),
-      helper.display({
+      ),
+      helper.accessor("total_amount", {
         id: "total_amount",
-        header: "Plan Amount",
-        cell: ({ row }) => (
-          <span className="tabular-nums text-sm font-medium">
-            {row.original.total_amount !== undefined && row.original.total_amount !== null
-              ? formatCurrency(row.original.total_amount)
-              : "-"}
-          </span>
-        ),
-      }),
-      helper.display({
-        id: "amount_paid",
-        header: "Paid",
-        cell: ({ row }) => {
-          const paid = row.original.paid_amount ?? amountPaidMap[row.original.member_id];
+        header: ({ column }) => <SortHeader column={column} label="Plan Amount" />,
+        cell: ({ getValue }) => {
+          const value = getValue();
           return (
-            <span className="tabular-nums text-sm font-medium text-emerald-600">
-              {paid !== undefined && paid !== null ? formatCurrency(paid) : "-"}
+            <span className="tabular-nums text-sm font-medium">
+              {value !== undefined && value !== null ? formatCurrency(value) : "-"}
             </span>
           );
         },
       }),
-      helper.display({
+      helper.accessor(
+        (row) => row.paid_amount ?? amountPaidMap[row.member_id] ?? null,
+        {
+          id: "amount_paid",
+          header: ({ column }) => <SortHeader column={column} label="Paid" />,
+          cell: ({ getValue }) => {
+            const paid = getValue();
+            return (
+              <span className="tabular-nums text-sm font-medium text-emerald-600">
+                {paid !== undefined && paid !== null ? formatCurrency(paid) : "-"}
+              </span>
+            );
+          },
+        },
+      ),
+      helper.accessor("balance_amount", {
         id: "balance",
-        header: "Balance",
-        cell: ({ row }) => {
-          const balance = row.original.balance_amount;
+        header: ({ column }) => <SortHeader column={column} label="Balance" />,
+        cell: ({ getValue }) => {
+          const balance = getValue();
           if (balance !== undefined && balance !== null && balance > 0) {
             return <span className="tabular-nums text-sm font-semibold text-rose-600">{formatCurrency(balance)}</span>;
           }
           return <span className="tabular-nums text-sm text-muted-foreground">{balance === 0 ? "0" : "-"}</span>;
         },
       }),
-      helper.display({
-        id: "attendance_today",
-        header: "Today",
-        cell: ({ row }) => <AttendanceTodayBadge present={!!attendanceMap[row.original.member_id]} />,
-      }),
-      helper.display({
-        id: "last_visit",
-        header: "Last Visit",
-        cell: ({ row }) => {
-          const value = lastVisitMap[row.original.member_id];
-          if (!value) return <span className="text-xs text-muted-foreground">Never</span>;
-          try {
-            return <span className="whitespace-nowrap text-xs">{format(parseISO(value), "dd MMM yy")}</span>;
-          } catch {
-            return <span className="text-xs">{value}</span>;
-          }
+      helper.accessor(
+        (row) => (attendanceMap[row.member_id] ? 1 : 0),
+        {
+          id: "attendance_today",
+          header: ({ column }) => <SortHeader column={column} label="Today" />,
+          cell: ({ row }) => <AttendanceTodayBadge present={!!attendanceMap[row.original.member_id]} />,
         },
-      }),
+      ),
+      helper.accessor(
+        (row) => lastVisitMap[row.member_id] ?? "",
+        {
+          id: "last_visit",
+          header: ({ column }) => <SortHeader column={column} label="Last Visit" />,
+          cell: ({ row }) => {
+            const value = lastVisitMap[row.original.member_id];
+            if (!value) return <span className="text-xs text-muted-foreground">Never</span>;
+            try {
+              return <span className="whitespace-nowrap text-xs">{format(parseISO(value), "dd MMM yy")}</span>;
+            } catch {
+              return <span className="text-xs">{value}</span>;
+            }
+          },
+        },
+      ),
       helper.accessor("branch_name", {
         header: ({ column }) => <SortHeader column={column} label="Branch" />,
         cell: ({ getValue }) => <span className="whitespace-nowrap text-xs text-muted-foreground">{getValue()}</span>,

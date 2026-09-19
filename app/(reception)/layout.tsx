@@ -24,6 +24,7 @@ export default async function ReceptionLayout({ children }: { children: React.Re
       userRole={profile.role?.slug ?? null}
       commercialPlanTier={getCommercialPlanTier(profile.tenant_plan)}
       phaseSnapshot={phaseSnapshot}
+      gymName={profile.branch_name}
     >
       {children}
     </PortalShell>

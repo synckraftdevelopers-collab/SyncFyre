@@ -2,11 +2,17 @@
 
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, RefreshCcw, ShieldCheck } from "lucide-react";
-import { getAuditLogsAction, type AuditLogRow, type AuditLogParams } from "@/app/actions/audit-log-actions";
+import { ArrowDown, ArrowUp, ArrowUpDown, Filter, RefreshCcw, ShieldCheck } from "lucide-react";
+import { getAuditLogsAction, type AuditLogRow, type AuditLogParams, type AuditLogSortColumn } from "@/app/actions/audit-log-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const SORTABLE_COLUMNS: { label: string; column: AuditLogSortColumn }[] = [
+  { label: "Timestamp", column: "created_at" },
+  { label: "Action", column: "action" },
+  { label: "Entity", column: "entity_type" },
+];
 
 const PAGE_SIZE = 50;
 
@@ -50,6 +56,8 @@ interface Props {
   initialTo: string;
   initialAction: string;
   initialEntityType: string;
+  initialSortColumn?: AuditLogSortColumn;
+  initialSortDir?: "asc" | "desc";
 }
 
 export function AuditLogClient({
@@ -58,6 +66,8 @@ export function AuditLogClient({
   initialTo,
   initialAction,
   initialEntityType,
+  initialSortColumn,
+  initialSortDir,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -68,6 +78,8 @@ export function AuditLogClient({
   const [to, setTo] = useState(initialTo);
   const [action, setAction] = useState(initialAction);
   const [entityType, setEntityType] = useState(initialEntityType);
+  const [sortColumn, setSortColumn] = useState<AuditLogSortColumn | undefined>(initialSortColumn);
+  const [sortDir, setSortDir] = useState<"asc" | "desc" | undefined>(initialSortDir);
 
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -91,8 +103,20 @@ export function AuditLogClient({
   );
 
   useEffect(() => {
-    fetchLogs({ page, pageSize: PAGE_SIZE, from: from || undefined, to: to || undefined, action: action || undefined, entityType: entityType || undefined });
-  }, [page, from, to, action, entityType, fetchLogs]);
+    fetchLogs({ page, pageSize: PAGE_SIZE, from: from || undefined, to: to || undefined, action: action || undefined, entityType: entityType || undefined, sortColumn, sortDir });
+  }, [page, from, to, action, entityType, sortColumn, sortDir, fetchLogs]);
+
+  function handleSort(column: AuditLogSortColumn) {
+    const nextDir: "asc" | "desc" = sortColumn === column && sortDir === "asc" ? "desc" : "asc";
+    setSortColumn(column);
+    setSortDir(nextDir);
+    setPage(1);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("sortColumn", column);
+    params.set("sortDir", nextDir);
+    params.set("page", "1");
+    startTransition(() => router.push(`?${params.toString()}`));
+  }
 
   function handleFilter() {
     setPage(1);
@@ -228,9 +252,22 @@ export function AuditLogClient({
                 <table className="w-full min-w-[700px] text-sm">
                   <thead className="border-b bg-muted/30 text-left text-xs uppercase text-muted-foreground">
                     <tr>
-                      <th className="px-3 py-3 font-medium">Timestamp</th>
-                      <th className="px-3 py-3 font-medium">Action</th>
-                      <th className="px-3 py-3 font-medium">Entity</th>
+                      {SORTABLE_COLUMNS.map(({ label, column }) => {
+                        const isActive = sortColumn === column;
+                        const Icon = isActive ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                        return (
+                          <th key={column} className="px-3 py-3 font-medium">
+                            <button
+                              type="button"
+                              onClick={() => handleSort(column)}
+                              className="inline-flex items-center gap-1 whitespace-nowrap hover:text-foreground"
+                            >
+                              {label}
+                              <Icon className={`size-3.5 ${isActive ? "" : "opacity-40"}`} />
+                            </button>
+                          </th>
+                        );
+                      })}
                       <th className="px-3 py-3 font-medium">Entity ID</th>
                       <th className="px-3 py-3 font-medium">Description</th>
                     </tr>

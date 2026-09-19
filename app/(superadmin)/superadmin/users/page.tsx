@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreateGymAdminForm } from "@/components/superadmin/create-gym-admin-form";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "All Users" };
 
@@ -13,15 +14,50 @@ function roleOf(role: Role) {
   return Array.isArray(role) ? role[0] : role;
 }
 
-export default async function SuperAdminUsersPage() {
+const SORTABLE_COLUMNS = [
+  { label: "User", column: "user" as const },
+  { label: "Role", column: "role" as const },
+  { label: "Status", column: "status" as const },
+  { label: "Scope", column: "scope" as const },
+  { label: "Created", column: "created" as const },
+];
+
+export default async function SuperAdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   await requireUser(["super_admin"]);
   const admin = createAdminClient();
-  const { data: users, error } = await admin
+  const { data: usersData, error } = await admin
     .from("users")
     .select("id, full_name, email, phone, status, created_at, tenant_id, role:roles(name, slug)")
     .order("created_at", { ascending: false });
 
   if (error) throw error;
+  let users = usersData;
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort && users) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (user: (typeof users)[number]): string => {
+      const role = roleOf(user.role as Role);
+      switch (colSort) {
+        case "user": return user.full_name ?? "";
+        case "role": return role?.name ?? role?.slug ?? "";
+        case "status": return user.status ?? "";
+        case "scope": return user.tenant_id ? "Tenant user" : "Platform user";
+        case "created": return user.created_at ?? "";
+        default: return "";
+      }
+    };
+    users = [...users].sort((a, b) => sortValue(a).localeCompare(sortValue(b)) * dirMul);
+  }
 
   return (
     <div className="space-y-6">
@@ -50,11 +86,19 @@ export default async function SuperAdminUsersPage() {
             <table className="w-full min-w-[820px] text-sm">
               <thead className="border-b bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-medium">User</th>
-                  <th className="px-4 py-3 font-medium">Role</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Scope</th>
-                  <th className="px-4 py-3 font-medium">Created</th>
+                  {SORTABLE_COLUMNS.map(({ label, column }) => (
+                    <SortableTh
+                      key={column}
+                      label={label}
+                      column={column}
+                      basePath="/superadmin/users"
+                      searchParams={sp as Record<string, string | undefined>}
+                      currentSort={colSort}
+                      currentDir={colDir}
+                      paramNames={{ sort: "colSort", dir: "colDir" }}
+                      className="px-4 py-3 font-medium"
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y">

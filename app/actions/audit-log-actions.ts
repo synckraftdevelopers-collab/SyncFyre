@@ -16,6 +16,8 @@ export type AuditLogRow = {
   branch_id: string | null;
 };
 
+export type AuditLogSortColumn = "created_at" | "action" | "entity_type";
+
 export type AuditLogParams = {
   page?: number;
   pageSize?: number;
@@ -23,6 +25,8 @@ export type AuditLogParams = {
   to?: string;
   action?: string;
   entityType?: string;
+  sortColumn?: AuditLogSortColumn;
+  sortDir?: "asc" | "desc";
 };
 
 export type AuditLogResult = {
@@ -57,7 +61,7 @@ export async function getAuditLogsAction(params: AuditLogParams = {}): Promise<A
     return { data: [], total: 0, page: 1, pageSize: 50, error: "Enterprise audit logs require the Scale plan." };
   }
 
-  const { page = 1, pageSize = 50, from, to, action, entityType } = params;
+  const { page = 1, pageSize = 50, from, to, action, entityType, sortColumn, sortDir } = params;
   const fromIdx = (page - 1) * pageSize;
 
   const admin = createAdminClient();
@@ -80,11 +84,14 @@ export async function getAuditLogsAction(params: AuditLogParams = {}): Promise<A
     return { data: [], total: 0, page, pageSize };
   }
 
+  const orderColumn = sortColumn ?? "created_at";
+  const orderAscending = sortDir === "asc";
+
   let query = admin
     .from("activity_logs")
     .select("id,action,entity_type,entity_id,description,changes,created_at,user_id,branch_id", { count: "exact" })
     .in("branch_id", branchIds)
-    .order("created_at", { ascending: false })
+    .order(orderColumn, { ascending: orderAscending })
     .range(fromIdx, fromIdx + pageSize - 1);
 
   if (from) query = query.gte("created_at", from);

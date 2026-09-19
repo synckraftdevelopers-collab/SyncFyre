@@ -5,10 +5,26 @@ import { Button } from "@/components/ui/button";
 import { getCurrentProfile } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
 import { listIncome, listIncomeCategories } from "@/services/finance.service";
+import { SortableTh, readSort } from "@/components/ui/sortable-th";
 
 export const metadata = { title: "Income" };
 
-export default async function IncomePage() {
+const SORTABLE_COLUMNS = [
+  { label: "Date", column: "date" as const },
+  { label: "Number", column: "number" as const },
+  { label: "Category", column: "category" as const },
+  { label: "Member", column: "member" as const },
+  { label: "Method", column: "method" as const },
+  { label: "Amount", column: "amount" as const, align: "right" as const },
+  { label: "Status", column: "status" as const },
+];
+
+export default async function IncomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ colSort?: string; colDir?: string }>;
+}) {
+  const sp = await searchParams;
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
 
@@ -17,16 +33,46 @@ export default async function IncomePage() {
   monthStart.setDate(1);
   const monthStartStr = monthStart.toISOString().slice(0, 10);
 
-  const [{ data: incomeList, total }, categories, { data: todayList }, { data: monthList }] =
+  const [{ data: incomeListData, total }, categories, { data: todayList }, { data: monthList }] =
     await Promise.all([
       listIncome({ branchId, page: 1, pageSize: 50 }),
       listIncomeCategories(branchId),
       listIncome({ branchId, dateFrom: today, dateTo: today, pageSize: 500 }),
       listIncome({ branchId, dateFrom: monthStartStr, dateTo: today, pageSize: 500 }),
     ]);
+  let incomeList = incomeListData;
 
   const todayTotal = todayList.reduce((s, r) => s + Number(r.total_amount), 0);
   const monthTotal = monthList.reduce((s, r) => s + Number(r.total_amount), 0);
+
+  const { sort: colSort, dir: colDir } = readSort(
+    sp as Record<string, string | undefined>,
+    SORTABLE_COLUMNS.map((c) => c.column),
+    { sort: "colSort", dir: "colDir" },
+  );
+  if (colSort) {
+    const dirMul = colDir === "desc" ? -1 : 1;
+    const sortValue = (row: (typeof incomeList)[number]): string | number => {
+      const category = row.income_categories as { name: string } | null;
+      const member = row.members as { full_name: string } | null;
+      switch (colSort) {
+        case "date": return row.income_date ?? "";
+        case "number": return row.income_number ?? "";
+        case "category": return category?.name ?? "";
+        case "member": return member?.full_name ?? "";
+        case "method": return row.payment_method ?? "";
+        case "amount": return Number(row.total_amount) || 0;
+        case "status": return row.status ?? "";
+        default: return "";
+      }
+    };
+    incomeList = [...incomeList].sort((a, b) => {
+      const av = sortValue(a);
+      const bv = sortValue(b);
+      if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dirMul;
+      return ((av as number) < (bv as number) ? -1 : (av as number) > (bv as number) ? 1 : 0) * dirMul;
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -121,13 +167,20 @@ export default async function IncomePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40">
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Number</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Member</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Method</th>
-                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Amount</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    {SORTABLE_COLUMNS.map(({ label, column, align }) => (
+                      <SortableTh
+                        key={column}
+                        label={label}
+                        column={column}
+                        basePath="/admin/finance/income"
+                        searchParams={sp as Record<string, string | undefined>}
+                        currentSort={colSort}
+                        currentDir={colDir}
+                        align={align}
+                        paramNames={{ sort: "colSort", dir: "colDir" }}
+                        className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
