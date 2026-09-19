@@ -84,12 +84,17 @@ export function getNotificationDaysRemaining(notification: MemberNotificationLik
 export function getNotificationDisplayDetail(notification: MemberNotificationLike) {
   if (isExpiryNotification(notification)) {
     const expiryDate = getNotificationExpiryDate(notification);
+    if (notification.type === "membership_expired") {
+      if (!expiryDate) return null;
+      let formattedExpiry = expiryDate;
+      try { formattedExpiry = format(parseISO(expiryDate), "dd MMM yyyy"); } catch {}
+      return `Expired on: ${formattedExpiry}`;
+    }
     const daysRemaining = getNotificationDaysRemaining(notification);
     if (!expiryDate || daysRemaining == null) return null;
     let formattedExpiry = expiryDate;
-    try {
-      formattedExpiry = format(parseISO(expiryDate), "dd MMM yyyy");
-    } catch {}
+    try { formattedExpiry = format(parseISO(expiryDate), "dd MMM yyyy"); } catch {}
+    if (daysRemaining === 0) return `Expiry: ${formattedExpiry} | Expires today`;
     const dayLabel = daysRemaining === 1 ? "1 day remaining" : `${daysRemaining} days remaining`;
     return `Expiry: ${formattedExpiry} | ${dayLabel}`;
   }
@@ -104,29 +109,56 @@ export function getNotificationDisplayDetail(notification: MemberNotificationLik
 }
 
 export function isExpiryNotification(notification: MemberNotificationLike) {
-  return notification.type === "membership_expiry_reminder";
+  return (
+    notification.type === "membership_expiry_reminder" ||
+    notification.type === "membership_expiring_today" ||
+    notification.type === "membership_expired"
+  );
 }
 
 export function isPendingBalanceNotification(notification: MemberNotificationLike) {
-  return notification.type === "pending_balance";
+  return notification.type === "pending_balance" || notification.type === "payment_pending";
 }
 
 export function shouldDisplayNotification(notification: MemberNotificationLike) {
-  if (isExpiryNotification(notification)) {
+  // membership_expiry_reminder: only show while days remaining is 1–10
+  if (notification.type === "membership_expiry_reminder") {
     const daysRemaining = getNotificationDaysRemaining(notification);
     return daysRemaining != null && daysRemaining >= 1 && daysRemaining <= 10;
   }
 
-  if (isPendingBalanceNotification(notification)) {
-    return (getNotificationPendingBalance(notification) ?? 0) > 0;
+  // membership_expiring_today: always show (it IS today)
+  if (notification.type === "membership_expiring_today") return true;
+
+  // membership_expired: always show
+  if (notification.type === "membership_expired") return true;
+
+  // pending_balance / payment_pending: only if balance > 0
+  if (notification.type === "pending_balance" || notification.type === "payment_pending") {
+    return (getNotificationPendingBalance(notification) ?? 1) > 0;
   }
 
+  // attendance_recorded: always show (rate-limited by DB idempotency key)
+  // member_created, membership_created, membership_renewed: always show
+  // payment_received, payment_failed: always show
+  // machine_connected, machine_disconnected: always show
+  // tenant_registered: always show (super_admin only)
   return true;
 }
 
 export function getNotificationCategoryLabel(notification: MemberNotificationLike) {
-  if (isExpiryNotification(notification)) return "Membership Expiry";
+  if (isExpiryNotification(notification)) {
+    if (notification.type === "membership_expired") return "Membership Expired";
+    if (notification.type === "membership_expiring_today") return "Expiring Today";
+    return "Membership Expiry";
+  }
   if (isPendingBalanceNotification(notification)) return "Pending Balance";
+  if (notification.type === "payment_received") return "Payment Received";
+  if (notification.type === "payment_failed") return "Payment Failed";
+  if (notification.type === "member_created") return "New Member";
+  if (notification.type === "membership_created" || notification.type === "membership_renewed") return "Membership";
+  if (notification.type === "attendance_recorded") return "Attendance";
+  if (notification.type === "machine_connected" || notification.type === "machine_disconnected") return "Device";
   return null;
 }
 
