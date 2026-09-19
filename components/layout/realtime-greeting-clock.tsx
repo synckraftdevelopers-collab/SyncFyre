@@ -76,17 +76,14 @@ export const RealtimeGreetingClock = memo(function RealtimeGreetingClock({
   const compactTime = now ? timeFormatter(timeZone, false).format(now) : "";
 
   return (
-    <div className="min-w-0 flex-1 px-1 sm:px-2 md:max-w-[260px] lg:max-w-md">
+    <div className="min-w-0 flex-1 px-1 sm:px-2 md:max-w-[280px] lg:max-w-md">
       <p className="truncate text-sm font-semibold leading-tight text-foreground">
         {greeting}
       </p>
-      <p className="truncate text-[11px] text-muted-foreground lg:hidden">
-        {compactDate} | {compactTime}
+      <p className="truncate text-[11px] text-muted-foreground">
+        <span className="lg:hidden">{compactDate} · {compactTime}</span>
+        <span className="hidden lg:inline">{fullDate} · {fullTime}</span>
       </p>
-      <div className="hidden lg:block">
-        <p className="truncate text-xs text-muted-foreground">{fullDate}</p>
-        <p className="truncate text-xs font-medium text-muted-foreground">{fullTime}</p>
-      </div>
     </div>
   );
 });

@@ -390,7 +390,7 @@ export function Member360({
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><Wallet className="size-4" />Collect Payment</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={`${basePath}/${member.id}?tab=membership`} className={buttonVariants({ variant: "outline", size: "sm" })}><TrendingUp className="size-4" />Renew</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link> : null}
-                    {canUse(role, ["admin", "manager", "reception"]) ? <Link href="/reception/attendance" className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}
+                    {canUse(role, ["admin", "manager", "reception"]) ? <Link href={isReceptionPortal ? "/reception/attendance" : "/admin/attendance"} className={buttonVariants({ variant: "outline", size: "sm" })}><ScanLine className="size-4" />Punch In</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignTrainerDialog memberId={member.id} currentTrainerId={member.assigned_trainer_id} trainers={trainers} /> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <AssignDieticianDialog memberId={member.id} currentDieticianId={member.assigned_dietician_id} dieticians={dieticians} /> : null}
                     <Link href={`${basePath}/${member.id}?tab=documents`} className={buttonVariants({ variant: "outline", size: "sm" })}><FileUp className="size-4" />Documents & Notes</Link>

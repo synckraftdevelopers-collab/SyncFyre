@@ -49,7 +49,13 @@ export default async function ModulePage({ params }: { params: Promise<{ module:
   const moduleKey = (await params).module;
   const config = modules[moduleKey];
   if (!config) notFound();
-  const actionHref = moduleKey === "reports" ? "/api/reports?resource=members" : moduleKey === "notifications" ? "/admin/notifications" : `/${moduleKey}/new`;
+  const actionHref = moduleKey === "reports"
+    ? "/admin/reports"
+    : moduleKey === "notifications"
+      ? "/admin/notifications"
+      : moduleKey === "staff"
+        ? "/admin/staff/new"
+        : `/admin/${moduleKey}/new`;
   if (moduleKey === "reports") return <ModuleOverview config={config} actionHref={actionHref}/>;
 
   const resource = (moduleKey === "memberships" ? "membership-plans" : moduleKey) as ResourceName;

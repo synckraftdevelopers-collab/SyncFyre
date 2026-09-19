@@ -189,12 +189,10 @@ export default async function MembershipsPage({
             return (
               <Card
                 key={plan.id}
-                className={`relative overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md ${plan.status === "inactive" ? "opacity-60" : ""}`}
+                className={`relative overflow-hidden transition-colors hover:bg-muted/20 ${plan.status === "inactive" ? "opacity-60" : ""}`}
               >
-                {/* Top accent bar */}
-                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-[#f4b844]" />
 
-                <CardHeader className="pb-3 pt-5">
+                <CardHeader className="pb-3 pt-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <CardTitle className="text-lg">{plan.name}</CardTitle>

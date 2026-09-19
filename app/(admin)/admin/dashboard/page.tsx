@@ -61,19 +61,16 @@ export default async function AdminDashboardPage() {
   ]);
 
   return (
-    <div className="space-y-7">
-      {/* ── Hero Banner ─────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-[#071d38] px-6 py-7 text-white shadow-[0_16px_45px_rgba(7,29,56,.18)] md:px-8">
-        <div className="absolute -right-16 -top-20 size-56 rounded-full border-[38px] border-[#52c7ea]/10" />
-        <div className="absolute bottom-0 right-28 h-24 w-4 skew-x-[-28deg] bg-primary/80" />
-        <p className="text-xs font-semibold uppercase tracking-[.18em] text-[#52c7ea]">Operations overview</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">
-          Welcome back, {profile?.full_name.split(" ")[0]}
-        </h1>
-        <p className="mt-2 max-w-xl text-sm text-white/55">
-          Everything happening across your gym, in one intelligent workspace.
-        </p>
-        <Link href="/admin/members/new" className={buttonVariants({ variant: "outline", size: "sm", className: "relative mt-5 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" })}>
+    <div className="space-y-6">
+      {/* ── Page header ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {profile?.full_name.split(" ")[0] ? `Welcome back, ${profile.full_name.split(" ")[0]}` : "Operations overview"}
+          </p>
+        </div>
+        <Link href="/admin/members/new" className={buttonVariants({ size: "sm" })}>
           <UserPlus className="size-4" />
           Add Member
         </Link>
@@ -81,8 +78,8 @@ export default async function AdminDashboardPage() {
 
       {/* ── KPI Cards — Row 1: Members & Attendance ─────────────────────── */}
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Members &amp; Attendance</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Members &amp; Attendance</h2>
+        <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Total Members"
             value={metrics.totalMembers}
@@ -114,8 +111,8 @@ export default async function AdminDashboardPage() {
 
       {/* ── KPI Cards — Row 2: Memberships ──────────────────────────────── */}
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Memberships</h2>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Memberships</h2>
+        <div className="grid gap-3 grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Renewals Due (30 days)"
             value={metrics.expiringMemberships}
@@ -140,8 +137,8 @@ export default async function AdminDashboardPage() {
 
       {/* ── KPI Cards — Row 3: Finance ───────────────────────────────────── */}
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Finance</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <h2 className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">Finance</h2>
+        <div className="grid gap-3 grid-cols-2">
           <MetricCard
             label="Revenue Today"
             value={formatCurrency(metrics.revenue)}
