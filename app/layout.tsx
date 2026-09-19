@@ -16,5 +16,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#071d38", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en" suppressHydrationWarning><body><ThemeProvider>{children}<ServiceWorkerRegistration /><Toaster richColors position="top-right" /></ThemeProvider></body></html>;
+  return <html lang="en" suppressHydrationWarning><body><ThemeProvider>{children}<ServiceWorkerRegistration /><Toaster richColors position="top-center" offset="16px" /></ThemeProvider></body></html>;
 }
