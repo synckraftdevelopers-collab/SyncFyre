@@ -48,6 +48,69 @@ function assertNoError(
   if (error) throw new Error(`[finance.service] ${ctx}: ${error.message}`);
 }
 
+/**
+ * True when a Postgres/PostgREST error is specifically "column does not
+ * exist" for one of the two lightweight-installment columns (migration
+ * `0054_lightweight_installments.sql` — adds `is_installment` /
+ * `next_installment_due_date` to `invoices` and `receivables`) not having
+ * reached this database yet. Postgres surfaces this as code `42703`
+ * (undefined_column); PostgREST's message names the specific column, e.g.
+ * "column receivables.is_installment does not exist".
+ *
+ * Narrowly scoped to those two columns on purpose: any *other* schema
+ * problem (a typo'd column, a dropped table, an RLS issue masquerading as
+ * a column error) should still throw and surface loudly rather than be
+ * silently swallowed here.
+ */
+function isMissingInstallmentColumnsError(
+  error: { message?: string; code?: string } | null
+): boolean {
+  if (!error) return false;
+  const msg = (error.message ?? "").toLowerCase();
+  // Match both PostgreSQL error 42703 (undefined_column) however
+  // the Supabase/PostgREST client surfaces it — by code or by message text.
+  // Checking the message is the most reliable signal across all environments.
+  return (
+    msg.includes("is_installment") ||
+    msg.includes("next_installment_due_date")
+  );
+}
+
+/**
+ * Runs a receivables-table query that asks for the installment columns and,
+ * if this database hasn't had migration 0054 applied yet, transparently
+ * retries without them instead of throwing. This is what keeps a single
+ * missing-migration environment from crashing Outstanding Dues / the
+ * Finance dashboard outright (see getOutstandingReceivablesSummary and
+ * getReceivableAging, both called inside a page-level Promise.all where an
+ * unhandled rejection takes the whole page down).
+ *
+ * `withColumns` must include `is_installment, next_installment_due_date`;
+ * `withoutColumns` is the same select minus those two. On fallback, rows
+ * come back without either field — callers already read them via
+ * `row.is_installment` / `row.next_installment_due_date`, which are simply
+ * `undefined` in that case and coerce to `false` / `null`/no-effective-date,
+ * i.e. installment-aware behavior degrades gracefully instead of erroring.
+ */
+async function selectReceivablesResilient<T>(
+  buildQuery: (columns: string) => PromiseLike<{ data: T[] | null; error: { message?: string; code?: string } | null }>,
+  withColumns: string,
+  withoutColumns: string,
+  ctx: string
+): Promise<T[]> {
+  let { data, error } = await buildQuery(withColumns);
+
+  if (isMissingInstallmentColumnsError(error)) {
+    console.warn(
+      `[finance.service] ${ctx}: is_installment/next_installment_due_date not found on receivables — falling back to a query without them. Push migration 0054_lightweight_installments.sql to restore installment-aware Outstanding Dues.`
+    );
+    ({ data, error } = await buildQuery(withoutColumns));
+  }
+
+  if (error) throw new Error(`[finance.service] ${ctx}: ${error.message ?? String(error)}`);
+  return data ?? [];
+}
+
 function pageRange(page: number, size: number): [number, number] {
   const from = (page - 1) * size;
   return [from, from + size - 1];
@@ -79,18 +142,30 @@ export async function getOutstandingReceivablesSummary(
   // stored `status` column is a stale snapshot (see computeReceivableDisplayStatus
   // in lib/finance/payment-balance.ts) — it is recomputed below from
   // balance + due_date on every request instead.
-  let query = supabase
-    .from("receivables")
-    .select("status, balance_amount, due_date, is_installment, next_installment_due_date")
-    .gt("balance_amount", 0)
-    .neq("status", "written_off");
+  const buildQuery = (columns: string) => {
+    let q = supabase
+      .from("receivables")
+      .select(columns)
+      .gt("balance_amount", 0)
+      .neq("status", "written_off");
+    if (branchId) q = q.eq("branch_id", branchId);
+    return q as unknown as PromiseLike<{ data: { status: string; balance_amount: number | string; due_date: string | null; is_installment?: boolean | null; next_installment_due_date?: string | null }[] | null; error: { message?: string; code?: string } | null }>;
+  };
 
-  if (branchId) query = query.eq("branch_id", branchId);
+  const data = await selectReceivablesResilient<{
+    status: string;
+    balance_amount: number | string;
+    due_date: string | null;
+    is_installment?: boolean | null;
+    next_installment_due_date?: string | null;
+  }>(
+    buildQuery,
+    "status, balance_amount, due_date, is_installment, next_installment_due_date",
+    "status, balance_amount, due_date",
+    "getOutstandingReceivablesSummary"
+  );
 
-  const { data, error } = await query;
-  assertNoError(error, "getOutstandingReceivablesSummary");
-
-  return (data ?? []).reduce<OutstandingReceivablesSummary>(
+  return data.reduce<OutstandingReceivablesSummary>(
     (summary, row) => {
       const balance = Number(row.balance_amount ?? 0);
       if (balance <= 0) return summary;
@@ -100,7 +175,7 @@ export async function getOutstandingReceivablesSummary(
         row.due_date as string | null,
         row.status as string,
         todayKey,
-        { isInstallment: Boolean(row.is_installment), nextInstallmentDueDate: row.next_installment_due_date as string | null }
+        { isInstallment: Boolean(row.is_installment), nextInstallmentDueDate: row.next_installment_due_date ?? null }
       );
       // Fully paid or written off despite balance drift — never counts as outstanding.
       if (displayStatus === "paid" || displayStatus === "written_off") return summary;
@@ -407,14 +482,28 @@ export async function getReceivableAging(
   // "not written off" are the only trustworthy stored facts; a row still
   // belongs in the aging table regardless of what its stale `status`
   // snapshot says.
-  let q = supabase
-    .from("receivables")
-    .select("balance_amount, due_date, is_installment, next_installment_due_date")
-    .gt("balance_amount", 0)
-    .neq("status", "written_off");
-  if (branchId) q = q.eq("branch_id", branchId);
+  const buildQuery = (columns: string) => {
+    let q = supabase
+      .from("receivables")
+      .select(columns)
+      .gt("balance_amount", 0)
+      .neq("status", "written_off");
+    if (branchId) q = q.eq("branch_id", branchId);
+    return q as unknown as PromiseLike<{ data: { balance_amount: number | string; due_date: string | null; is_installment?: boolean | null; next_installment_due_date?: string | null }[] | null; error: { message?: string; code?: string } | null }>;
+  };
 
-  const { data } = await q;
+  const data = await selectReceivablesResilient<{
+    balance_amount: number | string;
+    due_date: string | null;
+    is_installment?: boolean | null;
+    next_installment_due_date?: string | null;
+  }>(
+    buildQuery,
+    "balance_amount, due_date, is_installment, next_installment_due_date",
+    "balance_amount, due_date",
+    "getReceivableAging"
+  );
+
   const buckets: Record<string, { amount: number; count: number }> = {
     "0-30": { amount: 0, count: 0 },
     "31-60": { amount: 0, count: 0 },

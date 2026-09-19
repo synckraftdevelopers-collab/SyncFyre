@@ -25,7 +25,7 @@ export async function getDashboardData(branchId?: string | null, timeZone = "Asi
     branch(supabase.from("subscriptions").select("id", { count: "exact", head: true }).or(buildExpiredOrFilter("status", "end_date", today))),
     branch(supabase.from("payments").select("amount").eq("status", "completed").gte("paid_at", `${today}T00:00:00Z`)),
     branch(supabase.from("payments").select("amount").eq("status", "pending")),
-    getOutstandingReceivablesSummary(branchId),
+    getOutstandingReceivablesSummary(branchId).catch(() => ({ totalOutstanding: 0, overdueCount: 0, pendingCount: 0 })),
     branch(supabase.from("appointments").select("id", { count: "exact", head: true }).eq("appointment_date", today)),
     branch(supabase.from("trainers").select("id", { count: "exact", head: true }).eq("status", "active")),
     branch(supabase.from("equipment").select("id", { count: "exact", head: true })),

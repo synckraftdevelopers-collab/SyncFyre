@@ -1,0 +1,20 @@
+-- Superseded — do not use.
+--
+-- This file was numbered "0008" but was actually created on 2026-09 during
+-- a debugging session, long after 0001-0054 already existed (see mtimes).
+-- It only added is_installment/next_installment_due_date to `receivables`
+-- and never touched `invoices` or the sync_receivable_from_invoice()
+-- trigger, so applying it alone would leave the fix half-done.
+--
+-- The real, complete migration is
+-- supabase/migrations/0054_lightweight_installments.sql — it adds both
+-- columns to *both* `invoices` and `receivables`, and updates the trigger
+-- so receivables stays in sync. Push that one (see
+-- supabase/push-installment-columns.ps1 for a one-shot way to apply it
+-- directly if `supabase db push` isn't set up in this environment).
+--
+-- Left in place as a harmless no-op instead of deleted, since this pass
+-- doesn't have delete/rename access to this folder. Safe to delete by hand
+-- (or move to supabase/migrations/_excluded/, matching this repo's existing
+-- convention for retired migrations) once 0054 has been applied.
+select 1;
