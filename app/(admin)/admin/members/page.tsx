@@ -56,6 +56,8 @@ export default async function AdminMembersPage({
       pageSize,
       search: sp.q || undefined,
       branchId: sp.branch || branchId || undefined,
+      // "all" means no filter — pass it through so listMembersRich skips the eq.
+      // No param at all falls back to "active" (default browse state).
       status: sp.status || "active",
       planId: sp.plan || undefined,
       trainerId: sp.trainer || undefined,
@@ -175,10 +177,10 @@ export default async function AdminMembersPage({
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total Members" value={statusCounts.totalMembers} href="/admin/members" />
+        <StatCard label="Total Members" value={statusCounts.totalMembers} href="/admin/members?status=all" />
         <StatCard label="Active" value={statusCounts.activeMembers} href="/admin/members?status=active" />
         <StatCard label="Inactive" value={statusCounts.inactiveMembers} href="/admin/members?status=inactive" />
-        <StatCard label="Active Plans" value={statusCounts.activeSubs} href="/admin/members?sub_status=active" />
+        <StatCard label="Active Plans" value={statusCounts.activeSubs} href="/admin/members?status=all&sub_status=active" />
 
       </div>
 
@@ -221,7 +223,7 @@ function StatCard({ label, value, href }: { label: string; value: number; href: 
     <Link
       href={href}
       aria-label={`View ${label.toLowerCase()}`}
-      className="group rounded-3xl border border-border/70 bg-background px-4 py-3 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="group rounded-3xl border border-border/70 bg-background px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:bg-primary/10"
     >
       <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value.toLocaleString()}</p>

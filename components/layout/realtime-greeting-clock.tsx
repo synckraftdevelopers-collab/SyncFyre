@@ -34,11 +34,14 @@ export const RealtimeGreetingClock = memo(function RealtimeGreetingClock({
   branchTimezone,
   userTimezone,
   onPeriodBoundary,
+  showDate = true,
 }: {
   tenantTimezone?: string | null;
   branchTimezone?: string | null;
   userTimezone?: string | null;
   onPeriodBoundary?: (input: { period: string; localDate: string; timeZone: string }) => void;
+  /** When false, only the greeting and current time are shown (no date). Default: true */
+  showDate?: boolean;
 }) {
   const [browserTimezone, setBrowserTimezone] = useState<string | null>(null);
   const [now, setNow] = useState<Date | null>(null);
@@ -81,8 +84,14 @@ export const RealtimeGreetingClock = memo(function RealtimeGreetingClock({
         {greeting}
       </p>
       <p className="truncate text-[11px] text-muted-foreground">
-        <span className="lg:hidden">{compactDate} · {compactTime}</span>
-        <span className="hidden lg:inline">{fullDate} · {fullTime}</span>
+        {showDate ? (
+          <>
+            <span className="lg:hidden">{compactDate} · {compactTime}</span>
+            <span className="hidden lg:inline">{fullDate} · {fullTime}</span>
+          </>
+        ) : (
+          <span>{compactTime}</span>
+        )}
       </p>
     </div>
   );

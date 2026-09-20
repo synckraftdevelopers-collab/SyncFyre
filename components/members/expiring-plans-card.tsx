@@ -53,7 +53,7 @@ export function ExpiringPlansCard({ counts, selectedDays, basePath = "/admin/mem
         }
         return (
           <button key={days} type="button" onClick={() => applyFilter(days)} aria-pressed={isSelected}
-            className={`rounded-3xl border px-4 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${isSelected ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border/70 bg-background hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm"}`}>
+            className={`rounded-3xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:scale-[0.98] ${isSelected ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border/70 bg-background hover:border-primary/40 hover:bg-primary/5"}`}>
             <p className={`text-xs uppercase tracking-[0.14em] ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>Expiring</p>
             <p className="mt-1 text-2xl font-bold">{(counts[days] ?? 0).toLocaleString()}</p>
             <p className={`mt-1 text-xs font-medium ${isSelected ? "text-primary-foreground" : "text-primary"}`}>{label}</p>

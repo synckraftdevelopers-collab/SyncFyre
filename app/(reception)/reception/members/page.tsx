@@ -64,16 +64,22 @@ export default async function ReceptionMembersPage({
         ? query.gte("start_date", financialYearDates.from).lte("start_date", financialYearDates.to)
         : query;
       const today = getExpiryDateRange(0, timeZone).from;
-      const [active, expired, pending, paused, cancelled] = await Promise.all(
-        ["active", "expired", "pending", "paused", "cancelled"].map((status) =>
+      const [totalMembers, activeMembers, inactiveMembers, active, expired, pending, paused, cancelled] = await Promise.all([
+        bindBranch(sb.from("members").select("id", { count: "exact", head: true })),
+        bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "active")),
+        bindBranch(sb.from("members").select("id", { count: "exact", head: true }).eq("status", "inactive")),
+        ...["active", "expired", "pending", "paused", "cancelled"].map((status) =>
           bindFinancialYear(bindBranch(sb.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", status))),
         ),
-      );
+      ]);
       const expiringThrough = getExpiryDateRange(Math.max(...EXPIRY_QUICK_FILTERS.map(({ days }) => days)), timeZone).to;
       const { data: expiringMembers } = await bindBranch(
         sb.from("member_register_view").select("member_id, subscription_end").eq("member_status", "active").eq("subscription_status", "active").gte("subscription_end", today).lte("subscription_end", expiringThrough),
       );
       return {
+        totalMembers: totalMembers.count ?? 0,
+        activeMembers: activeMembers.count ?? 0,
+        inactiveMembers: inactiveMembers.count ?? 0,
         active: active.count ?? 0, expired: expired.count ?? 0, pending: pending.count ?? 0, paused: paused.count ?? 0, cancelled: cancelled.count ?? 0,
         expiringMemberCounts: EXPIRY_QUICK_FILTERS.reduce<Record<number, number>>((counts, { days }) => {
           const throughDate = getExpiryDateRange(days, timeZone).to;
@@ -136,6 +142,14 @@ export default async function ReceptionMembersPage({
         </div>
       </div>
 
+      {/* Stat cards — same pattern as admin portal */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Total Members" value={subscriptionCounts.totalMembers} href="/reception/members?status=all" />
+        <StatCard label="Active" value={subscriptionCounts.activeMembers} href="/reception/members?status=active" />
+        <StatCard label="Inactive" value={subscriptionCounts.inactiveMembers} href="/reception/members?status=inactive" />
+        <StatCard label="Active Plans" value={subscriptionCounts.active} href="/reception/members?status=all&sub_status=active" />
+      </div>
+
       <ExpiringPlansCard
         counts={subscriptionCounts.expiringMemberCounts}
         selectedDays={selectedExpiringWithin}
@@ -182,4 +196,17 @@ function getFinancialYearDates(financialYear?: string) {
 function PaginationLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
   if (disabled) return <span className="cursor-not-allowed rounded-xl border px-3 py-2 text-xs opacity-40">{label}</span>;
   return <Link href={href} className="rounded-xl border px-3 py-2 text-xs transition-colors hover:bg-muted">{label}</Link>;
+}
+function StatCard({ label, value, href }: { label: string; value: number; href: string }) {
+  return (
+    <Link
+      href={href}
+      aria-label={`View ${label.toLowerCase()}`}
+      className="group rounded-3xl border border-border/70 bg-background px-4 py-3 transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary active:bg-primary/10"
+    >
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-bold">{value.toLocaleString()}</p>
+      <p className="mt-1 text-[11px] font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">View members &rarr;</p>
+    </Link>
+  );
 }

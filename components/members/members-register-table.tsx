@@ -779,8 +779,8 @@ function RowActionMenu({
     { label: "View profile", icon: Eye, href: `${basePath}/${id}` },
     { label: "Edit", icon: Pencil, href: `${basePath}/${id}?edit=1` },
     { label: "Renew membership", icon: RotateCcw, href: `${basePath}/${id}?tab=membership` },
-    { label: "Collect payment", icon: CreditCard, href: `${basePath}/${id}?tab=payment` },
-    { label: "Assign trainer", icon: Dumbbell, href: `${basePath}/${id}?tab=trainer` },
+    { label: "Collect payment", icon: CreditCard, href: `${basePath}/${id}?tab=payments` },
+    { label: "Assign trainer", icon: Dumbbell, href: `${basePath}/${id}` },
     { label: "View attendance", icon: ClipboardList, href: `${basePath}/${id}?tab=attendance` },
   ];
 
@@ -908,6 +908,34 @@ function ShareMemberDialog({
   onClose: () => void;
 }) {
   const member = shareDialog?.member ?? null;
+
+  // Push a history entry when the dialog opens so Android back / browser back
+  // closes the dialog rather than navigating the page (PWA fix).
+  const closedViaPopState = useRef(false);
+  useEffect(() => {
+    if (!shareDialog) return;
+
+    closedViaPopState.current = false;
+    window.history.pushState({ shareDialogOpen: true }, "");
+
+    function handlePopState() {
+      closedViaPopState.current = true;
+      onClose();
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      // If the dialog was closed via the X button / overlay rather than via
+      // Android back / browser back, the history entry we pushed is still in
+      // the stack.  Go back one step to remove it so it doesn't pollute the
+      // forward/back history.
+      if (!closedViaPopState.current && window.history.state?.shareDialogOpen) {
+        window.history.back();
+      }
+    };
+  }, [shareDialog, onClose]);
+
   const plan = member?.current_plan ?? member?.package_code ?? "Membership";
   const startDate = formatMemberDate(member?.subscription_start ?? member?.joined_date ?? null);
   const endDate = formatMemberDate(member?.subscription_end ?? null);
@@ -962,7 +990,7 @@ function ShareMemberDialog({
 
             <div className="space-y-2">
               <p className="text-sm font-medium">Message preview</p>
-              <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl border bg-background p-3 text-sm">
+              <div className="whitespace-pre-wrap rounded-xl border bg-background p-3 text-sm">
                 {message}
               </div>
             </div>
