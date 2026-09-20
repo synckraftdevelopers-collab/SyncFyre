@@ -56,6 +56,8 @@ export default async function AdminMembersPage({
       pageSize,
       search: sp.q || undefined,
       branchId: sp.branch || branchId || undefined,
+      // "all" means no filter — pass it through so listMembersRich skips the eq.
+      // No param at all falls back to "active" (default browse state).
       status: sp.status || "active",
       planId: sp.plan || undefined,
       trainerId: sp.trainer || undefined,
@@ -175,10 +177,10 @@ export default async function AdminMembersPage({
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total Members" value={statusCounts.totalMembers} href="/admin/members" />
+        <StatCard label="Total Members" value={statusCounts.totalMembers} href="/admin/members?status=all" />
         <StatCard label="Active" value={statusCounts.activeMembers} href="/admin/members?status=active" />
         <StatCard label="Inactive" value={statusCounts.inactiveMembers} href="/admin/members?status=inactive" />
-        <StatCard label="Active Plans" value={statusCounts.activeSubs} href="/admin/members?sub_status=active" />
+        <StatCard label="Active Plans" value={statusCounts.activeSubs} href="/admin/members?status=all&sub_status=active" />
 
       </div>
 

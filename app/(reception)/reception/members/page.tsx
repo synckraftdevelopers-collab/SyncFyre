@@ -144,10 +144,10 @@ export default async function ReceptionMembersPage({
 
       {/* Stat cards — same pattern as admin portal */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Total Members" value={subscriptionCounts.totalMembers} href="/reception/members" />
+        <StatCard label="Total Members" value={subscriptionCounts.totalMembers} href="/reception/members?status=all" />
         <StatCard label="Active" value={subscriptionCounts.activeMembers} href="/reception/members?status=active" />
         <StatCard label="Inactive" value={subscriptionCounts.inactiveMembers} href="/reception/members?status=inactive" />
-        <StatCard label="Active Plans" value={subscriptionCounts.active} href="/reception/members?sub_status=active" />
+        <StatCard label="Active Plans" value={subscriptionCounts.active} href="/reception/members?status=all&sub_status=active" />
       </div>
 
       <ExpiringPlansCard
