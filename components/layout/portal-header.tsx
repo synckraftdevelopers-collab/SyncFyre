@@ -99,7 +99,10 @@ export function PortalHeader({
         <Input name="q" className="h-11 rounded-xl border-0 bg-muted/75 pl-11 shadow-none focus-visible:ring-1" placeholder={searchPlaceholder} />
       </form>
 
-      <RealtimeGreetingClock tenantTimezone={tenantTimezone} branchTimezone={branchTimezone} />
+      {/* Greeting/clock — visible in header on md+ where there's room */}
+      <span className="hidden md:contents">
+        <RealtimeGreetingClock tenantTimezone={tenantTimezone} branchTimezone={branchTimezone} />
+      </span>
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <Button

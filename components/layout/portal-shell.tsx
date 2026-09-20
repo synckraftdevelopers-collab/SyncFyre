@@ -6,6 +6,7 @@ import { PortalSidebar } from "@/components/layout/portal-sidebar";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { NotificationProvider, useNotifications } from "@/components/notifications/notification-provider";
 import { LoginWelcomeDialog } from "@/components/layout/login-welcome-dialog";
+import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
 import type { PortalKey } from "@/lib/nav";
 import type { CommercialPlanTier } from "@/lib/entitlements";
 import type { CommercialPlanKey } from "@/lib/plans/config";
@@ -107,6 +108,17 @@ function PortalShellFrame({
           tenantTimezone={tenantTimezone}
           branchTimezone={branchTimezone}
         />
+        {/* Mobile-only greeting bar — shown directly under the navbar on
+            phones/PWA where the header row has no room for the clock.
+            Hidden on md+ (lg sidebar breakpoint) because the header itself
+            shows the greeting inline there. */}
+        <div className="lg:hidden border-b border-border/60 bg-background/95 px-4 py-2 print:hidden">
+          <RealtimeGreetingClock
+            tenantTimezone={tenantTimezone}
+            branchTimezone={branchTimezone}
+            showDate={false}
+          />
+        </div>
         <main suppressHydrationWarning className="mx-auto max-w-[1600px] min-w-0 p-4 pb-24 md:p-6 lg:pb-6 print:p-0 print:max-w-none">
           <Suspense>{children}</Suspense>
         </main>
