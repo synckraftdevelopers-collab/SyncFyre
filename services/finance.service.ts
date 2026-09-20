@@ -825,9 +825,9 @@ export async function createBankAccount(
 }
 
 export async function listBankTransactions(
-  params: FinanceParams & { bankAccountId?: string } = {}
+  params: FinanceParams & { bankAccountId?: string; reconciled?: boolean } = {}
 ): Promise<PaginatedResult<BankTransaction>> {
-  const { branchId, page = 1, pageSize = 50, dateFrom, dateTo, bankAccountId } = params;
+  const { branchId, page = 1, pageSize = 50, dateFrom, dateTo, bankAccountId, reconciled } = params;
   const supabase = await createClient();
   const [from, to] = pageRange(page, pageSize);
   let q = supabase
@@ -837,12 +837,33 @@ export async function listBankTransactions(
   if (bankAccountId) q = q.eq("bank_account_id", bankAccountId);
   if (dateFrom) q = q.gte("txn_date", dateFrom);
   if (dateTo) q = q.lte("txn_date", dateTo);
+  if (typeof reconciled === "boolean") q = q.eq("is_reconciled", reconciled);
   const { data, count, error } = await q
     .order("txn_date", { ascending: false })
     .range(from, to);
   assertNoError(error, "listBankTransactions");
   const total = count ?? 0;
   return { data: (data ?? []) as BankTransaction[], page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+}
+
+export async function setBankTransactionReconciled(
+  transactionId: string,
+  reconciled: boolean,
+  userId: string | null
+): Promise<BankTransaction> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("bank_transactions")
+    .update({
+      is_reconciled: reconciled,
+      reconciled_at: reconciled ? new Date().toISOString() : null,
+      reconciled_by: reconciled ? userId : null,
+    })
+    .eq("id", transactionId)
+    .select("*, bank_accounts(id,account_name,bank_name)")
+    .single();
+  assertNoError(error, "setBankTransactionReconciled");
+  return data as BankTransaction;
 }
 
 // ─── Journal Entries ─────────────────────────────────────────────────────────
@@ -1326,4 +1347,67 @@ export async function getTrialBalance(branchId?: string | null) {
     const b = map.get(a.id as string) ?? { debit: 0, credit: 0 };
     return { ...a, debit: b.debit, credit: b.credit, net: b.debit - b.credit };
   });
+}
+
+// ─── Balance Sheet ────────────────────────────────────────────────────────────
+
+/**
+ * Balance Sheet as of a given date: Assets = Liabilities + Equity.
+ * Built on the same ledger aggregation as getTrialBalance, but (a) restricted
+ * to entries on or before asOfDate, and (b) converted from raw debit/credit
+ * balances to the standard accounting-equation sign convention — assets carry
+ * a normal debit balance (balance = debit - credit), while liabilities and
+ * equity carry a normal credit balance (balance = credit - debit).
+ */
+export async function getBalanceSheet(params: { branchId?: string | null; asOfDate?: string } = {}) {
+  const { branchId, asOfDate } = params;
+  const supabase = await createClient();
+  let q = supabase.from("ledger").select("account_id, entry_type, amount, entry_date");
+  if (branchId) q = q.eq("branch_id", branchId);
+  if (asOfDate) q = q.lte("entry_date", asOfDate);
+  const { data, error } = await q;
+  assertNoError(error, "getBalanceSheet");
+
+  const totals = new Map<string, { debit: number; credit: number }>();
+  for (const r of data ?? []) {
+    const e = totals.get(r.account_id as string) ?? { debit: 0, credit: 0 };
+    if ((r.entry_type as string) === "debit") e.debit += Number(r.amount);
+    else e.credit += Number(r.amount);
+    totals.set(r.account_id as string, e);
+  }
+
+  const ids = Array.from(totals.keys());
+  const emptyResult = {
+    assets: [] as { id: string; account_code: string; account_name: string; account_type: string; balance: number }[],
+    liabilities: [] as { id: string; account_code: string; account_name: string; account_type: string; balance: number }[],
+    equity: [] as { id: string; account_code: string; account_name: string; account_type: string; balance: number }[],
+    totalAssets: 0,
+    totalLiabilities: 0,
+    totalEquity: 0,
+    balanced: true,
+    asOfDate: asOfDate ?? null,
+  };
+  if (ids.length === 0) return emptyResult;
+
+  const { data: accounts, error: accountsError } = await supabase
+    .from("chart_of_accounts")
+    .select("id, account_code, account_name, account_type")
+    .in("id", ids);
+  assertNoError(accountsError, "getBalanceSheet:accounts");
+
+  const rows = (accounts ?? []).map((a) => {
+    const b = totals.get(a.id as string) ?? { debit: 0, credit: 0 };
+    return { id: a.id as string, account_code: a.account_code as string, account_name: a.account_name as string, account_type: a.account_type as string, debit: b.debit, credit: b.credit };
+  });
+
+  const assets = rows.filter((r) => r.account_type === "asset").map((r) => ({ ...r, balance: r.debit - r.credit }));
+  const liabilities = rows.filter((r) => r.account_type === "liability").map((r) => ({ ...r, balance: r.credit - r.debit }));
+  const equity = rows.filter((r) => r.account_type === "equity").map((r) => ({ ...r, balance: r.credit - r.debit }));
+
+  const totalAssets = assets.reduce((sum, a) => sum + a.balance, 0);
+  const totalLiabilities = liabilities.reduce((sum, a) => sum + a.balance, 0);
+  const totalEquity = equity.reduce((sum, a) => sum + a.balance, 0);
+  const balanced = Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01;
+
+  return { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity, balanced, asOfDate: asOfDate ?? null };
 }

@@ -1,6 +1,6 @@
 import {
   Activity, BarChart2, Bell, BookOpen, Building2, CalendarDays, ChartNoAxesCombined,
-  CircleDollarSign, ClipboardList, Dumbbell, Gauge, IndianRupee,
+  CircleDollarSign, ClipboardList, Dumbbell, Gauge, IndianRupee, LineChart,
   LayoutDashboard, Settings, ShieldCheck, TrendingUp, UserMinus, UserPlus, UserRoundCog, UsersRound,
   Utensils, Wrench,
 } from "lucide-react";
@@ -32,6 +32,8 @@ export const adminNav: NavItem[] = [
   // (PHASE_3/Scale) — using the latter hid this page from Growth-plan
   // tenants entirely, even though CRM is included starting at Growth.
   { label: "CRM & Leads",            href: "/admin/leads",                icon: BarChart2,           featureKey: "crm" },
+  // Sales-by-staff report, companion to CRM & Leads — same Growth-tier gate.
+  { label: "Sales Report",           href: "/admin/reports/sales",        icon: LineChart,           featureKey: "crm" },
   // ── Phase 3 / Scale features ─────────────────────────────────────────────
   { label: "Branches",               href: "/admin/branches",             icon: Building2,           featureKey: "multi_branch" },
   { label: "Audit Logs",             href: "/admin/audit-logs",           icon: ClipboardList,       featureKey: "audit_logs" },

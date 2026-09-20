@@ -1,4 +1,4 @@
-import { Building2, Plus } from "lucide-react";
+import { Building2, Plus, Scale } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,14 @@ export default async function BankPage() {
           <h1 className="text-2xl font-bold tracking-tight">Bank Management</h1>
           <p className="text-sm text-muted-foreground">Manage bank accounts and transactions</p>
         </div>
-        <Link href="/admin/finance/bank/new-account">
-          <Button className="gap-2"><Plus className="size-4" />Add Bank Account</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/finance/bank/reconciliation">
+            <Button variant="outline" className="gap-2"><Scale className="size-4" />Reconcile</Button>
+          </Link>
+          <Link href="/admin/finance/bank/new-account">
+            <Button className="gap-2"><Plus className="size-4" />Add Bank Account</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Bank Account Cards */}

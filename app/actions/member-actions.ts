@@ -14,6 +14,8 @@ import { getPlanForSale } from "@/services/plan.service";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 import { deactivateMember } from "@/services/member-extended.service";
 import { changeCouplePartner, sellMembershipPlanToMember } from "@/services/membership-plan.service";
+import { checkDiscountAuthorization } from "@/lib/finance/discount-authorization";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 
 export type MemberFormState = { error?: string; fields?: Record<string, string[]> };
 
@@ -150,6 +152,8 @@ export async function addMemberPlanAction(
       paymentMethod,
       transactionRef,
       performedBy: profile.id,
+      performedByRole: profile.role?.slug,
+      enforceDiscountAuthorization: await hasCurrentFeature("advanced_membership"),
       subscriptionAction: "created",
       remarksPrefix: "Collected: ",
       couplePartnerMode,
@@ -337,6 +341,14 @@ export async function createMemberAction(
   const discountBase = Number(plan.price ?? 0);
   const planDiscount = Math.round(discountBase * Number(plan.discount_percent ?? 0) * 100) / 10000;
   if (discountAmount > Math.max(0, discountBase - planDiscount)) return { error: "Discount cannot exceed the package amount." };
+  if (await hasCurrentFeature("advanced_membership")) {
+    const auth = checkDiscountAuthorization({
+      listPrice: discountBase,
+      manualDiscountAmount: discountAmount,
+      performedByRole: profile.role?.slug,
+    });
+    if (!auth.allowed) return { error: auth.reason ?? "This discount requires manager-level authorization." };
+  }
   const discount = planDiscount + discountAmount;
   const discountedAmount = Math.max(0, discountBase - discount);
 
@@ -506,6 +518,8 @@ export async function createMemberAction(
         paymentMethod: paymentMethod as "cash" | "upi" | "card" | "online" | "check",
         transactionRef: null,
         performedBy: profile.id,
+        performedByRole: profile.role?.slug,
+        enforceDiscountAuthorization: await hasCurrentFeature("advanced_membership"),
         subscriptionAction: "created",
         remarksPrefix: "Extra plan added at registration — collected: ",
       });

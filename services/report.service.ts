@@ -935,3 +935,180 @@ export async function getRetentionIntelligence(params: {
     atRiskMembers: scored.slice(0, limit),
   };
 }
+
+// ─── 12. CRM Sales Report (Growth+) ────────────────────────────────────────────
+
+export type CrmStaffSalesRow = {
+  staffId: string;
+  staffName: string;
+  roleSlug: string | null;
+  salesCount: number;
+  totalRevenue: number;
+  totalDiscount: number;
+  leadsAssigned: number;
+  leadsWon: number;
+  leadConversionRate: number; // %, 0 when leadsAssigned is 0
+};
+
+export type CrmSalesReportTotals = {
+  salesCount: number;
+  totalRevenue: number;
+  totalDiscount: number;
+  leadsAssigned: number;
+  leadsWon: number;
+};
+
+export type CrmSalesReportResult = {
+  rows: CrmStaffSalesRow[];
+  totals: CrmSalesReportTotals;
+  dateFrom: string;
+  dateTo: string;
+};
+
+/**
+ * Growth+ CRM Sales Report — per-staff sales performance for a date range.
+ *
+ * "Sales" = every subscriptions row (new sale, renewal, or plan change; all
+ * represent revenue collected under that staff member's name) with
+ * created_by set, created within [dateFrom, dateTo]. Attribution matches the
+ * discount-authorization feature (Prompt 6), which also keys off
+ * subscriptions.created_by as "the staff member who completed this sale".
+ *
+ * Lead figures come from the existing leads table and are reported as two
+ * separate "activity in period" counts rather than a matched cohort:
+ *  - leadsAssigned: leads CREATED in range and currently assigned to that
+ *    staff member (leads they received this period).
+ *  - leadsWon: leads that reached stage 'won' with converted_at in range,
+ *    for that staff member's assignment (leads they actually closed this
+ *    period, regardless of when originally assigned).
+ * A lead assigned near the end of one period and won early in the next will
+ * count toward "assigned" in the first and "won" in the second — the same
+ * simplification the Advanced CRM Analytics funnel already makes elsewhere
+ * in this file, not a specially-introduced inaccuracy.
+ *
+ * Uses existing subscriptions, leads, and users tables — no new DB tables,
+ * no migration.
+ */
+export async function getCrmSalesStaffReport(params: {
+  branchId?: string | null;
+  tenantId?: string | null;
+  dateFrom: string; // YYYY-MM-DD, inclusive
+  dateTo: string;   // YYYY-MM-DD, inclusive
+}): Promise<CrmSalesReportResult> {
+  const { branchId, tenantId, dateFrom, dateTo } = params;
+  const supabase = await createClient();
+
+  const fromTs = `${dateFrom}T00:00:00.000Z`;
+  const toTs = `${dateTo}T23:59:59.999Z`;
+
+  let subsQuery = supabase
+    .from("subscriptions")
+    .select("created_by, total_amount, discount_amount")
+    .not("created_by", "is", null)
+    .gte("created_at", fromTs)
+    .lte("created_at", toTs);
+  if (branchId) subsQuery = subsQuery.eq("branch_id", branchId);
+  else if (tenantId) subsQuery = subsQuery.eq("tenant_id", tenantId);
+  const { data: subs, error: subsError } = await subsQuery;
+  assertNoError(subsError, "getCrmSalesStaffReport (subscriptions)");
+
+  let assignedLeadsQuery = supabase
+    .from("leads")
+    .select("assigned_to")
+    .not("assigned_to", "is", null)
+    .gte("created_at", fromTs)
+    .lte("created_at", toTs);
+  if (branchId) assignedLeadsQuery = assignedLeadsQuery.eq("branch_id", branchId);
+  else if (tenantId) assignedLeadsQuery = assignedLeadsQuery.eq("tenant_id", tenantId);
+  const { data: assignedLeads, error: assignedError } = await assignedLeadsQuery;
+  assertNoError(assignedError, "getCrmSalesStaffReport (assigned leads)");
+
+  let wonLeadsQuery = supabase
+    .from("leads")
+    .select("assigned_to")
+    .not("assigned_to", "is", null)
+    .eq("stage", "won")
+    .gte("converted_at", fromTs)
+    .lte("converted_at", toTs);
+  if (branchId) wonLeadsQuery = wonLeadsQuery.eq("branch_id", branchId);
+  else if (tenantId) wonLeadsQuery = wonLeadsQuery.eq("tenant_id", tenantId);
+  const { data: wonLeads, error: wonError } = await wonLeadsQuery;
+  assertNoError(wonError, "getCrmSalesStaffReport (won leads)");
+
+  const staffIds = new Set<string>();
+  for (const s of subs ?? []) if (s.created_by) staffIds.add(s.created_by as string);
+  for (const l of assignedLeads ?? []) if (l.assigned_to) staffIds.add(l.assigned_to as string);
+  for (const l of wonLeads ?? []) if (l.assigned_to) staffIds.add(l.assigned_to as string);
+
+  let staffMap = new Map<string, { full_name: string; roleSlug: string | null }>();
+  if (staffIds.size > 0) {
+    const { data: staffRows, error: staffError } = await supabase
+      .from("users")
+      .select("id, full_name, role:roles(slug)")
+      .in("id", Array.from(staffIds));
+    assertNoError(staffError, "getCrmSalesStaffReport (staff directory)");
+    for (const u of staffRows ?? []) {
+      const role = Array.isArray((u as { role: unknown }).role)
+        ? (u as { role: { slug: string }[] }).role[0]
+        : (u as unknown as { role: { slug: string } | null }).role;
+      staffMap.set(u.id as string, {
+        full_name: (u.full_name as string) ?? "Unknown staff",
+        roleSlug: role?.slug ?? null,
+      });
+    }
+  }
+
+  const salesByStaff = new Map<string, { salesCount: number; totalRevenue: number; totalDiscount: number }>();
+  for (const s of subs ?? []) {
+    const staffId = s.created_by as string;
+    const entry = salesByStaff.get(staffId) ?? { salesCount: 0, totalRevenue: 0, totalDiscount: 0 };
+    entry.salesCount += 1;
+    entry.totalRevenue += Number(s.total_amount ?? 0);
+    entry.totalDiscount += Number(s.discount_amount ?? 0);
+    salesByStaff.set(staffId, entry);
+  }
+
+  const leadsByStaff = new Map<string, { assigned: number; won: number }>();
+  for (const l of assignedLeads ?? []) {
+    const staffId = l.assigned_to as string;
+    const entry = leadsByStaff.get(staffId) ?? { assigned: 0, won: 0 };
+    entry.assigned += 1;
+    leadsByStaff.set(staffId, entry);
+  }
+  for (const l of wonLeads ?? []) {
+    const staffId = l.assigned_to as string;
+    const entry = leadsByStaff.get(staffId) ?? { assigned: 0, won: 0 };
+    entry.won += 1;
+    leadsByStaff.set(staffId, entry);
+  }
+
+  const rows: CrmStaffSalesRow[] = Array.from(staffIds).map((staffId) => {
+    const sales = salesByStaff.get(staffId) ?? { salesCount: 0, totalRevenue: 0, totalDiscount: 0 };
+    const leadStats = leadsByStaff.get(staffId) ?? { assigned: 0, won: 0 };
+    const info = staffMap.get(staffId);
+    return {
+      staffId,
+      staffName: info?.full_name ?? "Unknown staff",
+      roleSlug: info?.roleSlug ?? null,
+      salesCount: sales.salesCount,
+      totalRevenue: sales.totalRevenue,
+      totalDiscount: sales.totalDiscount,
+      leadsAssigned: leadStats.assigned,
+      leadsWon: leadStats.won,
+      leadConversionRate: leadStats.assigned > 0 ? Math.round((leadStats.won / leadStats.assigned) * 100) : 0,
+    };
+  }).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  const totals: CrmSalesReportTotals = rows.reduce(
+    (acc, r) => ({
+      salesCount: acc.salesCount + r.salesCount,
+      totalRevenue: acc.totalRevenue + r.totalRevenue,
+      totalDiscount: acc.totalDiscount + r.totalDiscount,
+      leadsAssigned: acc.leadsAssigned + r.leadsAssigned,
+      leadsWon: acc.leadsWon + r.leadsWon,
+    }),
+    { salesCount: 0, totalRevenue: 0, totalDiscount: 0, leadsAssigned: 0, leadsWon: 0 },
+  );
+
+  return { rows, totals, dateFrom, dateTo };
+}

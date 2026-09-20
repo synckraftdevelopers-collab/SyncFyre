@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, History, Pause, Play, RefreshCw, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, CalendarPlus, History, Pause, Play, RefreshCw, Snowflake, XCircle } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
@@ -8,8 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 import { selectWithSchemaFallback } from "@/lib/supabase/select-fallback";
 import { inferPlanType } from "@/lib/membership-plan-type";
 import { formatCurrency } from "@/lib/utils";
-import { renewSubscriptionAction, updateSubscriptionStatusAction } from "@/app/actions/subscription-actions";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
+import { listMembershipPlans } from "@/services/plan.service";
+import { extendSubscriptionAction, freezeSubscriptionAction, renewSubscriptionAction, updateSubscriptionStatusAction } from "@/app/actions/subscription-actions";
 import { SubscriptionExpiryBadge, SubscriptionStatusBadge } from "@/components/modules/subscription-status-badge";
+import { ChangePlanForm } from "@/components/modules/change-plan-form";
 
 export const metadata = { title: "Subscription Detail" };
 
@@ -17,6 +20,10 @@ function formatDate(value: string | null) {
   return value
     ? new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`))
     : "—";
+}
+
+function todayDateInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default async function AdminSubscriptionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,6 +41,11 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
     "id, member_id, plan_id, branch_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, members(full_name, member_code), membership_plans(name, duration_months)";
   const withCoupleColumns =
     "id, member_id, plan_id, branch_id, start_date, end_date, status, auto_renew, price, discount_amount, gst_amount, total_amount, linked_subscription_id, members(full_name, member_code), membership_plans(name, duration_months, plan_type)";
+  // held_until / hold_reason ship in migration 0055 (freeze/hold). Try the
+  // fullest shape first and degrade through the fallbacks above if either
+  // migration (0046 couple plans, 0055 freeze/hold) hasn't reached this
+  // database yet, same pattern as the couple-plan fallback already here.
+  const withCoupleAndHoldColumns = `${withCoupleColumns}, held_until, hold_reason`;
 
   async function runSubscriptionQuery(columns: string) {
     let query = supabase.from("subscriptions").select(columns).eq("id", id);
@@ -41,7 +53,11 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
     return query.maybeSingle();
   }
 
-  const { data: subscription, error } = await selectWithSchemaFallback(runSubscriptionQuery, [withCoupleColumns, baseColumns]);
+  const { data: subscription, error } = await selectWithSchemaFallback(runSubscriptionQuery, [
+    withCoupleAndHoldColumns,
+    withCoupleColumns,
+    baseColumns,
+  ]);
   if (error || !subscription) notFound();
   const subscriptionRow = subscription as unknown as Record<string, unknown>;
 
@@ -60,6 +76,8 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
     gst_amount: number | string;
     total_amount: number | string;
     linked_subscription_id?: string | null;
+    held_until?: string | null;
+    hold_reason?: string | null;
     members: unknown;
     membership_plans: unknown;
   };
@@ -83,6 +101,27 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
       .maybeSingle();
     linkedMember = (linkedSubscription?.members as unknown as { full_name: string | null; member_code: string | null } | null) ?? null;
   }
+
+  // Both "Change plan" (Prompt 4) and the grace-period badge (Prompt 5) key
+  // off the same advanced_membership (Growth+) entitlement — Growth/Scale is
+  // exactly phaseRank(phase_2) <= plan rank, the same professional/enterprise
+  // split migration 0053_grace_period_for_lapsed_subscriptions.sql checks in
+  // SQL. Computed once here rather than twice.
+  const hasAdvancedMembership = await hasCurrentFeature("advanced_membership");
+  // Fixed, non-configurable per migration 0053 — see that file's header for
+  // the product decision. Essential tenants get 0 (unchanged behavior: swept
+  // to 'expired' the moment end_date passes).
+  const gracePeriodDays = hasAdvancedMembership ? 7 : 0;
+
+  // "Change plan" (13-prompt sprint, Prompt 4) is Growth+ only. Only bother
+  // loading the branch's other active plans when the button could actually
+  // be shown — active subscription + tenant has advanced_membership.
+  const canChangePlan = sub.status === "active" && hasAdvancedMembership;
+  const otherActivePlans = canChangePlan
+    ? (await listMembershipPlans({ branchId: sub.branch_id, status: "active" }))
+        .filter((p) => p.id !== sub.plan_id)
+        .map((p) => ({ id: p.id, name: p.name, price: p.price, duration_months: p.duration_months }))
+    : [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -114,6 +153,13 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
                   : " — no linked member found"}
               </p>
             )}
+            {sub.status === "paused" && sub.held_until && (
+              <p className="mt-1 flex items-center gap-1.5 text-sm text-blue-700">
+                <Snowflake className="size-3.5" />
+                Frozen until {formatDate(sub.held_until)}
+                {sub.hold_reason ? ` — ${sub.hold_reason}` : ""}
+              </p>
+            )}
 
             <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
               <Detail label="Start date" value={formatDate(sub.start_date)} />
@@ -122,7 +168,7 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
                 <dd className="mt-0.5 font-medium">
                   <div className="flex flex-wrap items-center gap-2">
                     <span>{formatDate(sub.end_date)}</span>
-                    <SubscriptionExpiryBadge endDate={sub.end_date} />
+                    <SubscriptionExpiryBadge endDate={sub.end_date} status={sub.status} gracePeriodDays={gracePeriodDays} />
                   </div>
                 </dd>
               </div>
@@ -150,6 +196,49 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
                     Pause
                   </button>
                 </form>
+                <details className="group">
+                  <summary className={buttonVariants({ variant: "outline", className: "w-full cursor-pointer list-none [&::-webkit-details-marker]:hidden" })}>
+                    <Snowflake className="size-3.5" />
+                    Freeze
+                  </summary>
+                  <form action={freezeSubscriptionAction.bind(null, sub.id)} className="mt-2 space-y-2 rounded-lg border p-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Hold until</label>
+                      <input
+                        type="date"
+                        name="held_until"
+                        required
+                        min={todayDateInputValue()}
+                        max={sub.end_date ?? undefined}
+                        className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
+                      <input
+                        type="text"
+                        name="hold_reason"
+                        maxLength={200}
+                        placeholder="Travel, injury, …"
+                        className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                      />
+                    </div>
+                    <button type="submit" className={buttonVariants({ size: "sm", className: "w-full" })}>
+                      Confirm freeze
+                    </button>
+                  </form>
+                </details>
+                {canChangePlan && (
+                  <details className="group">
+                    <summary className={buttonVariants({ variant: "outline", className: "w-full cursor-pointer list-none [&::-webkit-details-marker]:hidden" })}>
+                      <ArrowLeftRight className="size-3.5" />
+                      Change plan
+                    </summary>
+                    <div className="mt-2">
+                      <ChangePlanForm subscriptionId={sub.id} memberName={member?.full_name ?? "this member"} plans={otherActivePlans} />
+                    </div>
+                  </details>
+                )}
                 <form action={updateSubscriptionStatusAction.bind(null, sub.id, "cancelled")}>
                   <button className={buttonVariants({ variant: "destructive", className: "w-full" })}>
                     <XCircle className="size-3.5" />
@@ -173,6 +262,41 @@ export default async function AdminSubscriptionDetailPage({ params }: { params: 
                   </button>
                 </form>
               </>
+            )}
+            {(sub.status === "active" || sub.status === "paused") && (
+              <details className="group">
+                <summary className={buttonVariants({ variant: "outline", className: "w-full cursor-pointer list-none [&::-webkit-details-marker]:hidden" })}>
+                  <CalendarPlus className="size-3.5" />
+                  Extend
+                </summary>
+                <form action={extendSubscriptionAction.bind(null, sub.id)} className="mt-2 space-y-2 rounded-lg border p-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Extend by (days)</label>
+                    <input
+                      type="number"
+                      name="days"
+                      min={1}
+                      max={365}
+                      required
+                      placeholder="e.g. 7"
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
+                    <input
+                      type="text"
+                      name="reason"
+                      maxLength={200}
+                      placeholder="Gym closure, goodwill credit, …"
+                      className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                    />
+                  </div>
+                  <button type="submit" className={buttonVariants({ size: "sm", className: "w-full" })}>
+                    Confirm extension
+                  </button>
+                </form>
+              </details>
             )}
             {["pending", "expired", "cancelled"].includes(sub.status) && (
               <p className="text-center text-xs text-muted-foreground">No actions available for this status.</p>

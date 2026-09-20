@@ -11,6 +11,7 @@ import {
   upsertVendor,
   createBankAccount,
   postJournalEntry,
+  setBankTransactionReconciled,
 } from "@/services/finance.service";
 import { logActivity } from "@/services/workflow.service";
 import { z } from "zod";
@@ -313,6 +314,33 @@ export async function postJournalEntryAction(
       description: `Journal entry ${record.journal_number} posted`,
     });
     revalidatePath("/admin/finance/accounting/journal");
+    return { success: true };
+  } catch (e) {
+    return { error: (e as Error).message };
+  }
+}
+
+// ─── Bank Reconciliation Actions ───────────────────────────────────────────────
+
+export async function reconcileBankTransactionAction(
+  transactionId: string,
+  reconciled: boolean
+): Promise<{ error?: string; success?: boolean }> {
+  const userId = await getCurrentUserId();
+  if (!(await hasCurrentFeature("finance"))) return { error: "Finance is not included in the current plan." };
+  if (!userId) return { error: "Unauthorized" };
+  try {
+    const record = await setBankTransactionReconciled(transactionId, reconciled, userId);
+    await logActivity({
+      performedBy: userId,
+      branchId: record.branch_id,
+      action: reconciled ? "bank_transaction_reconciled" : "bank_transaction_unreconciled",
+      entityType: "bank_transaction",
+      entityId: record.id,
+      description: `Bank transaction "${record.description}" marked ${reconciled ? "reconciled" : "unreconciled"}`,
+    });
+    revalidatePath("/admin/finance/bank/reconciliation");
+    revalidatePath("/admin/finance/bank");
     return { success: true };
   } catch (e) {
     return { error: (e as Error).message };

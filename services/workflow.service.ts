@@ -42,7 +42,7 @@ export async function createSubscriptionWithHistory(input: {
   gstAmount?: number;
   totalAmount: number;
   performedBy: string;
-  action?: "created" | "renewed";
+  action?: "created" | "renewed" | "plan_changed";
   remarks?: string | null;
   /**
    * Couple plans: the partner member's subscription id, created just before
@@ -178,7 +178,10 @@ export async function createSubscriptionWithHistory(input: {
   await logActivity({
     performedBy: input.performedBy,
     branchId: branch.id,
-    action: input.action === "renewed" ? "membership_renewed" : "membership_created",
+    action:
+      input.action === "renewed" ? "membership_renewed" :
+      input.action === "plan_changed" ? "membership_plan_changed" :
+      "membership_created",
     entityType: "subscription",
     entityId: subscriptionId,
     description: "Membership lifecycle event",
@@ -200,7 +203,7 @@ export async function updateSubscriptionWithHistory(input: {
   discountAmount?: number | null;
   gstAmount?: number | null;
   totalAmount?: number | null;
-  action?: "extended" | "paused" | "resumed" | "cancelled" | "expired" | "updated";
+  action?: "extended" | "paused" | "resumed" | "cancelled" | "expired" | "updated" | "plan_changed";
   remarks?: string | null;
 }) {
   const supabase = await createClient();

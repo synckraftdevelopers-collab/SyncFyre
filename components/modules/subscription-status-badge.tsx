@@ -23,9 +23,36 @@ function getDaysRemaining(endDate: string | null | undefined) {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
-export function SubscriptionExpiryBadge({ endDate }: { endDate: string | null | undefined }) {
+/**
+ * `status` + `gracePeriodDays` are optional (13-prompt sprint, Prompt 5:
+ * Grace Period): pass them wherever a subscription can currently be
+ * "active" with a past end_date because it's inside a Growth/Scale grace
+ * window (see migration 0053_grace_period_for_lapsed_subscriptions.sql —
+ * a fixed, non-configurable 7-day grace period; expire_overdue_subscriptions()
+ * doesn't sweep it to 'expired' until the window closes). Without them this
+ * renders exactly as before, so existing callers are unaffected.
+ */
+export function SubscriptionExpiryBadge({
+  endDate,
+  status,
+  gracePeriodDays = 0,
+}: {
+  endDate: string | null | undefined;
+  status?: string | null;
+  gracePeriodDays?: number;
+}) {
   const days = getDaysRemaining(endDate);
   if (days === null) return <span className="text-sm text-muted-foreground">No expiry date</span>;
+
+  if (status === "active" && days < 0 && gracePeriodDays > 0 && Math.abs(days) <= gracePeriodDays) {
+    const daysLeftInGrace = gracePeriodDays - Math.abs(days);
+    return (
+      <Badge variant="warning">
+        Grace period — {daysLeftInGrace > 0 ? `${daysLeftInGrace}d left` : "ends today"}
+      </Badge>
+    );
+  }
+
   if (days < 0) return <Badge variant="danger">Expired {Math.abs(days)}d ago</Badge>;
   if (days === 0) return <Badge variant="danger">Expires today</Badge>;
   if (days <= 7) return <Badge variant="warning">{days}d left</Badge>;

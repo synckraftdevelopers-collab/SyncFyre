@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { sellMembershipPlanToMember } from "@/services/membership-plan.service";
 import { getMemberById } from "@/services/member-extended.service";
 import { getLocalDateInputValue } from "@/lib/membership-dates";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 
 export type AddMemberPlanState = { error?: string; success?: string };
 
@@ -58,6 +59,8 @@ export async function addMemberPlanAction(
       paymentMethod,
       transactionRef,
       performedBy:          profile.id,
+      performedByRole:      profile.role?.slug,
+      enforceDiscountAuthorization: await hasCurrentFeature("advanced_membership"),
       subscriptionAction:   "created",
       remarksPrefix:        "Collected on plan add: ",
       couplePartnerMode,

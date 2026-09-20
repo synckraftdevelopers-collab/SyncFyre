@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { isResourceName, resourceSchemas, tableForResource } from "@/lib/validations/resources";
 import { createSubscriptionWithHistory, logActivity } from "@/services/workflow.service";
 import { ensurePaidCommercialPlan } from "@/services/entitlements.service";
+import { getPlanForSale } from "@/services/plan.service";
+import { checkDiscountAuthorization } from "@/lib/finance/discount-authorization";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ resource: string }> }) {
   const profile = await getCurrentProfile();
@@ -76,6 +79,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (resource === "payments" && payload.status === "completed" && !payload.paid_at) payload.paid_at = new Date().toISOString();
 
   if (resource === "subscriptions") {
+    // payload.discount_amount here is a COMBINED value from the admin sale
+    // wizard (the plan's own configured discount_percent plus whatever the
+    // staff member manually edited it to) — unlike SellPlanInput.discountAmount
+    // elsewhere, which is already discretionary-only. Back the plan's own
+    // discount out before checking, so it isn't counted against the limit.
+    const combinedDiscount = Number(payload.discount_amount ?? 0);
+    if (combinedDiscount > 0 && (await hasCurrentFeature("advanced_membership"))) {
+      const plan = await getPlanForSale(String(payload.plan_id));
+      if (plan) {
+        const listPrice = Number(plan.price ?? 0);
+        const planDiscount = Math.round(listPrice * Number(plan.discount_percent ?? 0) * 100) / 10000;
+        const manualDiscountAmount = Math.max(0, combinedDiscount - planDiscount);
+        const auth = checkDiscountAuthorization({
+          listPrice,
+          manualDiscountAmount,
+          performedByRole: profile.role?.slug,
+        });
+        if (!auth.allowed) {
+          return NextResponse.json({ error: auth.reason ?? "This discount requires manager-level authorization." }, { status: 403 });
+        }
+      }
+    }
     try {
       const data = await createSubscriptionWithHistory({
         memberId: String(payload.member_id),

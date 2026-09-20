@@ -26,6 +26,8 @@ import { calculatePaymentBalance } from "@/lib/finance/payment-balance";
 import { insertWithSchemaFallback } from "@/lib/supabase/insert-fallback";
 import { selectWithSchemaFallback } from "@/lib/supabase/select-fallback";
 import { inferPlanType } from "@/lib/membership-plan-type";
+import { getLocalDateInputValue } from "@/lib/membership-dates";
+import { checkDiscountAuthorization } from "@/lib/finance/discount-authorization";
 import type { MemberInput } from "@/lib/validations/member";
 import { createMember } from "@/services/member.service";
 import { getPlanForSale } from "@/services/plan.service";
@@ -57,7 +59,7 @@ export interface SellPlanInput {
   transactionRef?: string | null;
   performedBy: string;
   /** Label recorded on the subscription_history row. Defaults to "created". */
-  subscriptionAction?: "created" | "renewed";
+  subscriptionAction?: "created" | "renewed" | "plan_changed";
   /** Freeform prefix for the subscription's remarks, before the collected amount. */
   remarksPrefix?: string;
   couplePartnerMode?: "existing" | "new";
@@ -65,6 +67,10 @@ export interface SellPlanInput {
   couplePartnerFullName?: string | null;
   couplePartnerAge?: number | null;
   couplePartnerPhone?: string | null;
+  /** Role slug of the signed-in staff member completing this sale (for discount authorization). */
+  performedByRole?: string | null;
+  /** Gate discretionary discounts above the threshold to authorizing roles. Defaults to false (unrestricted) when omitted. */
+  enforceDiscountAuthorization?: boolean;
 }
 
 export interface SellPlanResult {
@@ -122,6 +128,14 @@ export async function sellMembershipPlanToMember(input: SellPlanInput): Promise<
   const discountBase = Number(plan.price ?? 0);
   const planDiscount = Math.round(discountBase * Number(plan.discount_percent ?? 0) * 100) / 10000;
   if (input.discountAmount > Math.max(0, discountBase - planDiscount)) throw new Error("Discount cannot exceed the package amount.");
+  if (input.enforceDiscountAuthorization) {
+    const auth = checkDiscountAuthorization({
+      listPrice: discountBase,
+      manualDiscountAmount: input.discountAmount,
+      performedByRole: input.performedByRole,
+    });
+    if (!auth.allowed) throw new Error(auth.reason ?? "This discount requires manager-level authorization.");
+  }
   const discount = planDiscount + input.discountAmount;
   const discountedAmount = Math.max(0, discountBase - discount);
 
@@ -275,6 +289,89 @@ export async function sellMembershipPlanToMember(input: SellPlanInput): Promise<
   });
 
   return { subscriptionId, invoiceId: invoice.id, couplePartnerId };
+}
+
+/**
+ * 13-prompt sprint, Prompt 4: change a member's plan — no proration.
+ *
+ * The existing subscription is ended today (status "cancelled", history
+ * action "plan_changed") and the new plan is sold as a completely fresh
+ * sale at full price via sellMembershipPlanToMember — its own invoice,
+ * optional payment, GST and discount handling, exactly like any other sale.
+ * Nothing is credited or carried over from whatever time/value was left on
+ * the old plan; that is a deliberate scope decision, not an oversight.
+ *
+ * Couple plans are explicitly out of scope for this pass: if the
+ * subscription being changed is one half of a couple plan, its partner's
+ * linked subscription is left exactly as-is, still on the old plan.
+ * Re-pairing on the new plan is a separate, existing action
+ * (changeCouplePartner), not something this function attempts to infer.
+ */
+export interface ChangeMembershipPlanInput {
+  subscriptionId: string;
+  newPlanId: string;
+  /** Defaults to today. */
+  startDate?: string;
+  paymentAmount: number;
+  discountAmount: number;
+  paymentMethod: SellPlanPaymentMethod;
+  transactionRef?: string | null;
+  performedBy: string;
+  /** Reception callers are scoped to their own branch, same as every other subscription action. */
+  branchId?: string | null;
+}
+
+export interface ChangeMembershipPlanResult {
+  oldSubscriptionId: string;
+  newSubscriptionId: string;
+  invoiceId: string;
+}
+
+export async function changeMembershipPlan(input: ChangeMembershipPlanInput): Promise<ChangeMembershipPlanResult> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from("subscriptions")
+    .select("id, member_id, branch_id, tenant_id, plan_id, status, members(full_name)")
+    .eq("id", input.subscriptionId);
+  if (input.branchId) query = query.eq("branch_id", input.branchId);
+  const { data: subscription, error } = await query.maybeSingle();
+  if (error || !subscription) throw new Error(error?.message ?? "Subscription not found.");
+  if (subscription.status !== "active") throw new Error("Only an active subscription can change plans.");
+  if (subscription.plan_id === input.newPlanId) throw new Error("Select a different plan to change to.");
+  if (!subscription.tenant_id) throw new Error("This subscription is missing organization ownership.");
+
+  const member = subscription.members as unknown as { full_name: string | null } | null;
+  const memberName = member?.full_name ?? "Member";
+  const startDate = input.startDate ?? getLocalDateInputValue();
+
+  // End the old subscription today — no proration.
+  await updateSubscriptionWithHistory({
+    subscriptionId: subscription.id,
+    performedBy: input.performedBy,
+    status: "cancelled",
+    action: "plan_changed",
+    remarks: "Plan changed — this subscription was ended in favor of a new plan.",
+  });
+
+  // Sell the new plan as a completely fresh sale.
+  const sale = await sellMembershipPlanToMember({
+    memberId: subscription.member_id,
+    memberName,
+    branchId: subscription.branch_id,
+    tenantId: subscription.tenant_id,
+    planId: input.newPlanId,
+    startDate,
+    paymentAmount: input.paymentAmount,
+    discountAmount: input.discountAmount,
+    paymentMethod: input.paymentMethod,
+    transactionRef: input.transactionRef,
+    performedBy: input.performedBy,
+    subscriptionAction: "plan_changed",
+    remarksPrefix: "Plan change — collected: ",
+  });
+
+  return { oldSubscriptionId: subscription.id, newSubscriptionId: sale.subscriptionId, invoiceId: sale.invoiceId };
 }
 
 /**

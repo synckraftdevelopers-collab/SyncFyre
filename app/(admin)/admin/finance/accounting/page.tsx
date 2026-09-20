@@ -22,6 +22,7 @@ const subModules = [
   { label: "Journal Entries",    href: "/admin/finance/accounting/journal",            icon: FileText,         desc: "Double-entry bookkeeping" },
   { label: "General Ledger",     href: "/admin/finance/accounting/ledger",             icon: BookOpen,         desc: "Account-wise ledger" },
   { label: "Trial Balance",      href: "/admin/finance/accounting/trial-balance",      icon: BadgeIndianRupee, desc: "Debit & credit totals" },
+  { label: "Balance Sheet",      href: "/admin/finance/accounting/balance-sheet",      icon: BadgeIndianRupee, desc: "Assets, liabilities & equity" },
   { label: "Profit & Loss",      href: "/admin/finance/reports/profit-loss",           icon: BadgeIndianRupee, desc: "Income vs Expenses" },
 ];
 

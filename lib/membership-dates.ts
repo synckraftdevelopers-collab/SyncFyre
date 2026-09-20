@@ -45,3 +45,11 @@ export function addCalendarMonthsToDateOnly(startDate: string, durationMonths: n
 export function getLocalDateInputValue(date = new Date()) {
   return format(date, "yyyy-MM-dd");
 }
+
+export function addDaysToDateOnly(startDate: string, days: number) {
+  if (!Number.isInteger(days)) {
+    throw new Error("Days must be a whole number.");
+  }
+  const { year, monthIndex, day } = parseDateOnly(startDate);
+  return format(new Date(Date.UTC(year, monthIndex, day + days)), "yyyy-MM-dd");
+}
