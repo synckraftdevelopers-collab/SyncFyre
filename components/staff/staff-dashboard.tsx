@@ -286,6 +286,7 @@ function StaffRowActions({ item, canManage, onDeleted }: { item: StaffRow; canMa
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isDeleting, startDelete] = useTransition();
+  const [isTogglingStatus, startToggleStatus] = useTransition();
 
   const name = item.users?.full_name?.trim() || item.employee_code || "Staff member";
   const branchName = item.branch_name?.trim() || item.branches?.name?.trim() || "Current branch";
@@ -336,11 +337,18 @@ function StaffRowActions({ item, canManage, onDeleted }: { item: StaffRow; canMa
             <DropdownMenu.Content align="end" sideOffset={8} className="z-50 min-w-44 overflow-hidden rounded-xl border border-border bg-background p-1.5 shadow-[0_16px_40px_rgba(7,29,56,.14)]">
               {staffId ? (
                 <DropdownMenu.Item asChild>
-                  <form action={setStaffStatusAction.bind(null, item.id, item.status === "active" ? "inactive" : "active")}>
-                    <button type="submit" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-muted">
-                      {item.status === "active" ? "Deactivate" : "Reactivate"}
-                    </button>
-                  </form>
+                  <button
+                    type="button"
+                    disabled={isTogglingStatus}
+                    onClick={() => startToggleStatus(async () => {
+                      const newStatus = item.status === "active" ? "inactive" : "active";
+                      await setStaffStatusAction(item.id, newStatus);
+                      router.refresh();
+                    })}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm outline-none transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    {item.status === "active" ? "Deactivate" : "Reactivate"}
+                  </button>
                 </DropdownMenu.Item>
               ) : null}
               <DropdownMenu.Separator className="my-1 h-px bg-border" />

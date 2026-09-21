@@ -84,9 +84,41 @@ export async function queueSubscriptionReminders() {
   return { queued: Number(data ?? 0) };
 }
 
+/**
+ * Protected cron entry point (13-Prompt Sprint — Prompt 12). Flags active
+ * members who haven't checked in for 14+ days with a staff-facing
+ * "member_inactivity_alert" notification, so owners/admins/managers/
+ * reception can proactively follow up before a member churns. The
+ * database function (0057) re-fires once per ISO week per member while
+ * they remain inactive, deduplicated via the existing metadata.fingerprint
+ * unique index — this function itself is a thin, idempotent RPC wrapper,
+ * same shape as queueSubscriptionReminders() above.
+ */
+export async function generateInactivityAlerts() {
+  const { data, error } = await createAdminClient().rpc("generate_inactivity_alerts");
+  if (error) throw new Error(error.message);
+  return { flagged: Number(data ?? 0) };
+}
+
+/**
+ * Protected cron entry point (13-Prompt Sprint — Prompt 13). Flags active
+ * PT packages (pt_member_packages.status = 'active') with 2 or fewer
+ * sessions remaining with a staff/trainer-facing "pt_sessions_low"
+ * notification, so a renewal can be prompted before the package runs out.
+ * The database function (0057) re-fires when the remaining-session count
+ * changes, deduplicated via the same fingerprint mechanism.
+ */
+export async function generateLowPtSessionAlerts() {
+  const { data, error } = await createAdminClient().rpc("generate_low_pt_session_alerts");
+  if (error) throw new Error(error.message);
+  return { flagged: Number(data ?? 0) };
+}
+
 export async function runNotificationAutomation() {
   const expiry = await expireOverdueSubscriptions();
   const reminders = await queueSubscriptionReminders();
+  const inactivityAlerts = await generateInactivityAlerts();
+  const lowPtSessionAlerts = await generateLowPtSessionAlerts();
   const deliveries = await dispatchPendingNotificationDeliveries();
-  return { expiry, reminders, deliveries };
+  return { expiry, reminders, inactivityAlerts, lowPtSessionAlerts, deliveries };
 }

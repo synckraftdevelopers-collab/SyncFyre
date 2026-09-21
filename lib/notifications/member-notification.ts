@@ -158,6 +158,8 @@ export function getNotificationCategoryLabel(notification: MemberNotificationLik
   if (notification.type === "member_created") return "New Member";
   if (notification.type === "membership_created" || notification.type === "membership_renewed") return "Membership";
   if (notification.type === "attendance_recorded") return "Attendance";
+  if (notification.type === "member_inactivity_alert") return "Inactive Member";
+  if (notification.type === "pt_sessions_low") return "Low PT Sessions";
   if (notification.type === "machine_connected" || notification.type === "machine_disconnected") return "Device";
   return null;
 }

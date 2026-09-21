@@ -149,7 +149,7 @@ export function MemberCardGrid({
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-2">
                   {canUse("call", role) && phone ? <a href={`tel:${phone}`} className={buttonVariants({ variant: "outline", size: "sm" })}><Phone className="size-4" />Call</a> : null}
-                  {canUse("whatsapp", role) ? <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName="SyncFyre Gym" planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={dueAmount} daysRemaining={member.days_remaining} variant="full" /> : null}
+                  {canUse("whatsapp", role) ? <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName={member.branch_name || "SyncFyre Gym"} planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={dueAmount} daysRemaining={member.days_remaining} variant="full" /> : null}
                   {canUse("renew", role) ? <Link href={actionHref(basePath, member.member_id, "membership")} className={buttonVariants({ size: "sm" })}><RefreshCcw className="size-4" />Renew</Link> : null}
                   <Link href={`${basePath}/${member.member_id}?edit=1`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="size-4" />Edit</Link>
                   {canUse("punch_in", role) ? <CheckInMemberButton memberId={member.member_id} checkedIn={!!attendanceMap[member.member_id]} /> : null}

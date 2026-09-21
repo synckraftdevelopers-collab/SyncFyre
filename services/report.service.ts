@@ -1112,3 +1112,197 @@ export async function getCrmSalesStaffReport(params: {
 
   return { rows, totals, dateFrom, dateTo };
 }
+
+// ─── 13. PT Revenue & Trainer Performance Report (Growth+) ────────────────────
+
+export type PtTrainerReportRow = {
+  trainerId: string;
+  trainerName: string;
+  packagesSold: number;
+  totalRevenue: number;
+  sessionsCompleted: number;
+  sessionsScheduled: number;
+  sessionsCancelled: number;
+  sessionsNoShow: number;
+  /** % of resolved sessions (completed+cancelled+no_show) that were completed. 0 when none resolved. */
+  completionRate: number;
+  /** % of resolved sessions that were a no-show. 0 when none resolved. */
+  noShowRate: number;
+  /** Distinct members currently holding an active PT package with this trainer — a point-in-time count, not date-ranged. */
+  activeClients: number;
+};
+
+export type PtTrainerReportTotals = {
+  packagesSold: number;
+  totalRevenue: number;
+  sessionsCompleted: number;
+  sessionsScheduled: number;
+  sessionsCancelled: number;
+  sessionsNoShow: number;
+};
+
+export type PtTrainerReportResult = {
+  rows: PtTrainerReportRow[];
+  totals: PtTrainerReportTotals;
+  dateFrom: string;
+  dateTo: string;
+};
+
+/**
+ * Growth+ PT Revenue Report + Trainer Performance Report, combined into one
+ * per-trainer dataset since both draw on the same pt_member_packages/
+ * pt_sessions rows — a single page renders a revenue section and a
+ * performance section from this one result rather than running the same
+ * aggregation twice on two separate routes.
+ *
+ * Revenue side: pt_member_packages rows (PT credit-bundle sales) with
+ * purchased_at in range, summed per assigned trainer.
+ * Performance side: pt_sessions rows with session_at in range, per trainer,
+ * split by status — completed/scheduled/cancelled/no_show — with completion
+ * and no-show rates computed over "resolved" sessions (completed + cancelled
+ * + no_show; a still-`scheduled` session hasn't resolved either way yet, so
+ * it's excluded from both rate denominators).
+ * activeClients is a current-snapshot count (distinct members with a
+ * `status = 'active'` pt_member_packages row for that trainer), not
+ * date-ranged — "how many PT clients does this trainer have right now."
+ *
+ * Uses existing pt_packages/pt_member_packages/pt_sessions/trainers/users
+ * tables — no new DB tables, no migration.
+ */
+export async function getPtTrainerReport(params: {
+  branchId?: string | null;
+  tenantId?: string | null;
+  dateFrom: string; // YYYY-MM-DD, inclusive
+  dateTo: string;   // YYYY-MM-DD, inclusive
+}): Promise<PtTrainerReportResult> {
+  const { branchId, tenantId, dateFrom, dateTo } = params;
+  const supabase = await createClient();
+
+  const fromTs = `${dateFrom}T00:00:00.000Z`;
+  const toTs = `${dateTo}T23:59:59.999Z`;
+
+  let pkgQuery = supabase
+    .from("pt_member_packages")
+    .select("trainer_id, amount, purchased_at")
+    .gte("purchased_at", fromTs)
+    .lte("purchased_at", toTs);
+  if (branchId) pkgQuery = pkgQuery.eq("branch_id", branchId);
+  else if (tenantId) pkgQuery = pkgQuery.eq("tenant_id", tenantId);
+  const { data: packages, error: pkgError } = await pkgQuery;
+  assertNoError(pkgError, "getPtTrainerReport (packages)");
+
+  let sessionsQuery = supabase
+    .from("pt_sessions")
+    .select("trainer_id, status")
+    .gte("session_at", fromTs)
+    .lte("session_at", toTs);
+  if (branchId) sessionsQuery = sessionsQuery.eq("branch_id", branchId);
+  else if (tenantId) sessionsQuery = sessionsQuery.eq("tenant_id", tenantId);
+  const { data: sessions, error: sessionsError } = await sessionsQuery;
+  assertNoError(sessionsError, "getPtTrainerReport (sessions)");
+
+  let activeQuery = supabase
+    .from("pt_member_packages")
+    .select("trainer_id, member_id")
+    .eq("status", "active");
+  if (branchId) activeQuery = activeQuery.eq("branch_id", branchId);
+  else if (tenantId) activeQuery = activeQuery.eq("tenant_id", tenantId);
+  const { data: activePackages, error: activeError } = await activeQuery;
+  assertNoError(activeError, "getPtTrainerReport (active clients)");
+
+  const trainerIds = new Set<string>();
+  for (const p of packages ?? []) if (p.trainer_id) trainerIds.add(p.trainer_id as string);
+  for (const s of sessions ?? []) if (s.trainer_id) trainerIds.add(s.trainer_id as string);
+  for (const a of activePackages ?? []) if (a.trainer_id) trainerIds.add(a.trainer_id as string);
+
+  const trainerNames = new Map<string, string>();
+  if (trainerIds.size > 0) {
+    const { data: trainerRows, error: trainerError } = await supabase
+      .from("trainers")
+      .select("id, users(full_name)")
+      .in("id", Array.from(trainerIds));
+    assertNoError(trainerError, "getPtTrainerReport (trainer directory)");
+    for (const t of trainerRows ?? []) {
+      const userRel = Array.isArray((t as { users: unknown }).users)
+        ? (t as { users: { full_name: string | null }[] }).users[0]
+        : (t as { users: { full_name: string | null } | null }).users;
+      trainerNames.set(t.id as string, userRel?.full_name ?? "Unknown trainer");
+    }
+  }
+
+  type Accum = {
+    packagesSold: number;
+    totalRevenue: number;
+    sessionsCompleted: number;
+    sessionsScheduled: number;
+    sessionsCancelled: number;
+    sessionsNoShow: number;
+    activeClientIds: Set<string>;
+  };
+  const byTrainer = new Map<string, Accum>();
+  function ensure(id: string): Accum {
+    let e = byTrainer.get(id);
+    if (!e) {
+      e = { packagesSold: 0, totalRevenue: 0, sessionsCompleted: 0, sessionsScheduled: 0, sessionsCancelled: 0, sessionsNoShow: 0, activeClientIds: new Set() };
+      byTrainer.set(id, e);
+    }
+    return e;
+  }
+
+  for (const p of packages ?? []) {
+    if (!p.trainer_id) continue;
+    const e = ensure(p.trainer_id as string);
+    e.packagesSold += 1;
+    e.totalRevenue += Number(p.amount ?? 0);
+  }
+  for (const s of sessions ?? []) {
+    if (!s.trainer_id) continue;
+    const e = ensure(s.trainer_id as string);
+    if (s.status === "completed") e.sessionsCompleted += 1;
+    else if (s.status === "scheduled") e.sessionsScheduled += 1;
+    else if (s.status === "cancelled") e.sessionsCancelled += 1;
+    else if (s.status === "no_show") e.sessionsNoShow += 1;
+  }
+  for (const a of activePackages ?? []) {
+    if (!a.trainer_id) continue;
+    const e = ensure(a.trainer_id as string);
+    e.activeClientIds.add(a.member_id as string);
+  }
+
+  const rows: PtTrainerReportRow[] = Array.from(trainerIds)
+    .map((trainerId) => {
+      const e = byTrainer.get(trainerId) ?? {
+        packagesSold: 0, totalRevenue: 0, sessionsCompleted: 0, sessionsScheduled: 0,
+        sessionsCancelled: 0, sessionsNoShow: 0, activeClientIds: new Set<string>(),
+      };
+      const resolved = e.sessionsCompleted + e.sessionsCancelled + e.sessionsNoShow;
+      return {
+        trainerId,
+        trainerName: trainerNames.get(trainerId) ?? "Unknown trainer",
+        packagesSold: e.packagesSold,
+        totalRevenue: e.totalRevenue,
+        sessionsCompleted: e.sessionsCompleted,
+        sessionsScheduled: e.sessionsScheduled,
+        sessionsCancelled: e.sessionsCancelled,
+        sessionsNoShow: e.sessionsNoShow,
+        completionRate: resolved > 0 ? Math.round((e.sessionsCompleted / resolved) * 100) : 0,
+        noShowRate: resolved > 0 ? Math.round((e.sessionsNoShow / resolved) * 100) : 0,
+        activeClients: e.activeClientIds.size,
+      };
+    })
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  const totals: PtTrainerReportTotals = rows.reduce(
+    (acc, r) => ({
+      packagesSold: acc.packagesSold + r.packagesSold,
+      totalRevenue: acc.totalRevenue + r.totalRevenue,
+      sessionsCompleted: acc.sessionsCompleted + r.sessionsCompleted,
+      sessionsScheduled: acc.sessionsScheduled + r.sessionsScheduled,
+      sessionsCancelled: acc.sessionsCancelled + r.sessionsCancelled,
+      sessionsNoShow: acc.sessionsNoShow + r.sessionsNoShow,
+    }),
+    { packagesSold: 0, totalRevenue: 0, sessionsCompleted: 0, sessionsScheduled: 0, sessionsCancelled: 0, sessionsNoShow: 0 },
+  );
+
+  return { rows, totals, dateFrom, dateTo };
+}

@@ -68,6 +68,12 @@ export default async function ReceptionMemberDetailPage({
 
   if (!member) notFound();
 
+  // Gym name for the pre-built WhatsApp/SMS share message — the member's own
+  // branch name as configured in Settings → Application Settings, not a
+  // hardcoded string. `branches` is already fetched above (getBranchOptions),
+  // so this is a plain lookup, no extra query.
+  const gymName = branches.find((branch) => branch.id === member.branch_id)?.name ?? null;
+
   if (edit === "1") {
     return (
       <div className="mx-auto max-w-4xl space-y-5">
@@ -86,6 +92,7 @@ export default async function ReceptionMemberDetailPage({
       basePath="/reception/members"
       listHref="/reception/members"
       collectPaymentHref="/reception/invoices/new"
+      gymName={gymName}
       role={profile.role?.slug}
       member={member}
       subscriptions={subscriptions}

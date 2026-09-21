@@ -1,6 +1,6 @@
 import {
   Activity, BarChart2, Bell, BookOpen, Building2, CalendarDays, ChartNoAxesCombined,
-  CircleDollarSign, ClipboardList, Dumbbell, Gauge, IndianRupee, LineChart,
+  CircleDollarSign, ClipboardList, Dumbbell, Flame, Gauge, IndianRupee, LineChart,
   LayoutDashboard, Settings, ShieldCheck, TrendingUp, UserMinus, UserPlus, UserRoundCog, UsersRound,
   Utensils, Wrench,
 } from "lucide-react";
@@ -34,6 +34,8 @@ export const adminNav: NavItem[] = [
   { label: "CRM & Leads",            href: "/admin/leads",                icon: BarChart2,           featureKey: "crm" },
   // Sales-by-staff report, companion to CRM & Leads — same Growth-tier gate.
   { label: "Sales Report",           href: "/admin/reports/sales",        icon: LineChart,           featureKey: "crm" },
+  // PT revenue + trainer performance, by trainer — same Growth-tier gate as PT itself.
+  { label: "PT Report",              href: "/admin/reports/pt",           icon: Flame,               featureKey: "pt" },
   // ── Phase 3 / Scale features ─────────────────────────────────────────────
   { label: "Branches",               href: "/admin/branches",             icon: Building2,           featureKey: "multi_branch" },
   { label: "Audit Logs",             href: "/admin/audit-logs",           icon: ClipboardList,       featureKey: "audit_logs" },

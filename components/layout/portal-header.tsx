@@ -9,7 +9,7 @@ import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { HistoryBackButton } from "@/components/ui/history-back-button";
 import { logoutAction } from "@/app/(auth)/actions";
-import { useId, useRef, useState } from "react";
+import { useId, useTransition, useState } from "react";
 import { RealtimeGreetingClock } from "@/components/layout/realtime-greeting-clock";
 import type { NotificationPortal } from "@/lib/notifications/destination";
 
@@ -41,7 +41,7 @@ export function PortalHeader({
   branchTimezone?: string | null;
 }) {
   const triggerId = useId();
-  const menuLogoutFormRef = useRef<HTMLFormElement>(null);
+  const [isLoggingOut, startLogout] = useTransition();
   const backHrefByPortal: Record<string, string> = {
     admin: "/admin/dashboard",
     reception: "/reception/dashboard",
@@ -117,19 +117,19 @@ export function PortalHeader({
         </Button>
         <ThemeToggle />
 
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            title="Sign Out"
-            aria-label="Sign Out"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon" }),
-              "text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40",
-            )}
-          >
-            <LogOut className="size-5" />
-          </button>
-        </form>
+        <button
+          type="button"
+          title="Sign Out"
+          aria-label="Sign Out"
+          disabled={isLoggingOut}
+          onClick={() => startLogout(() => logoutAction())}
+          className={cn(
+            buttonVariants({ variant: "ghost", size: "icon" }),
+            "text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 disabled:opacity-50",
+          )}
+        >
+          <LogOut className="size-5" />
+        </button>
 
         <NotificationBellDropdown notificationsHref={notificationsHref} portal={portal} />
 
@@ -173,14 +173,11 @@ export function PortalHeader({
 
               <DropdownMenu.Separator className="my-1.5 h-px bg-border" />
 
-              <form ref={menuLogoutFormRef} action={logoutAction} className="hidden">
-                <button type="submit">Sign Out</button>
-              </form>
               <DropdownMenu.Item
                 className="flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 outline-none hover:bg-red-50 focus:bg-red-50 dark:hover:bg-red-950/40 dark:focus:bg-red-950/40"
                 onSelect={(event) => {
                   event.preventDefault();
-                  menuLogoutFormRef.current?.requestSubmit();
+                  startLogout(() => logoutAction());
                 }}
               >
                 <LogOut className="size-4" />

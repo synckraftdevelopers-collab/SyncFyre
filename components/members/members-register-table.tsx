@@ -943,7 +943,10 @@ function ShareMemberDialog({
   const message = member
     ? generateMembershipMessage({
         memberName: member.full_name,
-        gymName: "SyncFyre Gym",
+        // Gym name comes from the member's own branch (Settings → Application
+        // Settings → Branch name), not a hardcoded string, so the WhatsApp/SMS
+        // share message always reflects what's actually configured there.
+        gymName: member.branch_name || "SyncFyre Gym",
         planName: plan,
         subscriptionStatus: member.subscription_status,
         expiryDate: member.subscription_end,

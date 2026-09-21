@@ -8,6 +8,7 @@ import { HistoryBackButton } from "@/components/ui/history-back-button";
 import { cn, initials } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { logoutAction } from "@/app/(auth)/actions";
+import { useTransition } from "react";
 
 export function Header({
   name,
@@ -26,6 +27,7 @@ export function Header({
   settingsHref?: string;
   notificationsHref?: string;
 }) {
+  const [isLoggingOut, startLogout] = useTransition();
   return (
     <header className="sticky top-0 z-30 flex h-20 items-center gap-3 border-b border-border/70 bg-background/88 px-4 backdrop-blur-xl md:px-8">
       <HistoryBackButton fallbackHref="/dashboard" className="shrink-0" />
@@ -82,12 +84,15 @@ export function Header({
               <DropdownMenu.Separator className="my-1.5 h-px bg-border" />
 
               <DropdownMenu.Item asChild>
-                <form action={logoutAction} className="w-full">
-                  <button type="submit" className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 outline-none hover:bg-red-50 focus:bg-red-50 dark:hover:bg-red-950/40 dark:focus:bg-red-950/40">
+                <button
+                  type="button"
+                  disabled={isLoggingOut}
+                  onClick={() => startLogout(() => logoutAction())}
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-red-600 outline-none hover:bg-red-50 focus:bg-red-50 dark:hover:bg-red-950/40 dark:focus:bg-red-950/40 disabled:opacity-50"
+                >
                   <LogOut className="size-4" />
                   Sign out
-                  </button>
-                </form>
+                </button>
               </DropdownMenu.Item>
             </DropdownMenu.Content>
           </DropdownMenu.Portal>

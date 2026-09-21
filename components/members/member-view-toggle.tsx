@@ -188,7 +188,7 @@ function MemberRowView({
                           <Phone className="size-4" />
                         </a>
                       )}
-                      <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName="SyncFyre Gym" planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={due} daysRemaining={member.days_remaining} />
+                      <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName={member.branch_name || "SyncFyre Gym"} planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={due} daysRemaining={member.days_remaining} />
                       <Link href={`${basePath}/${member.member_id}?tab=membership`}
                         className={buttonVariants({ variant: "ghost", size: "icon" })}
                         title="Renew" aria-label={`Renew ${member.full_name}`}>
@@ -255,7 +255,7 @@ function MemberRowView({
                     <Phone className="size-3.5" />Call
                   </a>
                 )}
-                <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName="SyncFyre Gym" planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={due} daysRemaining={member.days_remaining} variant="full" />
+                <MemberCommunicationMenu phone={member.phone} memberName={member.full_name} gymName={member.branch_name || "SyncFyre Gym"} planName={member.current_plan} subscriptionStatus={member.subscription_status} expiryDate={member.subscription_end} dueAmount={due} daysRemaining={member.days_remaining} variant="full" />
                 <Link href={`${basePath}/${member.member_id}?tab=membership`}
                   className={buttonVariants({ size: "sm" })}>
                   <RefreshCcw className="size-3.5" />Renew

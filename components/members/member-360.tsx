@@ -197,6 +197,7 @@ export function Member360({
   basePath,
   listHref,
   collectPaymentHref,
+  gymName,
   role,
   member,
   subscriptions,
@@ -221,6 +222,10 @@ export function Member360({
   basePath: string;
   listHref: string;
   collectPaymentHref: string;
+  /** The member's branch name (Settings → Application Settings → Branch name),
+   * used as the "gym name" in the pre-built WhatsApp/SMS share message below.
+   * Falls back to "SyncFyre Gym" when the branch has no name configured. */
+  gymName?: string | null;
   role: UserRole | null | undefined;
   member: FullMember;
   subscriptions: MemberSubscription[];
@@ -261,7 +266,7 @@ export function Member360({
   const mobile = phone.replace(/\D/g, "");
   const whatsappMessage = generateMembershipMessage({
     memberName: member.full_name,
-    gymName: "SyncFyre Gym",
+    gymName: gymName || "SyncFyre Gym",
     planName: activeSubscription?.plan_name ?? null,
     subscriptionStatus: activeSubscription?.status ?? null,
     expiryDate: activeSubscription?.end_date ?? null,

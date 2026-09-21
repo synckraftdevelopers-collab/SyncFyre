@@ -119,6 +119,7 @@ export function CustomizationSettingsPanel({
   const [valueState, valueAction, valuePending] = useActionState<CustomizationActionState, FormData>(saveMemberCustomFieldValueAction, {});
   const [valueDeleteState, valueDeleteAction] = useActionState<CustomizationActionState, FormData>(deleteMemberCustomFieldValueAction, {});
   const [sidebarState, sidebarAction] = useActionState<CustomizationActionState, FormData>(saveSidebarNavigationAction, {});
+  const [sidebarResetState, sidebarResetAction] = useActionState<CustomizationActionState, FormData>(resetTenantSettingAction, {});
   const [resetState, resetAction] = useActionState<CustomizationActionState, FormData>(resetBranchSettingAction, {});
   const [memberFormState, memberFormAction, memberFormPending] = useActionState<CustomizationActionState, FormData>(saveMemberFormSettingsAction, {});
   const memberFormFields = resolveMemberFormFields(resolved["members.form_fields"]?.value);
@@ -307,7 +308,7 @@ export function CustomizationSettingsPanel({
             </CardHeader>
             <CardContent className="space-y-4">
               <ConfigMeta item={resolved["sidebar.admin_items"]} label="Current sidebar source" />
-              <form action={async (formData) => { await sidebarAction(formData); }} className="space-y-4">
+              <form action={sidebarAction} className="space-y-4">
                 <div className="grid gap-2 sm:grid-cols-2">
                   {adminNav.map((item) => (
                     <label key={item.href} className="flex items-center gap-2 rounded-lg border p-3 text-sm">
@@ -322,7 +323,7 @@ export function CustomizationSettingsPanel({
                 <Message state={sidebarState} />
                 <Button type="submit">Save sidebar</Button>
               </form>
-              <form action={async (formData) => { await resetTenantSettingAction({}, formData); }} className="flex flex-wrap items-end gap-2">
+              <form action={sidebarResetAction} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="setting_key" value="sidebar.admin_items" />
                 <Button type="submit" variant="ghost">Reset sidebar</Button>
               </form>
