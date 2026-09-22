@@ -1223,9 +1223,10 @@ export async function getPtTrainerReport(params: {
       .in("id", Array.from(trainerIds));
     assertNoError(trainerError, "getPtTrainerReport (trainer directory)");
     for (const t of trainerRows ?? []) {
-      const userRel = Array.isArray((t as { users: unknown }).users)
-        ? (t as { users: { full_name: string | null }[] }).users[0]
-        : (t as { users: { full_name: string | null } | null }).users;
+      const usersRaw = (t as { users: unknown }).users;
+      const userRel = Array.isArray(usersRaw)
+        ? (usersRaw[0] as { full_name?: string | null } | undefined) ?? null
+        : (usersRaw as { full_name?: string | null } | null);
       trainerNames.set(t.id as string, userRel?.full_name ?? "Unknown trainer");
     }
   }

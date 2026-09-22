@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Building2, Cpu, UserRoundCog, Users } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Building2, Cpu, UserRoundCog, Users } from "lucide-react";
 import { requirePortalContext } from "@/lib/auth";
 import { getBranchDetail } from "@/services/branch.service";
 import { Badge } from "@/components/ui/badge";
@@ -170,6 +170,58 @@ export default async function BranchDetailPage({ params }: { params: Promise<{ i
                         {s.status}
                       </Badge>
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Transfer History */}
+      {branch.recentTransfers && branch.recentTransfers.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ArrowLeftRight className="size-4 text-muted-foreground" />
+              Transfer History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-left text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="pb-3">Member</th>
+                  <th className="pb-3">Direction</th>
+                  <th className="pb-3">Other Branch</th>
+                  <th className="pb-3">Date</th>
+                  <th className="pb-3">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {branch.recentTransfers.map((t) => (
+                  <tr key={t.id}>
+                    <td className="py-3 font-medium">{t.member_name ?? "—"}</td>
+                    <td className="py-3">
+                      <span
+                        className={
+                          t.direction === "in"
+                            ? "inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                            : "inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+                        }
+                      >
+                        {t.direction === "in" ? "↓ In" : "↑ Out"}
+                      </span>
+                    </td>
+                    <td className="py-3 text-muted-foreground">{t.other_branch_name ?? "—"}</td>
+                    <td className="py-3 text-muted-foreground">
+                      {new Date(t.transferred_at).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="py-3 text-muted-foreground">{t.reason ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>

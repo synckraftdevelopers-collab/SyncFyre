@@ -40,6 +40,14 @@ export type BranchDetail = BranchSummary & {
     roleSlug: string | null;
     status: string;
   }>;
+  recentTransfers?: Array<{
+    id: string;
+    member_name: string | null;
+    direction: "in" | "out";
+    other_branch_name: string | null;
+    transferred_at: string;
+    reason: string | null;
+  }>;
 };
 
 /**
@@ -137,7 +145,7 @@ export async function getBranchById(branchId: string, tenantId: string): Promise
 export async function getBranchDetail(branchId: string, tenantId: string): Promise<BranchDetail | null> {
   const supabase = await createClient();
 
-  const [branchRes, staffRes, memberCountRes, machineCountRes] = await Promise.all([
+  const [branchRes, staffRes, memberCountRes, machineCountRes, transfersRes] = await Promise.all([
     supabase
       .from("branches")
       .select("id,name,code,city,state,address,phone,status,tenant_id,created_at")
@@ -164,6 +172,13 @@ export async function getBranchDetail(branchId: string, tenantId: string): Promi
       .eq("branch_id", branchId)
       .eq("tenant_id", tenantId)
       .eq("status", "active"),
+    supabase
+      .from("member_transfer_log")
+      .select("id, transferred_at, reason, member_id, from_branch_id, to_branch_id, members(full_name), from_branch:branches!member_transfer_log_from_branch_id_fkey(name), to_branch:branches!member_transfer_log_to_branch_id_fkey(name)")
+      .eq("tenant_id", tenantId)
+      .or(`from_branch_id.eq.${branchId},to_branch_id.eq.${branchId}`)
+      .order("transferred_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (branchRes.error || !branchRes.data) return null;
@@ -189,5 +204,27 @@ export async function getBranchDetail(branchId: string, tenantId: string): Promi
     staffCount: staff.length,
     machineCount: machineCountRes.count ?? 0,
     staff,
+    recentTransfers: (transfersRes.data ?? []).map((row) => {
+      const isInbound = row.to_branch_id === branchId;
+      const memberRecord = Array.isArray(row.members)
+        ? (row.members[0] as { full_name?: string | null } | undefined)
+        : (row.members as { full_name?: string | null } | null);
+      const fromBranchRecord = Array.isArray(row.from_branch)
+        ? (row.from_branch[0] as { name?: string | null } | undefined)
+        : (row.from_branch as { name?: string | null } | null);
+      const toBranchRecord = Array.isArray(row.to_branch)
+        ? (row.to_branch[0] as { name?: string | null } | undefined)
+        : (row.to_branch as { name?: string | null } | null);
+      return {
+        id: row.id as string,
+        member_name: memberRecord?.full_name ?? null,
+        direction: isInbound ? ("in" as const) : ("out" as const),
+        other_branch_name: isInbound
+          ? (fromBranchRecord?.name ?? null)
+          : (toBranchRecord?.name ?? null),
+        transferred_at: row.transferred_at as string,
+        reason: row.reason as string | null,
+      };
+    }),
   };
 }

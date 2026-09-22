@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { Member360 } from "@/components/members/member-360";
 import { MemberEditForm } from "@/components/members/member-edit-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { getMemberFormConfiguration } from "@/services/member-form-config.servic
 import { BackButton } from "@/components/ui/back-button";
 import { getMemberDocuments, getMemberNotes } from "@/services/member-notes.service";
 import { getMemberCouplePlanInfo } from "@/services/membership-plan.service";
+import { getBranches } from "@/services/branch.service";
+import { TransferMemberModal } from "@/components/members/transfer-member-modal";
 import {
   getBranchOptions,
   getDieticianOptions,
@@ -42,6 +45,11 @@ export default async function AdminMemberDetailPage({
   const { tab, edit, renew } = await searchParams;
   const profile = await requireUser(["admin", "manager", "reception"]);
   const supabase = await createClient();
+
+  const isScale = await hasCurrentFeature("multi_branch");
+  const allBranches = isScale && profile.tenant_id
+    ? await getBranches(profile.tenant_id)
+    : [];
 
   const [
     member,
@@ -108,7 +116,19 @@ export default async function AdminMemberDetailPage({
     );
   }
   return (
-    <Member360
+    <>
+      {isScale && allBranches.length > 1 && (profile.role?.slug === "owner" || profile.role?.slug === "admin" || profile.role?.slug === "manager") && member && (
+        <div className="flex justify-end mb-2">
+          <TransferMemberModal
+            memberId={member.id}
+            memberName={member.full_name ?? "Member"}
+            currentBranchId={member.branch_id ?? ""}
+            currentBranchName={allBranches.find(b => b.id === member.branch_id)?.name ?? "Current branch"}
+            branches={allBranches.map(b => ({ id: b.id, name: b.name }))}
+          />
+        </div>
+      )}
+      <Member360
       basePath="/admin/members"
       listHref="/admin/members"
       collectPaymentHref="/admin/invoices/new"
@@ -134,5 +154,6 @@ export default async function AdminMemberDetailPage({
       renewOpen={renew === "1"}
       allowDelete={profile.role?.slug === "admin"}
     />
+    </>
   );
 }

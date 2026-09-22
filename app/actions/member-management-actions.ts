@@ -214,3 +214,100 @@ export async function checkInMemberAction(memberId: string): Promise<{ error?: s
   revalidatePath("/reception/members");
   return { success: "Member checked in." };
 }
+
+// ─── Member Transfer (Scale / multi_branch only) ──────────────────────────────
+
+export type TransferMemberState = { error?: string; success?: string };
+
+export async function transferMemberAction(
+  _: TransferMemberState,
+  formData: FormData,
+): Promise<TransferMemberState> {
+  const profile = await requireUser(["owner", "admin", "manager"]);
+
+  if (!profile.tenant_id) {
+    return { error: "Your account is not linked to an organization." };
+  }
+
+  // Enforce Scale plan
+  const { hasCurrentFeature } = await import("@/lib/entitlements/server");
+  if (!(await hasCurrentFeature("multi_branch"))) {
+    return { error: "Member transfers require the Scale plan." };
+  }
+
+  const memberId = formData.get("member_id") as string;
+  const toBranchId = formData.get("to_branch_id") as string;
+  const reason = (formData.get("reason") as string | null) ?? null;
+
+  if (!memberId || !toBranchId) {
+    return { error: "Member and destination branch are required." };
+  }
+
+  const supabase = await (await import("@/lib/supabase/server")).createClient();
+
+  // Load the member — validates it belongs to this tenant
+  const { data: member, error: memberError } = await supabase
+    .from("members")
+    .select("id, branch_id, tenant_id, full_name")
+    .eq("id", memberId)
+    .eq("tenant_id", profile.tenant_id)
+    .maybeSingle();
+
+  if (memberError || !member) {
+    return { error: "Member not found in your organization." };
+  }
+
+  if (member.branch_id === toBranchId) {
+    return { error: "Member is already in that branch." };
+  }
+
+  // Validate the destination branch belongs to the same tenant
+  const { data: toBranch, error: toBranchError } = await supabase
+    .from("branches")
+    .select("id, name, status")
+    .eq("id", toBranchId)
+    .eq("tenant_id", profile.tenant_id)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (toBranchError || !toBranch) {
+    return { error: "Destination branch not found or inactive." };
+  }
+
+  const fromBranchId = member.branch_id as string;
+
+  // 1. Update member's branch
+  const { error: updateMemberError } = await supabase
+    .from("members")
+    .update({ branch_id: toBranchId })
+    .eq("id", memberId)
+    .eq("tenant_id", profile.tenant_id);
+
+  if (updateMemberError) {
+    return { error: updateMemberError.message };
+  }
+
+  // 2. Update active subscription's branch (if any)
+  await supabase
+    .from("subscriptions")
+    .update({ branch_id: toBranchId })
+    .eq("member_id", memberId)
+    .eq("branch_id", fromBranchId)
+    .in("status", ["active", "paused"]);
+
+  // 3. Log the transfer
+  await supabase.from("member_transfer_log").insert({
+    tenant_id: profile.tenant_id,
+    member_id: memberId,
+    from_branch_id: fromBranchId,
+    to_branch_id: toBranchId,
+    transferred_by: profile.id,
+    reason: reason || null,
+  });
+
+  revalidatePath(`/admin/members/${memberId}`);
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/branches");
+
+  return { success: `${member.full_name} transferred to ${toBranch.name}.` };
+}
