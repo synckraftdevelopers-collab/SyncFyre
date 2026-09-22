@@ -31,6 +31,7 @@ export function TrainerRowActions({ trainer }: { trainer: TrainerReportRow }) {
             type="button"
             className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label={`Open actions for ${trainer.trainer_name}`}
+            suppressHydrationWarning
           >
             <MoreHorizontal className="size-4" />
           </button>

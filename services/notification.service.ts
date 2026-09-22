@@ -32,18 +32,29 @@ export type NotificationFeedRow = {
   branches: { name: string | null } | null;
 };
 
-export async function getUnreadNotificationCount(input: NotificationScopeInput) {
-  const supabase = await createClient();
-  const query = applyBusinessNotificationScope(
-    supabase.from("notifications").select(NOTIFICATION_SELECT).order("created_at", { ascending: false }).limit(200),
-    input,
-  );
-  const { data, error } = await query.is("read_at", null);
-  if (error) {
-    if (isMissingSchemaError(error)) return 0;
-    throw new Error(error.message);
+export async function getUnreadNotificationCount(input: NotificationScopeInput): Promise<number> {
+  try {
+    const supabase = await createClient();
+    // Use head:true count — fetches no rows, just the count.
+    // This is far cheaper than fetching 200 full rows + joins just to count them.
+    const query = applyBusinessNotificationScope(
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true }),
+      input,
+    );
+    const { count, error } = await query.is("read_at", null);
+    if (error) {
+      if (isMissingSchemaError(error)) return 0;
+      // Statement timeout or other transient DB error — don't crash the layout.
+      console.warn("[getUnreadNotificationCount] query error:", error.message);
+      return 0;
+    }
+    return count ?? 0;
+  } catch {
+    // Never crash the admin layout over a notification count.
+    return 0;
   }
-  return (data ?? []).filter((row: NotificationFeedRow) => shouldDisplayNotification(row)).length;
 }
 
 export async function getNotificationFeed(input: NotificationScopeInput & { filter?: NotificationFeedFilter; limit?: number }) {

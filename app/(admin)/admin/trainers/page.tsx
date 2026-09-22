@@ -25,7 +25,7 @@ export default async function AdminTrainersPage({
   searchParams: Promise<{ q?: string; status?: string; page?: string; colSort?: string; colDir?: string }>;
 }) {
   const sp = await searchParams;
-  const profile = await requireUser(["admin", "manager"]);
+  const profile = await requireUser(["owner", "admin", "manager"]);
 
   const allTrainers = await getTrainerReport({
     branchId: profile.branch_id ?? undefined,
@@ -33,7 +33,7 @@ export default async function AdminTrainersPage({
   });
 
   const search = (sp.q ?? "").toLowerCase().trim();
-  const statusFilter = sp.status ?? "all";
+  const statusFilter = sp.status ?? "active";
 
   let filtered = allTrainers.filter((trainer) => {
     const matchSearch =
@@ -130,7 +130,7 @@ export default async function AdminTrainersPage({
           </div>
           <select
             name="status"
-            defaultValue={sp.status ?? "all"}
+            defaultValue={sp.status ?? "active"}
             className="h-10 rounded-lg border bg-background px-3 text-sm"
           >
             <option value="all">All statuses</option>

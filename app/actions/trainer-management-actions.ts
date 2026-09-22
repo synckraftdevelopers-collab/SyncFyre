@@ -2,47 +2,80 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
 import { logActivity } from "@/services/workflow.service";
 
 export async function deleteTrainerAction(trainerId: string): Promise<{ error?: string; success?: string }> {
   const profile = await requireUser(["owner", "admin", "manager"]);
   if (!profile.tenant_id) return { error: "Your account is not linked to a tenant." };
 
-  const supabase = await createClient();
-  let query = supabase
-    .from("trainers")
-    .select("id, tenant_id, branch_id, user_id, staff_id, status, users(full_name), staff(employee_code, designation)")
-    .eq("id", trainerId)
-    .eq("tenant_id", profile.tenant_id);
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const adminClient = createAdminClient();
 
-  if (profile.branch_id) {
-    query = query.eq("branch_id", profile.branch_id);
+  // Step 1: Look up trainer directly by ID using service role — no RLS, no tenant_id filter
+  // (tenant_id can be null on legacy trainer rows). Tenant isolation enforced in step 2.
+  const { data: trainer, error: trainerError } = await adminClient
+    .from("trainers")
+    .select("id, tenant_id, branch_id, user_id, staff_id, status")
+    .eq("id", trainerId)
+    .maybeSingle();
+
+  if (trainerError || !trainer) {
+    return { error: "Trainer not found." };
   }
 
-  const { data: trainer, error: trainerError } = await query.maybeSingle();
-  if (trainerError || !trainer) {
-    return { error: "Trainer not found or you do not have access to delete this trainer." };
+  // Step 2: Verify the trainer's branch belongs to the caller's tenant
+  const { data: branch } = await adminClient
+    .from("branches")
+    .select("id, tenant_id")
+    .eq("id", trainer.branch_id)
+    .eq("tenant_id", profile.tenant_id)
+    .maybeSingle();
+
+  if (!branch) {
+    return { error: "You do not have access to delete this trainer." };
+  }
+
+  // Step 3: Managers can only delete trainers in their own branch
+  if (profile.role?.slug === "manager" && profile.branch_id && trainer.branch_id !== profile.branch_id) {
+    return { error: "Managers can only delete trainers in their own branch." };
+  }
+
+  // Fetch name separately for the activity log
+  let trainerName = "Trainer";
+  let employeeCode: string | null = null;
+  let designation: string | null = null;
+
+  if (trainer.user_id) {
+    const { data: user } = await adminClient
+      .from("users")
+      .select("full_name")
+      .eq("id", trainer.user_id)
+      .maybeSingle();
+    trainerName = user?.full_name?.trim() || "Trainer";
+  }
+
+  if (trainer.staff_id) {
+    const { data: staff } = await adminClient
+      .from("staff")
+      .select("employee_code, designation")
+      .eq("id", trainer.staff_id)
+      .maybeSingle();
+    employeeCode = staff?.employee_code ?? null;
+    designation = staff?.designation ?? null;
   }
 
   const archivedAt = new Date().toISOString();
-  const trainerName = ((trainer.users as { full_name?: string | null } | null)?.full_name ?? "Trainer").trim() || "Trainer";
 
-  const { error: trainerUpdateError } = await supabase
+  const { error: trainerUpdateError } = await adminClient
     .from("trainers")
-    .update({
-      status: "inactive",
-      deleted_at: archivedAt,
-      deleted_by: profile.id,
-    })
-    .eq("id", trainer.id)
-    .eq("tenant_id", profile.tenant_id);
+    .update({ status: "inactive", deleted_at: archivedAt, deleted_by: profile.id })
+    .eq("id", trainer.id);
 
   if (trainerUpdateError) {
     return { error: "Unable to delete this trainer right now." };
   }
 
-  const { data: assignedMembers, error: memberLookupError } = await supabase
+  const { data: assignedMembers, error: memberLookupError } = await adminClient
     .from("members")
     .select("id")
     .eq("tenant_id", profile.tenant_id)
@@ -55,7 +88,7 @@ export async function deleteTrainerAction(trainerId: string): Promise<{ error?: 
   const assignedMemberIds = (assignedMembers ?? []).map((member) => member.id);
 
   if (assignedMemberIds.length) {
-    const { error: clearMemberError } = await supabase
+    const { error: clearMemberError } = await adminClient
       .from("members")
       .update({ assigned_trainer_id: null })
       .eq("tenant_id", profile.tenant_id)
@@ -65,7 +98,7 @@ export async function deleteTrainerAction(trainerId: string): Promise<{ error?: 
       return { error: "Trainer was archived, but member assignments could not be cleared." };
     }
 
-    const { error: assignmentError } = await supabase
+    const { error: assignmentError } = await adminClient
       .from("trainer_assignments")
       .update({ status: "inactive", assigned_until: new Date().toISOString().slice(0, 10) })
       .eq("trainer_id", trainer.id)
@@ -78,34 +111,18 @@ export async function deleteTrainerAction(trainerId: string): Promise<{ error?: 
   }
 
   if (trainer.staff_id) {
-    const { error: staffError } = await supabase
+    await adminClient
       .from("staff")
-      .update({
-        status: "inactive",
-        deleted_at: archivedAt,
-        deleted_by: profile.id,
-      })
-      .eq("id", trainer.staff_id)
-      .eq("tenant_id", profile.tenant_id);
-
-    if (staffError) {
-      return { error: "Trainer was archived, but the linked staff profile could not be updated." };
-    }
+      .update({ status: "inactive", deleted_at: archivedAt, deleted_by: profile.id })
+      .eq("id", trainer.staff_id);
   }
 
   if (trainer.user_id) {
-    const { error: userError } = await supabase
+    await adminClient
       .from("users")
       .update({ status: "inactive" })
-      .eq("id", trainer.user_id)
-      .eq("tenant_id", profile.tenant_id);
-
-    if (userError) {
-      return { error: "Trainer was archived, but the linked user account could not be updated." };
-    }
+      .eq("id", trainer.user_id);
   }
-
-  const staffInfo = trainer.staff as { employee_code?: string | null; designation?: string | null } | null;
 
   await logActivity({
     performedBy: profile.id,
@@ -117,8 +134,8 @@ export async function deleteTrainerAction(trainerId: string): Promise<{ error?: 
     metadata: {
       user_id: trainer.user_id,
       staff_id: trainer.staff_id,
-      employee_code: staffInfo?.employee_code ?? null,
-      designation: staffInfo?.designation ?? null,
+      employee_code: employeeCode,
+      designation: designation,
       previous_status: trainer.status,
       archived_status: "inactive",
       cleared_member_assignments: assignedMemberIds.length,
