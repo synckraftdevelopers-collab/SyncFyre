@@ -24,7 +24,7 @@ const SORTABLE_COLUMNS = [
   { label: "Type", column: "type" as const, align: "left" as const },
   { label: "Original", column: "original" as const, align: "right" as const },
   { label: "Paid", column: "paid" as const, align: "right" as const },
-  { label: "Balance", column: "balance" as const, align: "right" as const },
+  { label: "Pending", column: "balance" as const, align: "right" as const },
   { label: "Due Date", column: "due_date" as const, align: "left" as const },
   { label: "Status", column: "status" as const, align: "left" as const },
 ];
