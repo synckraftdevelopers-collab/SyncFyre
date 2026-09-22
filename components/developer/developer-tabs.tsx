@@ -141,7 +141,7 @@ function ApiKeysTab({ apiKeys, branches }: { apiKeys: ApiKeyRow[]; branches: Bra
             onClick={() => setRevealedSecret(null)}
             className="text-xs text-amber-800 underline hover:text-amber-950"
           >
-            I've saved it — dismiss
+            I&apos;ve saved it — dismiss
           </button>
         </div>
       ) : null}
@@ -305,7 +305,7 @@ function WebhooksTab({ webhooks, branches }: { webhooks: WebhookRow[]; branches:
             onClick={() => setRevealedSecret(null)}
             className="text-xs text-amber-800 underline hover:text-amber-950"
           >
-            I've saved it — dismiss
+            I&apos;ve saved it — dismiss
           </button>
         </div>
       ) : null}

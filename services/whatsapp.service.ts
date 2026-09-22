@@ -43,7 +43,7 @@ export async function recordCommunicationLog(input: RecordCommunicationLogInput)
     sent_by: input.sentBy,
   });
   if (error) {
-    if (isMissingSchemaError(error.message)) return;
+    if (isMissingSchemaError(error)) return;
     throw new Error(error.message);
   }
 }
@@ -92,7 +92,7 @@ export async function listCommunicationLogs(
 
   const { data, error, count } = await query;
   if (error) {
-    if (isMissingSchemaError(error.message)) return { rows: [], total: 0, page: safePage, pageSize };
+    if (isMissingSchemaError(error)) return { rows: [], total: 0, page: safePage, pageSize };
     throw new Error(error.message);
   }
 

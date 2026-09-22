@@ -70,7 +70,6 @@ export function SendWhatsAppModal({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Escape to close + lock body scroll while open.
