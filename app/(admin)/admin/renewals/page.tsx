@@ -3,10 +3,12 @@ import { format, differenceInDays } from "date-fns";
 import { CalendarDays, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth";
+import { requirePortalContext } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
+import { generateMembershipMessage } from "@/lib/member-messages";
 import { getExpiringMemberships } from "@/services/dashboard.service";
 import { SortableTh, readSort } from "@/components/ui/sortable-th";
+import { QuickSendWhatsAppButton } from "@/components/whatsapp/quick-send-whatsapp-button";
 
 export const metadata = { title: "Renewals Due" };
 
@@ -26,7 +28,7 @@ export default async function RenewalsDuePage({
   searchParams: Promise<{ colSort?: string; colDir?: string }>;
 }) {
   const sp = await searchParams;
-  const profile = await requireUser(["admin", "manager", "reception"]);
+  const profile = await requirePortalContext(["admin", "manager", "reception"]);
 
   // Fetch only the strictly filtered expiring memberships from the backend
   const expiringMemberships = await getExpiringMemberships(profile.branch_id);
@@ -115,6 +117,7 @@ export default async function RenewalsDuePage({
                         className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}
                       />
                     ))}
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">WhatsApp</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -152,6 +155,22 @@ export default async function RenewalsDuePage({
                         <Badge variant={badgeVariant}>
                           {daysRemaining === 0 ? "Expires today" : `${daysRemaining} days`}
                         </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <QuickSendWhatsAppButton
+                          recipientName={sub.members?.full_name ?? "Member"}
+                          recipientPhone={sub.members?.phone}
+                          gymName={profile.branch_name}
+                          memberId={sub.member_id}
+                          defaultMessage={generateMembershipMessage({
+                            memberName: sub.members?.full_name ?? "Member",
+                            gymName: profile.branch_name || "SyncFyre Gym",
+                            planName: sub.membership_plans?.name ?? null,
+                            subscriptionStatus: sub.status ?? null,
+                            expiryDate: sub.end_date,
+                            daysRemaining,
+                          })}
+                        />
                       </td>
                     </tr>
                   ))}

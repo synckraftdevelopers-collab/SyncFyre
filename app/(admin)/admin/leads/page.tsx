@@ -1,6 +1,7 @@
 import { BarChart2, Lock } from "lucide-react";
 import { createLeadAction, getAdvancedCrmAction } from "@/app/actions/lead-actions";
 import { LeadActions } from "@/components/leads/lead-actions";
+import { QuickSendWhatsAppButton } from "@/components/whatsapp/quick-send-whatsapp-button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getPortalContext } from "@/lib/auth";
@@ -253,7 +254,16 @@ export default async function LeadsPage({
                         </details>
                       </td>
                       <td className="p-3 align-top">
-                        <LeadActions lead={{ id: lead.id, stage: lead.stage, assigned_to: lead.assigned_to ?? null }} members={members} staff={staff} />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <QuickSendWhatsAppButton
+                            recipientName={lead.full_name}
+                            recipientPhone={lead.phone}
+                            gymName={profile.branch_name}
+                            leadId={lead.id}
+                            defaultMessage={`Hi ${lead.full_name}, this is ${profile.branch_name || "our gym"} following up on your enquiry${lead.plan_interest ? ` about ${lead.plan_interest}` : ""}. Let us know if you'd like to schedule a visit or trial!\n\nThank you.`}
+                          />
+                          <LeadActions lead={{ id: lead.id, stage: lead.stage, assigned_to: lead.assigned_to ?? null }} members={members} staff={staff} />
+                        </div>
                       </td>
                     </tr>
                   );

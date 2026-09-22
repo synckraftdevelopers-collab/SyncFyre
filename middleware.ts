@@ -61,6 +61,9 @@ const FEATURE_ROUTE_PREFIXES: { prefix: string; feature: SaaSFeatureKey }[] = [
   { prefix: "/api/biometric", feature: "biometric" },
   { prefix: "/admin/trainers", feature: "pt" },
   { prefix: "/api/trainers", feature: "pt" },
+  // WhatsApp quick-send (P2-R1): saved templates + ad-hoc send log.
+  { prefix: "/admin/whatsapp", feature: "whatsapp" },
+  { prefix: "/admin/communications", feature: "whatsapp" },
   // Revenue report is an advanced/Growth feature; other /admin/reports/* are basic (Essential)
   { prefix: "/admin/reports/revenue", feature: "advanced_reports" },
   { prefix: "/api/reports", feature: "advanced_reports" },
@@ -69,6 +72,8 @@ const FEATURE_ROUTE_PREFIXES: { prefix: string; feature: SaaSFeatureKey }[] = [
   { prefix: "/api/branches", feature: "multi_branch" },
   { prefix: "/admin/audit-logs", feature: "enterprise_rbac" },
   { prefix: "/admin/retention", feature: "retention_intelligence" },
+  // Developer: API keys + webhooks (P3-12) — Scale only.
+  { prefix: "/admin/developer", feature: "api_webhooks" },
 ];
 
 function featureForPath(pathname: string): SaaSFeatureKey | null {

@@ -254,9 +254,10 @@ export async function listPendingPayments(params: {
   const supabase = await createClient();
   let query = supabase
     .from("invoices")
-    .select("id, member_id, branch_id, total_amount, amount_paid, balance_amount, payment_status, due_date, created_at, members(full_name, member_code, phone), branches(name), subscriptions(end_date, membership_plans(name))")
+    .select("id, member_id, branch_id, total_amount, amount_paid, balance_amount, payment_status, due_date, created_at, members!inner(full_name, member_code, phone, status), branches(name), subscriptions(end_date, membership_plans(name))")
     .gt("balance_amount", 0)
-    .neq("status", "void");
+    .neq("status", "void")
+    .eq("members.status", "active");
 
   if (params.branchId) query = query.eq("branch_id", params.branchId);
   if (params.dateFrom) query = query.gte("created_at", `${params.dateFrom}T00:00:00.000Z`);

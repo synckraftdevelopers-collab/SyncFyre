@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format, parseISO } from "date-fns";
-import { Apple, Bell, CreditCard, Dumbbell, FileUp, MessageCircle, Phone, PlusCircle, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
+import { Apple, Bell, CreditCard, Dumbbell, FileUp, Phone, PlusCircle, ScanLine, TrendingUp, UserCog, Wallet } from "lucide-react";
 import type { UserRole } from "@/types";
 import { MemberProgressChart } from "@/components/progress/member-progress-chart";
 import { MemberAvatar } from "@/components/members/member-avatar";
@@ -21,7 +21,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { buildWhatsAppUrl, generateMembershipMessage } from "@/lib/member-messages";
+import { generateMembershipMessage } from "@/lib/member-messages";
+import { QuickSendWhatsAppButton } from "@/components/whatsapp/quick-send-whatsapp-button";
 import { calculateAge, calculateBmi, formatCurrency } from "@/lib/utils";
 import type {
   FullMember,
@@ -273,7 +274,6 @@ export function Member360({
     dueAmount: outstanding > 0 ? outstanding : null,
     daysRemaining: activeSubscription?.end_date ? Math.floor((new Date(activeSubscription.end_date).getTime() - Date.now()) / 86400000) : null,
   });
-  const whatsappHref = buildWhatsAppUrl(phone, whatsappMessage);
   const collectPaymentLink = `${collectPaymentHref}${collectPaymentHref.includes("?") ? "&" : "?"}memberId=${member.id}`;
   // "Add Plan" reuses the existing membership-sale flow (already supports
   // picking a couple-plan partner) with this member preselected — it always
@@ -321,7 +321,15 @@ export function Member360({
                 ) : (
                   <Button type="button" variant="outline" size="sm" disabled><Phone className="size-4" />Call</Button>
                 )}
-                {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
+                <QuickSendWhatsAppButton
+                  recipientName={member.full_name}
+                  recipientPhone={phone}
+                  gymName={gymName}
+                  memberId={member.id}
+                  defaultMessage={whatsappMessage}
+                  variant="full"
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                />
                 {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><CreditCard className="size-4" />Collect Payment</Link> : null}
                 {canUse(role, ["admin", "manager", "reception"]) ? <RenewMembershipDialog memberId={member.id} branchId={member.branch_id} plans={plans} defaultOpen={renewOpen} /> : null}
                 {canUse(role, ["admin", "manager", "reception"]) ? <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link> : null}
@@ -391,7 +399,15 @@ export function Member360({
                     ) : (
                       <Button type="button" variant="outline" size="sm" disabled><Phone className="size-4" />Call</Button>
                     )}
-                    {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}><MessageCircle className="size-4" />WhatsApp</a> : null}
+                    <QuickSendWhatsAppButton
+                      recipientName={member.full_name}
+                      recipientPhone={phone}
+                      gymName={gymName}
+                      memberId={member.id}
+                      defaultMessage={whatsappMessage}
+                      variant="full"
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
+                    />
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={collectPaymentLink} className={buttonVariants({ size: "sm" })}><Wallet className="size-4" />Collect Payment</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={`${basePath}/${member.id}?tab=membership`} className={buttonVariants({ variant: "outline", size: "sm" })}><TrendingUp className="size-4" />Renew</Link> : null}
                     {canUse(role, ["admin", "manager", "reception"]) ? <Link href={addPlanHref} className={buttonVariants({ variant: "outline", size: "sm" })}><PlusCircle className="size-4" />Add Plan</Link> : null}
@@ -510,7 +526,15 @@ export function Member360({
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="danger">{formatCurrency(outstanding)} Outstanding</Badge>
                   <Link href={collectPaymentLink} className={buttonVariants({ size: 'sm' })}>Collect Payment</Link>
-                  {whatsappHref ? <a href={whatsappHref} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'outline', size: 'sm' })}>WhatsApp Reminder</a> : null}
+                  <QuickSendWhatsAppButton
+                    recipientName={member.full_name}
+                    recipientPhone={phone}
+                    gymName={gymName}
+                    memberId={member.id}
+                    defaultMessage={whatsappMessage}
+                    variant="full"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  />
                   <Link href={collectPaymentLink} className={buttonVariants({ variant: 'outline', size: 'sm' })}>Payment Link</Link>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -1,7 +1,7 @@
 import {
   Activity, BarChart2, Bell, BookOpen, Building2, CalendarDays, ChartNoAxesCombined,
-  CircleDollarSign, ClipboardList, Dumbbell, Flame, Gauge, IndianRupee, LineChart,
-  LayoutDashboard, Settings, ShieldCheck, TrendingUp, UserMinus, UserPlus, UserRoundCog, UsersRound,
+  CircleDollarSign, ClipboardList, Dumbbell, Flame, Gauge, History, IndianRupee, KeyRound, LineChart,
+  LayoutDashboard, MessageCircle, Settings, ShieldCheck, TrendingUp, UserMinus, UserPlus, UserRoundCog, UsersRound,
   Utensils, Wrench,
 } from "lucide-react";
 import type { NavItem } from "@/lib/nav/types";
@@ -36,9 +36,19 @@ export const adminNav: NavItem[] = [
   { label: "Sales Report",           href: "/admin/reports/sales",        icon: LineChart,           featureKey: "crm" },
   // PT revenue + trainer performance, by trainer — same Growth-tier gate as PT itself.
   { label: "PT Report",              href: "/admin/reports/pt",           icon: Flame,               featureKey: "pt" },
+  // WhatsApp quick-send (P2-R1) — Growth-tier, same "whatsapp" featureKey as
+  // the real billing gate in lib/entitlements/registry.ts.
+  { label: "WhatsApp Templates",     href: "/admin/whatsapp/templates",   icon: MessageCircle,       featureKey: "whatsapp" },
+  { label: "Communication History",  href: "/admin/communications",       icon: History,             featureKey: "whatsapp" },
   // ── Phase 3 / Scale features ─────────────────────────────────────────────
   { label: "Branches",               href: "/admin/branches",             icon: Building2,           featureKey: "multi_branch" },
   { label: "Audit Logs",             href: "/admin/audit-logs",           icon: ClipboardList,       featureKey: "audit_logs" },
   { label: "Revenue Intelligence",   href: "/admin/reports/revenue",      icon: TrendingUp,          featureKey: "revenue_intelligence" },
   { label: "Retention Intelligence", href: "/admin/retention",            icon: UserMinus,           featureKey: "retention_intelligence" },
+  // Developer: API keys + webhooks (P3-12) — Scale only. Real gate is
+  // hasCurrentFeature("api_webhooks") (lib/entitlements/registry.ts); this
+  // featureKey ("api", PHASE_2) is only the closest match in the separate
+  // lib/phases/registry.ts system used for the sidebar's cosmetic lock badge
+  // — same accepted mismatch pattern as Audit Logs/"enterprise_rbac".
+  { label: "Developer",              href: "/admin/developer",            icon: KeyRound,            featureKey: "api" },
 ];
