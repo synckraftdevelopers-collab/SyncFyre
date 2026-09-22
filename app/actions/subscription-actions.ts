@@ -255,3 +255,98 @@ export async function changeMembershipPlanAction(
     return { error: err instanceof Error ? err.message : "Could not change plan." };
   }
 }
+
+// ─── Edit Subscription (admin/manager only) ───────────────────────────────────
+
+export type EditSubscriptionState = { error?: string; success?: string };
+
+/**
+ * Allows an admin or manager to directly edit a subscription's start date,
+ * end date, total amount, and status. This is an override tool — it records
+ * the change to subscription_history using the 'modified' action.
+ *
+ * Allowed roles: admin, manager (NOT reception — this is a sensitive override).
+ * Branch-scoped: only subscriptions in the user's branch can be edited.
+ */
+export async function editSubscriptionAction(
+  _: EditSubscriptionState,
+  formData: FormData,
+): Promise<EditSubscriptionState> {
+  const profile = await requireUser(["admin", "manager"]);
+  const supabase = await createClient();
+
+  const subscriptionId = formData.get("subscription_id") as string;
+  const startDate = (formData.get("start_date") as string | null)?.trim() || null;
+  const endDate = (formData.get("end_date") as string | null)?.trim() || null;
+  const totalAmountRaw = formData.get("total_amount") as string | null;
+  const status = (formData.get("status") as string | null)?.trim() || null;
+  const remarks = (formData.get("remarks") as string | null)?.trim() || null;
+
+  if (!subscriptionId) return { error: "Subscription ID is required." };
+  if (startDate && endDate && startDate > endDate) {
+    return { error: "Start date cannot be after end date." };
+  }
+  if (status && !["active", "paused", "cancelled", "pending", "expired"].includes(status)) {
+    return { error: "Invalid status value." };
+  }
+
+  let query = supabase
+    .from("subscriptions")
+    .select("id, member_id, branch_id, start_date, end_date, total_amount, status")
+    .eq("id", subscriptionId);
+  if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
+  const { data: subscription, error: loadError } = await query.maybeSingle();
+  if (loadError || !subscription) {
+    return { error: "Subscription not found or outside your branch." };
+  }
+
+  // Build only the fields that actually changed
+  const updates: Record<string, unknown> = {};
+  if (startDate && startDate !== subscription.start_date) updates.start_date = startDate;
+  if (endDate && endDate !== subscription.end_date) updates.end_date = endDate;
+  if (totalAmountRaw !== null && totalAmountRaw !== "") {
+    const parsed = Number(totalAmountRaw);
+    if (isNaN(parsed) || parsed < 0) return { error: "Total amount must be a non-negative number." };
+    if (parsed !== Number(subscription.total_amount)) updates.total_amount = parsed;
+  }
+  if (status && status !== subscription.status) updates.status = status;
+
+  if (Object.keys(updates).length === 0) {
+    return { error: "No changes were made." };
+  }
+
+  // Apply the update
+  const { error: updateError } = await supabase
+    .from("subscriptions")
+    .update(updates)
+    .eq("id", subscriptionId);
+  if (updateError) return { error: updateError.message };
+
+  // Record to history for audit trail.
+  // new_start_date and new_end_date are NOT NULL in subscription_history.
+  const newStartDate = (updates.start_date as string | undefined) ?? subscription.start_date;
+  const newEndDate = (updates.end_date as string | undefined) ?? subscription.end_date;
+
+  // Only write history if we have the required non-null fields
+  if (newStartDate && newEndDate) {
+    await supabase.from("subscription_history").insert({
+      subscription_id: subscriptionId,
+      member_id: subscription.member_id,
+      action: "updated",
+      previous_status: subscription.status,
+      new_status: (updates.status as string | undefined) ?? subscription.status,
+      previous_end_date: subscription.end_date,
+      new_start_date: newStartDate,
+      new_end_date: newEndDate,
+      performed_by: profile.id,
+      notes: remarks ?? "Manual edit from member profile",
+    });
+  }
+
+  revalidatePath(`/admin/members/${subscription.member_id}`);
+  revalidatePath(`/admin/members/${subscription.member_id}?edit=1`);
+  revalidatePath("/admin/subscriptions");
+  revalidatePath(`/admin/subscriptions/${subscriptionId}`);
+
+  return { success: "Subscription updated." };
+}

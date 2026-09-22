@@ -1,9 +1,10 @@
 "use client";
 import { Fragment, useActionState, useState } from "react";
-import { LoaderCircle, PlusCircle } from "lucide-react";
+import { LoaderCircle, PlusCircle, Pencil, Trash2, X } from "lucide-react";
 import { updateMemberAction } from "@/app/actions/member-actions";
 import { AddMemberPlanForm } from "@/components/members/add-member-plan-form";
 import { ChangeCouplePartnerForm } from "@/components/members/change-couple-partner-form";
+import { EditSubscriptionForm } from "@/components/members/edit-subscription-form";
 import { MemberDynamicFields } from "@/components/members/member-dynamic-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,14 @@ export function MemberEditForm({
 }) {
   const [state, action, pending] = useActionState(updateMemberAction, {});
   const [showAddPlan, setShowAddPlan] = useState(false);
+  const [editingRow, setEditingRow] = useState<{ id: string; tab: string } | null>(null);
   const [changePartnerFor, setChangePartnerFor] = useState<string | null>(null);
+
+  function openTab(rowId: string, tab: string) {
+    setEditingRow((current) =>
+      current?.id === rowId && current?.tab === tab ? null : { id: rowId, tab },
+    );
+  }
   const activeSubscriptions = subscriptions.filter((item) => item.status === "active");
   const couplePlanById = new Map(couplePlanInfo.map((row) => [row.subscriptionId, row]));
   const enabledFields = memberFormFields.filter((field) => field.enabled);
@@ -161,22 +169,35 @@ export function MemberEditForm({
 
         {subscriptions.length ? (
           <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[600px] text-sm">
               <thead className="border-b bg-muted/40 text-left text-xs uppercase text-muted-foreground">
-                <tr><th className="px-3 py-2 font-medium">Plan</th><th className="px-3 py-2 font-medium">Start</th><th className="px-3 py-2 font-medium">Expiry</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2 font-medium">Total</th></tr>
+                <tr>
+                  <th className="px-3 py-2 font-medium">Plan</th>
+                  <th className="px-3 py-2 font-medium">Start</th>
+                  <th className="px-3 py-2 font-medium">Expiry</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Total</th>
+                  <th className="px-3 py-2 font-medium">Actions</th>
+                </tr>
               </thead>
               <tbody className="divide-y">
                 {subscriptions.map((item, idx) => {
                   const rowId = subscriptionRowId(item) || String(idx);
                   const couple = couplePlanById.get(rowId);
+                  const isOpen = editingRow?.id === rowId;
+                  const isActive = item.status === "active";
+                  const isPaused = item.status === "paused";
+
                   return (
                     <Fragment key={rowId}>
-                      <tr>
+                      <tr className={isOpen ? "bg-muted/20" : undefined}>
                         <td className="px-3 py-2">
                           {item.plan_name ?? "-"}
                           {couple ? (
                             <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                              {couple.partnerMemberName ? `Paired with ${couple.partnerMemberName}` : "Couple plan — no partner on record"}
+                              {couple.partnerMemberName
+                                ? `Paired with ${couple.partnerMemberName}`
+                                : "Couple plan — no partner on record"}
                             </div>
                           ) : null}
                         </td>
@@ -191,16 +212,99 @@ export function MemberEditForm({
                               variant="link"
                               size="sm"
                               className="ml-2 h-auto p-0 text-xs"
-                              onClick={() => setChangePartnerFor((current) => (current === rowId ? null : rowId))}
+                              onClick={() =>
+                                setChangePartnerFor((current) =>
+                                  current === rowId ? null : rowId,
+                                )
+                              }
                             >
                               {changePartnerFor === rowId ? "Close" : "Change partner"}
                             </Button>
                           ) : null}
                         </td>
+
+                        {/* ── Action buttons ── */}
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-1">
+
+                            {/* Edit — opens the full panel (dates, amount, duration,
+                                freeze/hold, extend, change plan). Freeze/Hold and
+                                Change plan live as tabs inside that panel rather
+                                than as separate row buttons — see EditSubscriptionForm. */}
+                            {isActive || isPaused ? (
+                              <Button
+                                type="button"
+                                variant={isOpen && editingRow?.tab !== "delete" ? "default" : "outline"}
+                                size="sm"
+                                className="h-7 gap-1 px-2 text-xs"
+                                onClick={() => openTab(rowId, "edit")}
+                                title="Edit dates, amount, duration, freeze/hold, change plan"
+                              >
+                                <Pencil className="size-3" />
+                                {isOpen && editingRow?.tab !== "delete" ? "Close" : "Edit"}
+                              </Button>
+                            ) : null}
+
+                            {/* Cancel plan */}
+                            <Button
+                              type="button"
+                              variant={isOpen && editingRow?.tab === "delete" ? "destructive" : "ghost"}
+                              size="sm"
+                              className={`h-7 gap-1 px-2 text-xs ${isOpen && editingRow?.tab === "delete" ? "" : "text-destructive hover:bg-destructive/10 hover:text-destructive"}`}
+                              onClick={() => openTab(rowId, "delete")}
+                            >
+                              <Trash2 className="size-3" />
+                              {isOpen && editingRow?.tab === "delete" ? "Close" : "Cancel"}
+                            </Button>
+
+                            {/* Close button when any panel is open */}
+                            {isOpen ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-1.5 text-muted-foreground"
+                                onClick={() => setEditingRow(null)}
+                                aria-label="Close panel"
+                              >
+                                <X className="size-3.5" />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </td>
                       </tr>
+
+                      {/* Inline action panel */}
+                      {isOpen ? (
+                        <tr>
+                          <td colSpan={6} className="px-3 pb-3 pt-1">
+                            <EditSubscriptionForm
+                              subscriptionId={rowId}
+                              currentStartDate={item.start_date}
+                              currentEndDate={item.end_date}
+                              currentTotalAmount={item.total_amount}
+                              currentStatus={item.status}
+                              memberName={member.full_name ?? "Member"}
+                              initialTab={editingRow?.tab as "edit" | "duration" | "freeze" | "extend" | "change_plan" | "delete" | undefined}
+                              availablePlans={plans.filter(
+                                (p) =>
+                                  p.plan_type !== "couple" &&
+                                  !subscriptions.some(
+                                    (s) =>
+                                      s.status === "active" &&
+                                      (s as unknown as { plan_id?: string }).plan_id === p.id,
+                                  ),
+                              )}
+                              onDone={() => setEditingRow(null)}
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+
+                      {/* Couple partner change row */}
                       {couple && couple.isPrimary && changePartnerFor === rowId ? (
                         <tr>
-                          <td colSpan={5} className="px-3 pb-3">
+                          <td colSpan={6} className="px-3 pb-3">
                             <ChangeCouplePartnerForm
                               subscriptionId={rowId}
                               excludeMemberIds={[member.id, couple.partnerMemberId ?? ""].filter(Boolean)}
@@ -217,7 +321,9 @@ export function MemberEditForm({
             </table>
           </div>
         ) : (
-          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">No plans yet — use Add Plan to sell this member their first one.</p>
+          <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            No plans yet — use Add Plan to sell this member their first one.
+          </p>
         )}
       </section>
     </div>

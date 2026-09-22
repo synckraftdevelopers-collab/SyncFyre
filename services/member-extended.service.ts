@@ -275,13 +275,38 @@ export interface MemberSubscription {
 
 export async function getMemberSubscriptions(memberId: string): Promise<MemberSubscription[]> {
   const supabase = await createClient();
+  // membership_report_view (supabase/migrations/0002_report_views.sql) names
+  // its columns subscription_id/subscription_status/billed_price — not
+  // id/status/price. A plain select("*") + blind cast silently produced rows
+  // with `status: undefined` on every subscription, which made every
+  // status-gated UI (the Memberships table's Status column, the Edit button,
+  // the old Freeze/Change plan buttons) look permanently blank/disabled.
+  // Select the real column names and map them onto MemberSubscription's
+  // field names explicitly instead of trusting select("*") + a type cast.
   const { data, error } = await supabase
     .from("membership_report_view")
-    .select("*")
+    .select(
+      "subscription_id, plan_id, start_date, end_date, subscription_status, auto_renew, billed_price, discount_amount, gst_amount, total_amount, created_at, plan_name, duration_months, times_renewed",
+    )
     .eq("member_id", memberId)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as MemberSubscription[];
+  return (data ?? []).map((row) => ({
+    id: row.subscription_id,
+    plan_id: row.plan_id,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    status: row.subscription_status,
+    auto_renew: row.auto_renew,
+    price: row.billed_price,
+    discount_amount: row.discount_amount,
+    gst_amount: row.gst_amount,
+    total_amount: row.total_amount,
+    created_at: row.created_at,
+    plan_name: row.plan_name,
+    duration_months: row.duration_months,
+    times_renewed: row.times_renewed,
+  })) as MemberSubscription[];
 }
 
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Member payments Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
