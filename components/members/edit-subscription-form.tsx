@@ -255,7 +255,7 @@ function FreezeTab({
   return (
     <form action={handleSubmit} className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Freeze / Hold pauses the subscription until a specific date. The member's expiry does not change — resume when they return.
+        Freeze / Hold pauses the subscription until a specific date. The member&apos;s expiry does not change — resume when they return.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={fieldClass}>
