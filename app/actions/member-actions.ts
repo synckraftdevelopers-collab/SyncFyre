@@ -726,7 +726,9 @@ export async function deleteMemberAction(id: string): Promise<{ error?: string }
     return { error: error instanceof Error ? error.message : "Unable to deactivate member." };
   }
   revalidatePath("/admin/members");
+  revalidatePath(`/admin/members/${id}`);
   revalidatePath("/reception/members");
+  revalidatePath(`/reception/members/${id}`);
   revalidatePath("/admin/dashboard");
   revalidatePath("/reception/dashboard");
   return {};

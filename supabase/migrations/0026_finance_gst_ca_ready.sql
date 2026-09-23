@@ -189,7 +189,7 @@ begin
   end if;
 
   if v_gst > 0 then
-    select full_name, state, tenant_id into v_member
+    select full_name, tenant_id into v_member
     from public.members
     where id = new.member_id;
 
