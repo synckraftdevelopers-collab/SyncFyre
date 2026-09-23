@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { MessageCircle, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
-import { buildWhatsAppUrl, generatePaymentReminderMessage } from "@/lib/member-messages";
+import { generatePaymentReminderMessage } from "@/lib/member-messages";
+import { QuickSendWhatsAppButton } from "@/components/whatsapp/quick-send-whatsapp-button";
 import type { PendingPaymentRow } from "@/services/payment.service";
 
 type Sort = "highest" | "lowest" | "oldest" | "newest" | "name";
@@ -32,8 +33,14 @@ export function PendingPaymentsClient({ rows }: { rows: PendingPaymentRow[] }) {
   }), [rows, query, branch, status, plan, sort]);
   const totalPending = filtered.reduce((sum, row) => sum + row.pending_amount, 0);
 
-  function whatsapp(row: PendingPaymentRow) {
-    return buildWhatsAppUrl(row.phone, generatePaymentReminderMessage({ memberName: row.member_name, gymName: row.branch_name || "SyncFyre Gym", totalAmount: row.total_amount, paymentCompleted: row.amount_paid, pendingAmount: row.pending_amount }));
+  function pendingMessage(row: PendingPaymentRow) {
+    return generatePaymentReminderMessage({
+      memberName: row.member_name,
+      gymName: row.branch_name || "SyncFyre Gym",
+      totalAmount: row.total_amount,
+      paymentCompleted: row.amount_paid,
+      pendingAmount: row.pending_amount,
+    });
   }
 
   return <div className="space-y-5">
@@ -47,12 +54,8 @@ export function PendingPaymentsClient({ rows }: { rows: PendingPaymentRow[] }) {
       <select value={branch} onChange={(event) => setBranch(event.target.value)} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="all">All branches</option>{branches.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>
       <select value={plan} onChange={(event) => setPlan(event.target.value)} className="h-10 rounded-lg border bg-background px-3 text-sm"><option value="all">All plans</option>{plans.map((name) => <option key={name} value={name}>{name}</option>)}</select>
     </div>
-    <div className="hidden overflow-hidden rounded-2xl border md:block"><table className="w-full text-sm"><thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr>{["Member", "Plan", "Total", "Paid", "Pending", "Status", "Expiry", "Branch", "Action"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead><tbody className="divide-y">{filtered.map((row) => <tr key={row.invoice_id} className="hover:bg-muted/30"><td className="px-4 py-3"><p className="font-medium">{row.member_name}</p><p className="text-xs text-muted-foreground">{row.member_code ?? "—"} · {row.phone ?? "No phone"}</p></td><td className="px-4 py-3">{row.plan_name ?? "—"}</td><td className="px-4 py-3 tabular-nums">{formatCurrency(row.total_amount)}</td><td className="px-4 py-3 tabular-nums">{formatCurrency(row.amount_paid)}</td><td className="px-4 py-3 font-semibold tabular-nums text-amber-700">{formatCurrency(row.pending_amount)}</td><td className="px-4 py-3"><Badge variant="warning">{row.payment_status}</Badge></td><td className="px-4 py-3 text-muted-foreground">{row.membership_expiry ? new Date(row.membership_expiry).toLocaleDateString("en-IN") : "—"}</td><td className="px-4 py-3 text-muted-foreground">{row.branch_name ?? "—"}</td><td className="px-4 py-3"><WhatsAppButton href={whatsapp(row)} /></td></tr>)}</tbody></table></div>
-    <div className="grid gap-3 md:hidden">{filtered.map((row) => <div key={row.invoice_id} className="rounded-2xl border bg-background p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold">{row.member_name}</p><p className="truncate text-xs text-muted-foreground">{row.member_code ?? "—"} · {row.phone ?? "No phone"}</p><p className="truncate text-xs text-muted-foreground">{row.plan_name ?? "No plan"} · {row.branch_name ?? "Unassigned"}</p></div><Badge variant="warning">{row.payment_status}</Badge></div><dl className="mt-4 grid grid-cols-3 gap-2 text-sm"><div><dt className="text-xs text-muted-foreground">Total</dt><dd className="font-medium">{formatCurrency(row.total_amount)}</dd></div><div><dt className="text-xs text-muted-foreground">Paid</dt><dd className="font-medium">{formatCurrency(row.amount_paid)}</dd></div><div><dt className="text-xs text-muted-foreground">Pending</dt><dd className="font-semibold text-amber-700">{formatCurrency(row.pending_amount)}</dd></div></dl><p className="mt-3 text-xs text-muted-foreground">Expiry: {row.membership_expiry ? new Date(row.membership_expiry).toLocaleDateString("en-IN") : "—"}</p><div className="mt-4"><WhatsAppButton href={whatsapp(row)} full /></div></div>)}</div>\n    {filtered.length === 0 && <div className="rounded-2xl border border-dashed p-12 text-center text-sm text-muted-foreground">No pending payments match these filters.</div>}
+    <div className="hidden overflow-hidden rounded-2xl border md:block"><table className="w-full text-sm"><thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr>{["Member", "Plan", "Total", "Paid", "Pending", "Status", "Expiry", "Branch", "Action"].map((heading) => <th key={heading} className="px-4 py-3 font-medium">{heading}</th>)}</tr></thead><tbody className="divide-y">{filtered.map((row) => <tr key={row.invoice_id} className="hover:bg-muted/30"><td className="px-4 py-3"><p className="font-medium">{row.member_name}</p><p className="text-xs text-muted-foreground">{row.member_code ?? "—"} · {row.phone ?? "No phone"}</p></td><td className="px-4 py-3">{row.plan_name ?? "—"}</td><td className="px-4 py-3 tabular-nums">{formatCurrency(row.total_amount)}</td><td className="px-4 py-3 tabular-nums">{formatCurrency(row.amount_paid)}</td><td className="px-4 py-3 font-semibold tabular-nums text-amber-700">{formatCurrency(row.pending_amount)}</td><td className="px-4 py-3"><Badge variant="warning">{row.payment_status}</Badge></td><td className="px-4 py-3 text-muted-foreground">{row.membership_expiry ? new Date(row.membership_expiry).toLocaleDateString("en-IN") : "—"}</td><td className="px-4 py-3 text-muted-foreground">{row.branch_name ?? "—"}</td><td className="px-4 py-3"><QuickSendWhatsAppButton recipientName={row.member_name} recipientPhone={row.phone} gymName={row.branch_name} memberId={row.member_id} defaultMessage={pendingMessage(row)} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#25D366]/50 px-3 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50" /></td></tr>)}</tbody></table></div>
+    <div className="grid gap-3 md:hidden">{filtered.map((row) => <div key={row.invoice_id} className="rounded-2xl border bg-background p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-semibold">{row.member_name}</p><p className="truncate text-xs text-muted-foreground">{row.member_code ?? "—"} · {row.phone ?? "No phone"}</p><p className="truncate text-xs text-muted-foreground">{row.plan_name ?? "No plan"} · {row.branch_name ?? "Unassigned"}</p></div><Badge variant="warning">{row.payment_status}</Badge></div><dl className="mt-4 grid grid-cols-3 gap-2 text-sm"><div><dt className="text-xs text-muted-foreground">Total</dt><dd className="font-medium">{formatCurrency(row.total_amount)}</dd></div><div><dt className="text-xs text-muted-foreground">Paid</dt><dd className="font-medium">{formatCurrency(row.amount_paid)}</dd></div><div><dt className="text-xs text-muted-foreground">Pending</dt><dd className="font-semibold text-amber-700">{formatCurrency(row.pending_amount)}</dd></div></dl><p className="mt-3 text-xs text-muted-foreground">Expiry: {row.membership_expiry ? new Date(row.membership_expiry).toLocaleDateString("en-IN") : "—"}</p><div className="mt-4"><QuickSendWhatsAppButton recipientName={row.member_name} recipientPhone={row.phone} gymName={row.branch_name} memberId={row.member_id} defaultMessage={pendingMessage(row)} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[#25D366]/50 px-3 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50" /></div></div>)}</div>
+    {filtered.length === 0 && <div className="rounded-2xl border border-dashed p-12 text-center text-sm text-muted-foreground">No pending payments match these filters.</div>}
   </div>;
-}
-
-function WhatsAppButton({ href, full = false }: { href: string | null; full?: boolean }) {
-  if (!href) return <Button variant="outline" size="sm" disabled className={full ? "w-full" : ""} title="Phone number not available"><MessageCircle className="size-4" />WhatsApp</Button>;
-  return <a href={href} target="_blank" rel="noreferrer" className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#25D366]/50 px-3 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50 ${full ? "w-full" : ""}`}><MessageCircle className="size-4" />WhatsApp</a>;
 }

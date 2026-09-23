@@ -209,12 +209,56 @@ async function validateDeviceSecurity(
 
 async function findMembersByBiometricUserId(biometricUserId: string) {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
+
+  // Step 1: Exact match on machine_user_id (existing behaviour, unchanged)
+  const { data: exactMatches, error: exactError } = await supabase
     .from("members")
     .select("id,branch_id,member_code,machine_user_id,full_name,status")
     .eq("machine_user_id", biometricUserId);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as MemberLookupRow[];
+  if (exactError) throw new Error(exactError.message);
+  if ((exactMatches ?? []).length > 0) return exactMatches as MemberLookupRow[];
+
+  // Step 2: Numeric-PIN fallback — only attempt for purely numeric IDs
+  // (e.g. "144" → "MEM-000144"). This handles devices that send the
+  // trailing numeric portion of the member code rather than the full
+  // machine_user_id string.
+  if (!/^\d+$/.test(biometricUserId.trim())) return [];
+
+  const numericId = biometricUserId.trim();
+  // Zero-pad to 6 digits: 144 → "000144", 2 → "000002", 491 → "000491"
+  const normalizedCode = `MEM-${numericId.padStart(6, "0")}`;
+
+  const { data: candidates, error: candidateError } = await supabase
+    .from("members")
+    .select("id,branch_id,member_code,machine_user_id,full_name,status")
+    .eq("member_code", normalizedCode);
+  if (candidateError) throw new Error(candidateError.message);
+
+  // Step 3: Safety filter — only accept the candidate if its machine_user_id
+  // is NULL/empty (no explicit mapping) OR equals normalizedCode (same
+  // value, e.g. member was enrolled with MEM-000144 as machine_user_id).
+  // Reject if machine_user_id is a DIFFERENT explicit value — that means
+  // the physical machine has a different PIN assigned to this member
+  // (e.g. MEM-000268 has machine_user_id 211 → PIN 268 must NOT resolve to
+  // that member).
+  const safeMatches = (candidates ?? []).filter((c) => {
+    const existingMachineId = (c as MemberLookupRow).machine_user_id;
+    if (!existingMachineId) return true;               // no explicit mapping → safe
+    if (existingMachineId === normalizedCode) return true; // matches normalised code → safe
+    if (existingMachineId === numericId) return true;      // matches raw numeric ID → safe
+    return false; // has a DIFFERENT explicit machine_user_id → do NOT use
+  });
+
+  if (safeMatches.length > 0) {
+    logStructured("MEMBER_LOOKUP_FALLBACK", {
+      biometricUserId,
+      normalizedCode,
+      resolvedCount: safeMatches.length,
+      note: "Resolved via member_code fallback (safe: machine_user_id is NULL or matches normalised code)",
+    });
+  }
+
+  return safeMatches as MemberLookupRow[];
 }
 
 async function findLatestSubscription(memberId: string) {
