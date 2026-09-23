@@ -124,4 +124,4 @@ values (
   'online',
   '{"vendor":"ERIS","model":"AiFace","note":"Demo Gym front-desk face attendance terminal"}'::jsonb
 )
-on conflict (id) do nothing;
+on conflict (branch_id, device_id) do nothing;

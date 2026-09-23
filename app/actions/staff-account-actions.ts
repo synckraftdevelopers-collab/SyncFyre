@@ -102,17 +102,17 @@ export async function createStaffAccountAction(_: StaffAccountState, formData: F
       // Reactivate the existing record instead of inserting a duplicate
       const { error: reactivateError } = await admin
         .from("trainers")
-        .update({ status: "active", staff_id: staffRecord.id, branch_id: branchId, tenant_id: requester.tenant_id, deleted_at: null, deleted_by: null })
+        .update({ status: "active", staff_id: staffId, branch_id: branchId, tenant_id: requester.tenant_id, deleted_at: null, deleted_by: null })
         .eq("id", existingTrainer.id);
       if (reactivateError) {
-        await admin.from("staff").delete().eq("id", staffRecord.id);
+        await admin.from("staff").delete().eq("id", staffId);
         await admin.auth.admin.deleteUser(userId);
         return { error: `Staff setup failed: ${reactivateError.message}` };
       }
     } else {
-      const { error: trainerError } = await admin.from("trainers").insert({ user_id: userId, staff_id: staffRecord.id, branch_id: branchId, tenant_id: requester.tenant_id, status: "active" });
+      const { error: trainerError } = await admin.from("trainers").insert({ user_id: userId, staff_id: staffId, branch_id: branchId, tenant_id: requester.tenant_id, status: "active" });
       if (trainerError) {
-        await admin.from("staff").delete().eq("id", staffRecord.id);
+        await admin.from("staff").delete().eq("id", staffId);
         await admin.auth.admin.deleteUser(userId);
         return { error: `Staff setup failed: ${trainerError.message}` };
       }

@@ -112,7 +112,7 @@ export const FEATURE_REGISTRY: Record<PhaseFeatureKey, PhaseFeatureDefinition> =
   advanced_reports: { feature_key: "advanced_reports", name: "Advanced Reports", phase: "PHASE_2", pathnames: ["/admin/reports/attendance", "/admin/reports/members", "/admin/reports/payments", "/admin/reports/revenue"] },
   multi_branch: { feature_key: "multi_branch", name: "Multi Branch", phase: "PHASE_3", pathnames: ["/admin/branches"] },
   advanced_analytics: { feature_key: "advanced_analytics", name: "Advanced Analytics", phase: "PHASE_2", pathnames: ["/superadmin/reports"] },
-  whatsapp: { feature_key: "whatsapp", name: "WhatsApp", phase: "PHASE_2", pathnames: [], apiPrefixes: ["/api/whatsapp"] },
+  whatsapp: { feature_key: "whatsapp", name: "WhatsApp", phase: "PHASE_2", pathnames: ["/admin/whatsapp", "/admin/whatsapp/templates", "/admin/communications"], apiPrefixes: ["/api/whatsapp"] },
   api: { feature_key: "api", name: "API", phase: "PHASE_2", pathnames: [] },
   enterprise_features: { feature_key: "enterprise_features", name: "Enterprise Features", phase: "PHASE_2", pathnames: ["/superadmin/subscriptions", "/superadmin/billing", "/superadmin/devices"] },
   crm: { feature_key: "crm", name: "CRM & Leads", phase: "PHASE_2", pathnames: ["/admin/leads"] },

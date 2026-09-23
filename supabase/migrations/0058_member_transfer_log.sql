@@ -20,6 +20,8 @@ create index if not exists idx_member_transfer_log_tenant on member_transfer_log
 -- RLS: tenants can only read their own transfer logs
 alter table member_transfer_log enable row level security;
 
+drop policy if exists "tenant_isolation_member_transfer_log" on member_transfer_log;
+
 create policy "tenant_isolation_member_transfer_log"
   on member_transfer_log
   for all

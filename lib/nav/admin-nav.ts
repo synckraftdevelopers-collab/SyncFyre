@@ -1,7 +1,7 @@
 import {
   Activity, BarChart2, Bell, BookOpen, Building2, CalendarDays, ChartNoAxesCombined,
   CircleDollarSign, ClipboardList, Dumbbell, Flame, Gauge, IndianRupee, LineChart,
-  LayoutDashboard, Settings, ShieldCheck, TrendingUp, UserMinus, UserPlus, UserRoundCog, UsersRound,
+  LayoutDashboard, MessageCircle, Settings, ShieldCheck, TrendingUp, UserMinus, UserPlus, UserRoundCog, UsersRound,
   Utensils, Wrench,
 } from "lucide-react";
 import type { NavItem } from "@/lib/nav/types";
@@ -36,6 +36,9 @@ export const adminNav: NavItem[] = [
   { label: "Sales Report",           href: "/admin/reports/sales",        icon: LineChart,           featureKey: "crm" },
   // PT revenue + trainer performance, by trainer — same Growth-tier gate as PT itself.
   { label: "PT Report",              href: "/admin/reports/pt",           icon: Flame,               featureKey: "pt" },
+  // WhatsApp templates + communication history — Growth-tier feature.
+  { label: "WhatsApp",               href: "/admin/whatsapp/templates",   icon: MessageCircle,       featureKey: "whatsapp" },
+  { label: "Communications",         href: "/admin/communications",       icon: MessageCircle,       featureKey: "whatsapp" },
   // ── Phase 3 / Scale features ─────────────────────────────────────────────
   { label: "Branches",               href: "/admin/branches",             icon: Building2,           featureKey: "multi_branch" },
   { label: "Audit Logs",             href: "/admin/audit-logs",           icon: ClipboardList,       featureKey: "audit_logs" },

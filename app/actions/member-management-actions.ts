@@ -23,6 +23,9 @@ export async function deactivateMemberAction(
   revalidatePath("/admin/members");
   revalidatePath(`/admin/members/${memberId}`);
   revalidatePath("/reception/members");
+  revalidatePath(`/reception/members/${memberId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/reception/dashboard");
   return {};
 }
 
