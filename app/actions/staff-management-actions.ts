@@ -50,7 +50,8 @@ export async function deleteStaffAction(
         .eq("id", normalizedStaffId)
         .eq("tenant_id", profile.tenant_id);
 
-      if (profile.branch_id) {
+      // Managers are branch-scoped; owners and admins can delete across all branches
+      if (profile.role?.slug === "manager" && profile.branch_id) {
         query = query.eq("branch_id", profile.branch_id);
       }
 
@@ -114,7 +115,8 @@ export async function deleteStaffAction(
         .eq("id", normalizedUserId)
         .eq("tenant_id", profile.tenant_id);
 
-      if (profile.branch_id) {
+      // Managers are branch-scoped; owners and admins can delete across all branches
+      if (profile.role?.slug === "manager" && profile.branch_id) {
         query = query.eq("branch_id", profile.branch_id);
       }
 

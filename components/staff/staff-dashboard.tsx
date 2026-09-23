@@ -74,6 +74,7 @@ export function StaffDashboard({
   hasServiceKey: boolean;
   isAdmin: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState(staffRows);
   const [state, action, pending] = useActionState(createStaffAccountAction, {});
@@ -87,8 +88,9 @@ export function StaffDashboard({
     if (state.success) {
       toast.success(state.success);
       setOpen(false);
+      router.refresh();
     }
-  }, [state]);
+  }, [state, router]);
 
   const byRole = rows.reduce<Record<string, StaffRow[]>>((acc, staffMember) => {
     const slug = staffMember.users?.roles?.slug ?? "unknown";
