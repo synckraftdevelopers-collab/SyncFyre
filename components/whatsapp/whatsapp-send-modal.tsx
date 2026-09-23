@@ -31,7 +31,14 @@ import { createPortal } from "react-dom";
 import { MessageCircle, X, Send, ExternalLink, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { buildWhatsAppUrl } from "@/lib/member-messages";
-import type { WhatsAppActionResult } from "@/app/actions/whatsapp-actions";
+import type { WhatsAppActionState } from "@/app/actions/whatsapp-actions";
+
+/** Extended result shape used by the modal — superset of WhatsAppActionState */
+type ModalResult = WhatsAppActionState & {
+  status?: "sent" | "failed" | "provider_not_configured" | "entitlement_denied";
+  message?: string;
+  providerMessageId?: string | null;
+};
 
 export type WhatsAppSendConfig = {
   /** Recipient phone (raw — the modal normalises it) */
@@ -45,7 +52,7 @@ export type WhatsAppSendConfig = {
   /** Whether the provider is configured — passed from server */
   providerConfigured: boolean;
   /** Server action to call when Send is clicked */
-  onSend: () => Promise<WhatsAppActionResult>;
+  onSend: () => Promise<WhatsAppActionState>;
   /** Optional label on the trigger button */
   triggerLabel?: string;
   /** Optional custom trigger class */
@@ -65,7 +72,7 @@ export function WhatsAppSendModal({
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const [result, setResult] = useState<WhatsAppActionResult | null>(null);
+  const [result, setResult] = useState<ModalResult | null>(null);
   const closedViaPopState = useRef(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -110,7 +117,13 @@ export function WhatsAppSendModal({
 
   function handleSend() {
     startTransition(async () => {
-      const res = await onSend();
+      const raw = await onSend();
+      // Normalise simple {error, success} into the richer ModalResult shape
+      const res: ModalResult = {
+        ...raw,
+        status: (raw as ModalResult).status ?? (raw.error ? "failed" : raw.success ? "sent" : undefined),
+        message: (raw as ModalResult).message ?? raw.error ?? raw.success,
+      };
       setResult(res);
     });
   }
@@ -286,7 +299,7 @@ export function WhatsAppSendModal({
   );
 }
 
-function ResultBanner({ result }: { result: WhatsAppActionResult }) {
+function ResultBanner({ result }: { result: ModalResult }) {
   if (result.status === "sent") {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm">

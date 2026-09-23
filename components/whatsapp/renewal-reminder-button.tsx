@@ -11,7 +11,7 @@
 
 import { WhatsAppSendModal } from "@/components/whatsapp/whatsapp-send-modal";
 import { generateMembershipMessage } from "@/lib/member-messages";
-import type { WhatsAppActionResult } from "@/app/actions/whatsapp-actions";
+import type { WhatsAppActionState } from "@/app/actions/whatsapp-actions";
 
 export type RenewalReminderButtonProps = {
   memberName: string;
@@ -21,7 +21,7 @@ export type RenewalReminderButtonProps = {
   gymName: string;
   providerConfigured: boolean;
   /** Pre-bound server action: sendRenewalReminderWhatsAppAction.bind(null, input) */
-  sendAction: () => Promise<WhatsAppActionResult>;
+  sendAction: () => Promise<WhatsAppActionState>;
 };
 
 export function RenewalReminderButton({
