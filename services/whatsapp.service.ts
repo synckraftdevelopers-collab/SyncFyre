@@ -1,152 +1,100 @@
 /**
- * whatsapp.service.ts
+ * services/whatsapp.service.ts
  *
- * Provider-agnostic WhatsApp service.
+ * Data access for the ad-hoc WhatsApp quick-send flow (P2-R1):
+ *   - communication_logs: append-only log of staff-initiated wa.me sends.
  *
- * Architecture:
- *   SyncFyre send action
- *     → WhatsAppService.send()
- *       → isProviderConfigured() check
- *         NO  → returns { status: "provider_not_configured" }
- *         YES → POSTs to WHATSAPP_PROVIDER_URL with API key
- *               → returns { status: "sent", providerMessageId? }
- *
- * Status model (never fake delivery):
- *   "provider_not_configured" — env vars absent, no API call made
- *   "sent"                    — provider accepted the request
- *   "failed"                  — provider returned an error
- *   (delivered/read are webhook-only, never set here)
- *
- * To connect a real provider:
- *   1. Set WHATSAPP_PROVIDER_URL + WHATSAPP_PROVIDER_API_KEY in env
- *   2. The provider must accept the WhatsAppSendPayload below
- *   3. Add a webhook handler at /api/whatsapp/webhook to receive
- *      delivery receipts and update communication_logs accordingly
+ * Template CRUD/listing already lives in services/config.service.ts
+ * (listCommunicationTemplates, getCommunicationTemplate) — reused as-is,
+ * not duplicated here.
  */
+import { createClient } from "@/lib/supabase/server";
+import { isMissingSchemaError } from "@/lib/supabase/schema";
 
-import { env } from "@/lib/env";
+export type CommunicationLogChannel = "whatsapp" | "sms";
 
-export type WhatsAppSendStatus =
-  | "provider_not_configured"
-  | "sent"
-  | "failed";
-
-export type WhatsAppSendResult = {
-  status: WhatsAppSendStatus;
-  providerMessageId?: string | null;
-  errorMessage?: string | null;
-};
-
-export type WhatsAppSendPayload = {
-  /** E.164 or local number — service normalises to 91XXXXXXXXXX */
-  to: string;
-  message: string;
-  templateKey?: string | null;
-  /** Tenant-scoped correlation ID for audit/logging */
-  tenantId?: string | null;
+export interface RecordCommunicationLogInput {
+  tenantId: string;
   branchId?: string | null;
   memberId?: string | null;
-  metadata?: Record<string, unknown>;
-};
-
-/**
- * Returns true when both provider URL and API key are set in the environment.
- * Does NOT make any network call.
- */
-export function isWhatsAppProviderConfigured(): boolean {
-  return Boolean(env.WHATSAPP_PROVIDER_URL && env.WHATSAPP_PROVIDER_API_KEY);
+  leadId?: string | null;
+  channel: CommunicationLogChannel;
+  /** null for a fully ad-hoc message with no saved template behind it */
+  templateKey?: string | null;
+  /** Short excerpt only — the full message is never stored. */
+  messagePreview: string;
+  recipientPhone?: string | null;
+  sentBy: string;
 }
 
-/**
- * Normalise a phone number to the format expected by Indian WhatsApp providers:
- * 91XXXXXXXXXX (no +, no spaces, 12 digits).
- */
-export function normaliseWhatsAppNumber(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (!digits) return digits;
-  // Already has country code (12 digits starting with 91)
-  if (digits.length === 12 && digits.startsWith("91")) return digits;
-  // 10-digit local number
-  if (digits.length === 10) return `91${digits}`;
-  // Anything else: return as-is, let the provider reject gracefully
-  return digits;
-}
-
-/**
- * Send a WhatsApp message through the configured provider.
- *
- * Returns a discriminated result — NEVER throws.
- * The caller is responsible for logging to communication_logs.
- */
-export async function sendWhatsAppMessage(
-  payload: WhatsAppSendPayload,
-): Promise<WhatsAppSendResult> {
-  if (!isWhatsAppProviderConfigured()) {
-    return {
-      status: "provider_not_configured",
-      errorMessage:
-        "WhatsApp Business integration is not configured. " +
-        "Set WHATSAPP_PROVIDER_URL and WHATSAPP_PROVIDER_API_KEY to enable real delivery.",
-    };
-  }
-
-  const to = normaliseWhatsAppNumber(payload.to);
-  if (!to) {
-    return { status: "failed", errorMessage: "Invalid or missing phone number." };
-  }
-
-  try {
-    const response = await fetch(env.WHATSAPP_PROVIDER_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${env.WHATSAPP_PROVIDER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        to,
-        message: payload.message,
-        templateKey: payload.templateKey ?? null,
-        tenantId: payload.tenantId ?? null,
-        branchId: payload.branchId ?? null,
-        memberId: payload.memberId ?? null,
-        metadata: payload.metadata ?? {},
-      }),
-    });
-
-    let body: { providerMessageId?: string; messageId?: string; status?: string; error?: string } | null = null;
-    try {
-      body = (await response.json()) as { providerMessageId?: string; messageId?: string; status?: string; error?: string };
-    } catch {
-      // Non-JSON response — treat as sent if HTTP 2xx
-    }
-
-    if (!response.ok) {
-      const detail = (body as { error?: string } | null)?.error ?? response.statusText ?? `HTTP ${response.status}`;
-      return { status: "failed", errorMessage: detail };
-    }
-
-    return {
-      status: "sent",
-      providerMessageId: body?.providerMessageId ?? body?.messageId ?? null,
-    };
-  } catch (error) {
-    return {
-      status: "failed",
-      errorMessage: error instanceof Error ? error.message : "Unknown network error.",
-    };
-  }
-}
-
-/**
- * Resolve a template's {{placeholders}} with actual member/gym data.
- * Only substitutes declared variables; unmatched placeholders are left as-is.
- */
-export function resolveTemplateContent(
-  content: string,
-  variables: Record<string, string | null | undefined>,
-): string {
-  return content.replace(/\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}/g, (_match, key: string) => {
-    const value = variables[key];
-    return value !== null && value !== undefined ? value : `{{${key}}}`;
+/** Insert one communication_logs row. Fails soft if the table/migration isn't applied yet. */
+export async function recordCommunicationLog(input: RecordCommunicationLogInput): Promise<void> {
+  const supabase = await createClient();
+  const preview = input.messagePreview.trim().slice(0, 200);
+  const { error } = await supabase.from("communication_logs").insert({
+    tenant_id: input.tenantId,
+    branch_id: input.branchId ?? null,
+    member_id: input.memberId ?? null,
+    lead_id: input.leadId ?? null,
+    channel: input.channel,
+    template_key: input.templateKey ?? null,
+    message_preview: preview,
+    recipient_phone: input.recipientPhone ?? null,
+    sent_by: input.sentBy,
   });
+  if (error) {
+    if (isMissingSchemaError(error)) return;
+    throw new Error(error.message);
+  }
+}
+
+export interface CommunicationLogRow {
+  id: string;
+  channel: string;
+  template_key: string | null;
+  message_preview: string;
+  recipient_phone: string | null;
+  created_at: string;
+  member: { full_name: string } | null;
+  lead: { full_name: string } | null;
+  sentByUser: { full_name: string | null } | null;
+}
+
+export interface ListCommunicationLogsResult {
+  rows: CommunicationLogRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** Paginated, newest-first list of communication_logs for a tenant (optionally branch-scoped). */
+export async function listCommunicationLogs(
+  tenantId: string,
+  branchId?: string | null,
+  { page = 1, pageSize = 25 }: { page?: number; pageSize?: number } = {},
+): Promise<ListCommunicationLogsResult> {
+  const supabase = await createClient();
+  const safePage = Math.max(1, page);
+  const from = (safePage - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("communication_logs")
+    .select(
+      "id,channel,template_key,message_preview,recipient_phone,created_at,member:members(full_name),lead:leads(full_name),sentByUser:users!communication_logs_sent_by_fkey(full_name)",
+      { count: "exact" },
+    )
+    .eq("tenant_id", tenantId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (branchId) query = query.eq("branch_id", branchId);
+
+  const { data, error, count } = await query;
+  if (error) {
+    if (isMissingSchemaError(error)) return { rows: [], total: 0, page: safePage, pageSize };
+    throw new Error(error.message);
+  }
+
+  return { rows: (data ?? []) as unknown as CommunicationLogRow[], total: count ?? 0, page: safePage, pageSize };
 }

@@ -1048,7 +1048,8 @@ export async function listReceivables(
 
   let q = supabase
     .from("receivables")
-    .select("*, members(full_name,member_code,phone)");
+    .select("*, members!inner(full_name,member_code,phone,status)")
+    .eq("members.status", "active");
   if (branchId) q = q.eq("branch_id", branchId);
   if (receivableType && receivableType !== "all") q = q.eq("receivable_type", receivableType);
   if (memberId) q = q.eq("member_id", memberId);

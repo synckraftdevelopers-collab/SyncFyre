@@ -269,3 +269,158 @@ export async function getAdvancedCrmAnalytics(
     pipelineVelocity,
   };
 }
+
+// ─── Sales Targets (CRM) ──────────────────────────────────────────────────
+// A target is either per-salesperson (assigned_to set) or branch-wide
+// (assigned_to null). "Actual" is tracked as won-leads count only —
+// target_revenue is stored but left target-only (no computed "actual"),
+// which keeps this pragmatic rather than reaching into
+// subscriptions/payments for the converted member's initial value.
+
+export interface SalesTargetRow {
+  id: string;
+  tenant_id: string;
+  branch_id: string;
+  assigned_to: string | null;
+  period_month: string;
+  target_leads_count: number | null;
+  target_revenue: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  assignee?: { full_name: string } | { full_name: string }[] | null;
+}
+
+export interface SalesTargetProgress {
+  id: string;
+  assignedTo: string | null;
+  assigneeName: string | null; // null for a branch-wide target
+  periodMonth: string;
+  targetLeadsCount: number | null;
+  targetRevenue: number | null;
+  actualWonCount: number;
+  progressPct: number | null; // null when no leads-count target is set
+  notes: string | null;
+}
+
+export interface SetSalesTargetInput {
+  tenantId: string;
+  branchId: string;
+  assignedTo?: string | null;
+  periodMonth: string; // always the 1st of a month, e.g. "2026-09-01"
+  targetLeadsCount?: number | null;
+  targetRevenue?: number | null;
+  notes?: string | null;
+  performedBy: string;
+}
+
+/** "2026-09-01" for the current month (server local time). */
+export function currentPeriodMonth(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-01`;
+}
+
+export async function getSalesTargets(tenantId: string, branchId: string, periodMonth: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("sales_targets")
+    .select("id, tenant_id, branch_id, assigned_to, period_month, target_leads_count, target_revenue, notes, created_at, updated_at, assignee:users!sales_targets_assigned_to_fkey(full_name)")
+    .eq("tenant_id", tenantId)
+    .eq("branch_id", branchId)
+    .eq("period_month", periodMonth)
+    .order("assigned_to", { ascending: true, nullsFirst: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as SalesTargetRow[];
+}
+
+export async function setSalesTarget(input: SetSalesTargetInput) {
+  const supabase = await createClient();
+  const { data: branch, error: branchError } = await supabase.from("branches").select("id").eq("id", input.branchId).eq("tenant_id", input.tenantId).eq("status", "active").maybeSingle();
+  if (branchError || !branch) throw new Error("Select an active branch in your organization.");
+  if (input.assignedTo) {
+    const { data: assignee, error: assigneeError } = await supabase.from("users").select("id, status").eq("id", input.assignedTo).eq("tenant_id", input.tenantId).eq("branch_id", input.branchId).maybeSingle();
+    if (assigneeError || !assignee) throw new Error("Select a staff member from your branch.");
+  }
+  if (input.targetLeadsCount == null && input.targetRevenue == null) throw new Error("Set a leads target, a revenue target, or both.");
+
+  // Find any existing target for this natural key ourselves rather than
+  // relying on a Supabase upsert(onConflict:...) — keeps the null-assignee
+  // ("branch-wide") case explicit and matches the rest of this file's
+  // find-then-update-or-insert style.
+  let existingQuery = supabase.from("sales_targets").select("id").eq("tenant_id", input.tenantId).eq("branch_id", input.branchId).eq("period_month", input.periodMonth);
+  existingQuery = input.assignedTo ? existingQuery.eq("assigned_to", input.assignedTo) : existingQuery.is("assigned_to", null);
+  const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+  if (existingError) throw new Error(existingError.message);
+
+  const payload = {
+    tenant_id: input.tenantId,
+    branch_id: input.branchId,
+    assigned_to: input.assignedTo || null,
+    period_month: input.periodMonth,
+    target_leads_count: input.targetLeadsCount ?? null,
+    target_revenue: input.targetRevenue ?? null,
+    notes: input.notes?.trim() || null,
+    updated_by: input.performedBy,
+  };
+
+  if (existing) {
+    const { error } = await supabase.from("sales_targets").update(payload).eq("id", existing.id).eq("tenant_id", input.tenantId).eq("branch_id", input.branchId);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("sales_targets").insert({ ...payload, created_by: input.performedBy });
+    if (error) throw new Error(error.message);
+  }
+}
+
+/**
+ * Sets targets against actual performance for the given month.
+ *
+ * "Actual" = leads with stage 'won' and converted_at within the month.
+ * A per-salesperson target (assigned_to set) is measured against that
+ * salesperson's own won count; a branch-wide target (assigned_to null) is
+ * measured against the whole branch's won count, not just unassigned leads.
+ */
+export async function getSalesTargetProgress(tenantId: string, branchId: string, periodMonth: string): Promise<SalesTargetProgress[]> {
+  const supabase = await createClient();
+  const targets = await getSalesTargets(tenantId, branchId, periodMonth);
+  if (!targets.length) return [];
+
+  const start = new Date(`${periodMonth}T00:00:00.000Z`);
+  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+
+  const { data: wonLeads, error } = await supabase
+    .from("leads")
+    .select("id, assigned_to")
+    .eq("tenant_id", tenantId)
+    .eq("branch_id", branchId)
+    .eq("stage", "won")
+    .gte("converted_at", start.toISOString())
+    .lt("converted_at", end.toISOString());
+  if (error) throw new Error(error.message);
+
+  const won = wonLeads ?? [];
+  const branchWonCount = won.length;
+  const wonCountByAssignee = new Map<string, number>();
+  for (const lead of won) {
+    if (!lead.assigned_to) continue;
+    wonCountByAssignee.set(lead.assigned_to, (wonCountByAssignee.get(lead.assigned_to) ?? 0) + 1);
+  }
+
+  return targets.map((target) => {
+    const assignee = Array.isArray(target.assignee) ? target.assignee[0] : target.assignee;
+    const actualWonCount = target.assigned_to ? (wonCountByAssignee.get(target.assigned_to) ?? 0) : branchWonCount;
+    const progressPct = target.target_leads_count ? Math.min(100, Math.round((actualWonCount / target.target_leads_count) * 100)) : null;
+    return {
+      id: target.id,
+      assignedTo: target.assigned_to,
+      assigneeName: assignee?.full_name ?? null,
+      periodMonth: target.period_month,
+      targetLeadsCount: target.target_leads_count,
+      targetRevenue: target.target_revenue,
+      actualWonCount,
+      progressPct,
+      notes: target.notes,
+    };
+  });
+}

@@ -116,7 +116,7 @@ const COLUMN_LABELS: Record<string, string> = {
   payment_status: "Payment",
   total_amount: "Plan Amount",
   amount_paid: "Paid",
-  balance: "Balance",
+  balance: "Pending",
   attendance_today: "Today",
   last_visit: "Last Visit",
   branch_name: "Branch",
@@ -414,7 +414,7 @@ export function MembersRegisterTable({
       ),
       helper.accessor("balance_amount", {
         id: "balance",
-        header: ({ column }) => <SortHeader column={column} label="Balance" />,
+        header: ({ column }) => <SortHeader column={column} label="Pending" />,
         cell: ({ getValue }) => {
           const balance = getValue();
           if (balance !== undefined && balance !== null && balance > 0) {

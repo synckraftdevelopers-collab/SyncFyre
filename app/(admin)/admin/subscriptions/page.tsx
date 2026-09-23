@@ -64,7 +64,8 @@ export default async function AdminSubscriptionsPage({
 
   let query = supabase
     .from("subscriptions")
-    .select("id, member_id, plan_id, start_date, end_date, status, auto_renew, total_amount, members(full_name, member_code, phone), membership_plans(name)")
+    .select("id, member_id, plan_id, start_date, end_date, status, auto_renew, total_amount, members!inner(full_name, member_code, phone), membership_plans(name)")
+    .eq("members.status", "active")
     .order("end_date", { ascending: sortAscending });
   if (profile.branch_id) query = query.eq("branch_id", profile.branch_id);
   if (params.status && params.status !== "all") {

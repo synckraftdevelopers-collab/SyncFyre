@@ -15,6 +15,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { getBranches } from "@/services/branch.service";
 import type { PaginatedResult } from "@/types";
 import type {
   MemberRegisterRow,
@@ -1306,4 +1307,193 @@ export async function getPtTrainerReport(params: {
   );
 
   return { rows, totals, dateFrom, dateTo };
+}
+
+// ─── 14. Consolidated Cross-Branch Reports (Scale, P3-11) ─────────────────────
+//
+// Tenant-wide "all branches" rollups for the /admin/reports/consolidated page.
+// Every function here takes a tenantId (never a branchId — that's the whole
+// point of "consolidated") and returns a total plus a per-branch breakdown
+// array, so the page can render both a KPI row and a branch-comparison table
+// from one payload.
+//
+// These deliberately do NOT reuse getRevenueReport/getMonthlyRevenueSummary
+// (which page through *_report_view rows one branch at a time) — looping
+// those per branch would mean one paginated query per branch per report.
+// Instead, following the same direct-base-table convention already used by
+// getRevenueIntelligence/getRetentionIntelligence/getPtTrainerReport above
+// (single tenant-scoped query, grouped in memory by branch_id), these run
+// exactly one payments query and one members query for the whole tenant,
+// then group the rows by branch — the "less invasive, single aggregation"
+// option called out in the feature spec. Branch names/ordering come from
+// branch.service.getBranches, the existing tenant-branch listing helper.
+
+export type ConsolidatedBranchRevenue = {
+  branchId: string;
+  branchName: string;
+  transactionCount: number;
+  grossAmount: number;
+  totalRefunds: number;
+  netRevenue: number;
+};
+
+export type ConsolidatedRevenueSummary = {
+  dateFrom: string;
+  dateTo: string;
+  totalTransactions: number;
+  totalGrossAmount: number;
+  totalRefunds: number;
+  totalNetRevenue: number;
+  branches: ConsolidatedBranchRevenue[];
+};
+
+/**
+ * Tenant-wide revenue summary across every branch, with a per-branch
+ * breakdown. Defaults to the current calendar month, same default window
+ * used elsewhere in this file (e.g. getAttendanceReport).
+ *
+ * Uses the existing payments table — no new DB tables, no migration.
+ */
+export async function getConsolidatedRevenueSummary(
+  tenantId: string,
+  params: { dateFrom?: string; dateTo?: string } = {},
+): Promise<ConsolidatedRevenueSummary> {
+  const dateFrom =
+    params.dateFrom ??
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const dateTo = params.dateTo ?? new Date().toISOString().slice(0, 10);
+
+  const supabase = await createClient();
+
+  const [branchRows, { data: payments, error: payError }] = await Promise.all([
+    getBranches(tenantId),
+    supabase
+      .from("payments")
+      .select("branch_id, amount, refund_amount, payment_date")
+      .eq("tenant_id", tenantId)
+      .eq("payment_status", "completed")
+      .gte("payment_date", dateFrom)
+      .lte("payment_date", dateTo),
+  ]);
+
+  assertNoError(payError, "getConsolidatedRevenueSummary (payments)");
+
+  const byBranch = new Map<string, { transactionCount: number; grossAmount: number; totalRefunds: number }>();
+  for (const p of payments ?? []) {
+    const branchId = p.branch_id as string | null;
+    if (!branchId) continue;
+    const entry = byBranch.get(branchId) ?? { transactionCount: 0, grossAmount: 0, totalRefunds: 0 };
+    entry.transactionCount += 1;
+    entry.grossAmount += Number(p.amount ?? 0);
+    entry.totalRefunds += Number(p.refund_amount ?? 0);
+    byBranch.set(branchId, entry);
+  }
+
+  const branches: ConsolidatedBranchRevenue[] = branchRows
+    .map((b) => {
+      const agg = byBranch.get(b.id) ?? { transactionCount: 0, grossAmount: 0, totalRefunds: 0 };
+      return {
+        branchId: b.id,
+        branchName: b.name,
+        transactionCount: agg.transactionCount,
+        grossAmount: agg.grossAmount,
+        totalRefunds: agg.totalRefunds,
+        netRevenue: agg.grossAmount - agg.totalRefunds,
+      };
+    })
+    .sort((a, b) => b.netRevenue - a.netRevenue);
+
+  const totals = branches.reduce(
+    (acc, b) => ({
+      totalTransactions: acc.totalTransactions + b.transactionCount,
+      totalGrossAmount: acc.totalGrossAmount + b.grossAmount,
+      totalRefunds: acc.totalRefunds + b.totalRefunds,
+      totalNetRevenue: acc.totalNetRevenue + b.netRevenue,
+    }),
+    { totalTransactions: 0, totalGrossAmount: 0, totalRefunds: 0, totalNetRevenue: 0 },
+  );
+
+  return { dateFrom, dateTo, ...totals, branches };
+}
+
+export type ConsolidatedBranchMemberStats = {
+  branchId: string;
+  branchName: string;
+  activeMembers: number;
+  newMembersThisPeriod: number;
+};
+
+export type ConsolidatedMemberStats = {
+  dateFrom: string;
+  dateTo: string;
+  totalActiveMembers: number;
+  totalNewMembersThisPeriod: number;
+  branches: ConsolidatedBranchMemberStats[];
+};
+
+/**
+ * Tenant-wide member stats across every branch: total active members
+ * (point-in-time snapshot, not date-ranged) plus new members joined within
+ * [dateFrom, dateTo] (defaults to the current calendar month), each with a
+ * per-branch breakdown.
+ *
+ * Uses the existing members table — no new DB tables, no migration.
+ */
+export async function getConsolidatedMemberStats(
+  tenantId: string,
+  params: { dateFrom?: string; dateTo?: string } = {},
+): Promise<ConsolidatedMemberStats> {
+  const dateFrom =
+    params.dateFrom ??
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const dateTo = params.dateTo ?? new Date().toISOString().slice(0, 10);
+
+  const supabase = await createClient();
+
+  const [branchRows, activeRes, newRes] = await Promise.all([
+    getBranches(tenantId),
+    supabase.from("members").select("branch_id").eq("tenant_id", tenantId).eq("status", "active"),
+    supabase
+      .from("members")
+      .select("branch_id")
+      .eq("tenant_id", tenantId)
+      .gte("created_at", `${dateFrom}T00:00:00.000Z`)
+      .lte("created_at", `${dateTo}T23:59:59.999Z`),
+  ]);
+
+  assertNoError(activeRes.error, "getConsolidatedMemberStats (active members)");
+  assertNoError(newRes.error, "getConsolidatedMemberStats (new members)");
+
+  const activeByBranch = new Map<string, number>();
+  for (const m of activeRes.data ?? []) {
+    const branchId = m.branch_id as string | null;
+    if (!branchId) continue;
+    activeByBranch.set(branchId, (activeByBranch.get(branchId) ?? 0) + 1);
+  }
+
+  const newByBranch = new Map<string, number>();
+  for (const m of newRes.data ?? []) {
+    const branchId = m.branch_id as string | null;
+    if (!branchId) continue;
+    newByBranch.set(branchId, (newByBranch.get(branchId) ?? 0) + 1);
+  }
+
+  const branches: ConsolidatedBranchMemberStats[] = branchRows
+    .map((b) => ({
+      branchId: b.id,
+      branchName: b.name,
+      activeMembers: activeByBranch.get(b.id) ?? 0,
+      newMembersThisPeriod: newByBranch.get(b.id) ?? 0,
+    }))
+    .sort((a, b) => b.activeMembers - a.activeMembers);
+
+  const totals = branches.reduce(
+    (acc, b) => ({
+      totalActiveMembers: acc.totalActiveMembers + b.activeMembers,
+      totalNewMembersThisPeriod: acc.totalNewMembersThisPeriod + b.newMembersThisPeriod,
+    }),
+    { totalActiveMembers: 0, totalNewMembersThisPeriod: 0 },
+  );
+
+  return { dateFrom, dateTo, ...totals, branches };
 }

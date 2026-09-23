@@ -131,7 +131,7 @@ export default async function PtReportPage({
                 <p className="text-sm text-muted-foreground">
                   Session outcomes and current active clients, by trainer. Completion and no-show rates are
                   computed over resolved sessions (completed, cancelled, or no-show) — a still-scheduled session
-                  isn't counted either way yet.
+                  isn&apos;t counted either way yet.
                 </p>
               </div>
 

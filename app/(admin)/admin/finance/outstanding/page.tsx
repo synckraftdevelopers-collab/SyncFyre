@@ -1,11 +1,13 @@
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReceivableRowActions } from "@/components/finance/receivable-row-actions";
 import { getCurrentProfile } from "@/lib/auth";
 import { hasCurrentFeature } from "@/lib/entitlements/server";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { buildWhatsAppUrl, generatePaymentReminderMessage } from "@/lib/member-messages";
 import { getOutstandingReceivablesSummary, listReceivables } from "@/services/finance.service";
 import { SortableTh, readSort } from "@/components/ui/sortable-th";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata = { title: "Outstanding Dues" };
 
@@ -24,7 +26,7 @@ const SORTABLE_COLUMNS = [
   { label: "Type", column: "type" as const, align: "left" as const },
   { label: "Original", column: "original" as const, align: "right" as const },
   { label: "Paid", column: "paid" as const, align: "right" as const },
-  { label: "Balance", column: "balance" as const, align: "right" as const },
+  { label: "Pending", column: "balance" as const, align: "right" as const },
   { label: "Due Date", column: "due_date" as const, align: "left" as const },
   { label: "Status", column: "status" as const, align: "left" as const },
 ];
@@ -45,6 +47,15 @@ export default async function OutstandingPage({
   const profile = await getCurrentProfile();
   const branchId = profile?.branch_id;
   const sp = await searchParams;
+
+  // Fetch gym name for the WhatsApp message
+  let gymName = "SyncFyre Gym";
+  if (branchId) {
+    const { createClient } = await import("@/lib/supabase/server");
+    const supabase = await createClient();
+    const { data: branch } = await supabase.from("branches").select("name").eq("id", branchId).maybeSingle();
+    if (branch?.name) gymName = branch.name;
+  }
 
   // pageSize is generous rather than the field default (30) so the table
   // shows every currently-outstanding row for a normal-sized gym in one
@@ -175,15 +186,25 @@ export default async function OutstandingPage({
                         className={`px-4 py-3 font-medium text-muted-foreground ${align === "right" ? "text-right" : "text-left"}`}
                       />
                     ))}
-                    {canUseInstallments ? (
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
-                    ) : null}
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {all.map((row) => {
-                    const m = row.members as { full_name: string; member_code: string } | null;
+                    const m = row.members as { full_name: string; member_code: string; phone: string | null } | null;
                     const balance = Number(row.balance_amount);
+                    const whatsAppUrl = balance > 0
+                      ? buildWhatsAppUrl(
+                          m?.phone,
+                          generatePaymentReminderMessage({
+                            memberName: m?.full_name ?? "Member",
+                            gymName,
+                            totalAmount: Number(row.original_amount),
+                            paymentCompleted: Number(row.paid_amount),
+                            pendingAmount: balance,
+                          }),
+                        )
+                      : null;
                     return (
                       <tr key={row.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3">
@@ -211,9 +232,26 @@ export default async function OutstandingPage({
                             {row.display_status.replace("_", " ")}
                           </span>
                         </td>
-                        {canUseInstallments ? (
-                          <td className="px-4 py-3">
-                            {row.invoice_id && balance > 0 ? (
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {whatsAppUrl ? (
+                              <a
+                                href={whatsAppUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`WhatsApp payment reminder to ${m?.full_name ?? "member"}`}
+                                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-7 gap-1 px-2 text-xs text-green-700 hover:bg-green-50")}
+                              >
+                                <MessageCircle className="size-3" />
+                                Share
+                              </a>
+                            ) : balance > 0 ? (
+                              <span className="text-xs text-muted-foreground" title="No phone number on file for this member">
+                                <MessageCircle className="mr-1 inline size-3 opacity-40" />
+                                Share
+                              </span>
+                            ) : null}
+                            {canUseInstallments && row.invoice_id && balance > 0 ? (
                               <ReceivableRowActions
                                 row={{
                                   invoiceId: row.invoice_id,
@@ -223,8 +261,8 @@ export default async function OutstandingPage({
                                 }}
                               />
                             ) : null}
-                          </td>
-                        ) : null}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}

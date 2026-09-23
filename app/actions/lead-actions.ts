@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { hasCurrentFeature } from "@/lib/entitlements/server";
-import { assignLead, convertLead, createLead, LEAD_STAGES, recordLeadActivity, updateLeadStage } from "@/services/lead.service";
+import { assignLead, convertLead, createLead, currentPeriodMonth, getSalesTargetProgress, LEAD_STAGES, recordLeadActivity, setSalesTarget, updateLeadStage } from "@/services/lead.service";
 
 const leadSchema = z.object({
   full_name: z.string().trim().min(2, "Lead name is required.").max(120),
@@ -118,5 +118,50 @@ export async function getAdvancedCrmAction(): Promise<{
     return { data };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : "Unable to load CRM analytics." };
+  }
+}
+
+// ─── Sales Targets (CRM) ────────────────────────────────────────────────────
+
+const salesTargetSchema = z.object({
+  assigned_to: z.string().trim().optional().or(z.literal("")),
+  period_month: z.string().trim().regex(/^\d{4}-\d{2}-01$/, "Choose a valid month."),
+  target_leads_count: z.string().trim().optional().or(z.literal("")),
+  target_revenue: z.string().trim().optional().or(z.literal("")),
+  notes: z.string().trim().max(500).optional(),
+});
+
+export async function setSalesTargetAction(formData: FormData): Promise<{ error?: string; success?: string }> {
+  const profile = await requireUser(["owner", "admin", "manager"]);
+  if (!(await hasCurrentFeature("crm"))) return { error: "CRM is not included in the current plan." };
+  if (!profile.tenant_id || !profile.branch_id) return { error: "Your account must be assigned to an organization and branch." };
+  const parsed = salesTargetSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Review the target details." };
+  const leadsCount = parsed.data.target_leads_count ? Number(parsed.data.target_leads_count) : null;
+  const revenue = parsed.data.target_revenue ? Number(parsed.data.target_revenue) : null;
+  if (leadsCount !== null && (!Number.isFinite(leadsCount) || leadsCount < 0)) return { error: "Enter a valid leads-count target." };
+  if (revenue !== null && (!Number.isFinite(revenue) || revenue < 0)) return { error: "Enter a valid revenue target." };
+  if (leadsCount === null && revenue === null) return { error: "Set a leads target, a revenue target, or both." };
+  try {
+    await setSalesTarget({ tenantId: profile.tenant_id, branchId: profile.branch_id, assignedTo: parsed.data.assigned_to || null, periodMonth: parsed.data.period_month, targetLeadsCount: leadsCount, targetRevenue: revenue, notes: parsed.data.notes, performedBy: profile.id });
+    revalidatePath("/admin/leads");
+    return { success: "Sales target saved." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Unable to save sales target." };
+  }
+}
+
+export async function getSalesTargetsAction(periodMonth?: string): Promise<{
+  data: import("@/services/lead.service").SalesTargetProgress[];
+  error?: string;
+}> {
+  const profile = await requireUser(["owner", "admin", "manager", "reception"]);
+  if (!(await hasCurrentFeature("crm"))) return { data: [], error: "CRM is not included in the current plan." };
+  if (!profile.tenant_id || !profile.branch_id) return { data: [], error: "Your account must be assigned to an organization and branch." };
+  try {
+    const data = await getSalesTargetProgress(profile.tenant_id, profile.branch_id, periodMonth || currentPeriodMonth());
+    return { data };
+  } catch (error) {
+    return { data: [], error: error instanceof Error ? error.message : "Unable to load sales targets." };
   }
 }
