@@ -633,7 +633,7 @@ export async function processBiometricPayload(input: {
       device,
       event: null,
       status: "rejected",
-      processingResult: "PLAN_LOCKED",
+      processingResult: "PROCESSING_ERROR",
       requestMetadata: input.metadata,
       requestPayload: input.payload,
       errorMessage: message,
