@@ -34,7 +34,6 @@ export default async function ReceptionNewAppointmentPage() {
             returnTo="/reception/appointments"
             fields={[
               { name: "member_id", label: "Member", type: "select", options: members, required: true },
-              { name: "provider_staff_id", label: "Provider", type: "select", options: staff },
               { name: "provider_type", label: "Provider type", type: "select", required: true, options: [{ label: "Trainer", value: "trainer" }, { label: "Dietician", value: "dietician" }, { label: "Physiotherapist", value: "physiotherapist" }] },
               { name: "appointment_date", label: "Date", type: "date", required: true, defaultValue: today },
               { name: "start_time", label: "Start time", type: "time", required: true },
