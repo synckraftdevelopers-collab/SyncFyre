@@ -39,6 +39,7 @@ export type PhaseFeatureKey =
   | "advanced_analytics"
   | "whatsapp"
   | "api"
+  | "api_webhooks"
   | "enterprise_features"
   | "crm"
   | "pt"
@@ -114,6 +115,11 @@ export const FEATURE_REGISTRY: Record<PhaseFeatureKey, PhaseFeatureDefinition> =
   advanced_analytics: { feature_key: "advanced_analytics", name: "Advanced Analytics", phase: "PHASE_2", pathnames: ["/superadmin/reports"] },
   whatsapp: { feature_key: "whatsapp", name: "WhatsApp", phase: "PHASE_2", pathnames: ["/admin/whatsapp", "/admin/whatsapp/templates", "/admin/communications"], apiPrefixes: ["/api/whatsapp"] },
   api: { feature_key: "api", name: "API", phase: "PHASE_2", pathnames: [] },
+  // Developer: API keys + webhooks (P3-12). Real billing gate is System A's
+  // "api_webhooks" (Scale / plan_3). This System B entry ensures Growth-plan
+  // tenants see the Developer nav item as a PHASE_3-locked item (hidden from
+  // their sidebar) rather than an accessible PHASE_2 item.
+  api_webhooks: { feature_key: "api_webhooks", name: "Developer", phase: "PHASE_3", pathnames: ["/admin/developer"] },
   enterprise_features: { feature_key: "enterprise_features", name: "Enterprise Features", phase: "PHASE_2", pathnames: ["/superadmin/subscriptions", "/superadmin/billing", "/superadmin/devices"] },
   crm: { feature_key: "crm", name: "CRM & Leads", phase: "PHASE_2", pathnames: ["/admin/leads"] },
   pt: { feature_key: "pt", name: "PT Management", phase: "PHASE_2", pathnames: ["/admin/pt"] },

@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { isMissingSchemaError } from "@/lib/supabase/schema";
 import { evaluateFeature, type SaaSFeatureKey, type TenantPlan, type SubscriptionState } from "@/lib/entitlements/evaluate";
+import { evaluateFrozenTenant, getFrozenSnapshot } from "@/lib/entitlements/frozen-tenants";
 
 const PUBLIC_PATHS = [
   "/",
@@ -156,6 +157,8 @@ export async function middleware(request: NextRequest) {
   let onboardingCompletedAt: string | null = null;
   let tenantPlan: TenantPlan = null;
   let tenantStatus: SubscriptionState = null;
+  let tenantId: string | null = null;
+  let tenantFrozen = false;
   try {
     const { data: profile } = await supabase
       .from("users")
@@ -166,15 +169,20 @@ export async function middleware(request: NextRequest) {
     const roleValue = profile?.role as { slug?: string } | { slug?: string }[] | null;
     roleSlug = Array.isArray(roleValue) ? roleValue[0]?.slug ?? "" : roleValue?.slug ?? "";
 
-    const tenantId = (profile as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+    tenantId = (profile as { tenant_id?: string | null } | null)?.tenant_id ?? null;
     if (tenantId) {
-      const { data: tenant, error: tenantError } = await supabase.from("tenants").select("onboarding_completed_at,plan,status").eq("id", tenantId).maybeSingle();
+      const { data: tenant, error: tenantError } = await supabase
+        .from("tenants")
+        .select("onboarding_completed_at,plan,status,features_frozen")
+        .eq("id", tenantId)
+        .maybeSingle();
       if (tenantError && !isMissingSchemaError(tenantError)) {
         console.error("[middleware] Unable to load tenant onboarding status", tenantError);
       } else {
         onboardingCompletedAt = tenant?.onboarding_completed_at ?? null;
         tenantPlan = tenant?.plan ?? null;
         tenantStatus = tenant?.status ?? null;
+        tenantFrozen = Boolean((tenant as { features_frozen?: boolean | null } | null)?.features_frozen);
       }
     }
   } catch (error) {
@@ -183,19 +191,33 @@ export async function middleware(request: NextRequest) {
 
   const requestedFeature = featureForPath(pathname);
   if (requestedFeature) {
-    const entitlement = evaluateFeature({ plan: tenantPlan, status: tenantStatus, featureKey: requestedFeature });
-    if (!entitlement.allowed) {
+    // ── Frozen-tenant path ─────────────────────────────────────────────────
+    // When features_frozen=true, bypass the global plan registry and use the
+    // tenant's explicit frozen snapshot instead.
+    let featureAllowed: boolean;
+    let featureLabel: string = requestedFeature;
+
+    if (tenantFrozen && tenantId && getFrozenSnapshot(tenantId)) {
+      const frozenResult = evaluateFrozenTenant({
+        tenantId,
+        featureKey: requestedFeature,
+        plan: tenantPlan,
+        status: tenantStatus,
+      });
+      featureAllowed = frozenResult.allowed;
+    } else {
+      // ── Normal plan-based path ───────────────────────────────────────────
+      const entitlement = evaluateFeature({ plan: tenantPlan, status: tenantStatus, featureKey: requestedFeature });
+      featureAllowed = entitlement.allowed;
+      featureLabel = entitlement.feature?.label ?? requestedFeature;
+    }
+
+    if (!featureAllowed) {
       if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Feature is not included in the current plan." }, { status: 403 });
-      // Redirect to the upgrade page with the feature name and return URL.
-      // NOTE: only portal routes reach here — the role check below already
-      // handles unauthorized role access separately. This is purely a
-      // commercial-plan denial and must never fire for role mismatches.
       const portalDashboard = PORTAL_DASHBOARD[roleSlug] ?? "/login";
-      const backHref = pathname.startsWith("/admin")
-        ? pathname
-        : portalDashboard;
+      const backHref = pathname.startsWith("/admin") ? pathname : portalDashboard;
       const upgradeUrl = new URL("/admin/upgrade", request.url);
-      upgradeUrl.searchParams.set("feature", entitlement.feature?.label ?? requestedFeature);
+      upgradeUrl.searchParams.set("feature", featureLabel);
       upgradeUrl.searchParams.set("next", backHref);
       return NextResponse.redirect(upgradeUrl);
     }

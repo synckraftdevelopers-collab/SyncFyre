@@ -128,3 +128,109 @@ test("System B: PHASE_3 exists as a valid system phase key", () => {
   const allPhases = new Set(Object.values(PHASE_REGISTRY).map((def) => def.phase));
   assert.ok(allPhases.has("PHASE_3"), "PHASE_3 must appear in at least one feature entry");
 });
+
+// ─── tenant_features override (Talwalkar-style feature freeze) ───────────────
+//
+// These tests verify that override=false in tenant_features correctly blocks
+// a Growth-plan tenant from accessing pt, whatsapp, and api_webhooks regardless
+// of their commercial plan. This is the mechanism used for Talwalkar.
+
+test("tenant_features override=false blocks pt for a Growth tenant", () => {
+  // Without override: Growth (plan_2) can access pt
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "pt" }).allowed,
+    true,
+    "pt must be allowed on Growth without override",
+  );
+  // With override=false: blocked even on Growth
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "pt", override: false }).allowed,
+    false,
+    "pt must be blocked on Growth when tenant_features override=false",
+  );
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "pt", override: false }).reason,
+    "Disabled by a SuperAdmin override.",
+    "reason must indicate SuperAdmin override",
+  );
+  // override=false also blocks on professional (legacy Growth alias)
+  assert.equal(
+    evaluateFeature({ plan: "professional", status: "active", featureKey: "pt", override: false }).allowed,
+    false,
+    "pt must be blocked for professional/Growth when override=false",
+  );
+});
+
+test("tenant_features override=false blocks whatsapp for a Growth tenant", () => {
+  // Without override: Growth can access whatsapp
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "whatsapp" }).allowed,
+    true,
+    "whatsapp must be allowed on Growth without override",
+  );
+  // With override=false: blocked — covers both WhatsApp Templates and
+  // Communication History since they share the same feature key
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "whatsapp", override: false }).allowed,
+    false,
+    "whatsapp must be blocked on Growth when tenant_features override=false",
+  );
+  assert.equal(
+    evaluateFeature({ plan: "professional", status: "active", featureKey: "whatsapp", override: false }).allowed,
+    false,
+    "whatsapp must be blocked for professional/Growth when override=false",
+  );
+});
+
+test("tenant_features override=false blocks api_webhooks (already Scale-only)", () => {
+  // api_webhooks is already locked on Growth by plan; override=false adds an
+  // explicit DB record that makes the block visible in audit logs
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "api_webhooks" }).allowed,
+    false,
+    "api_webhooks must already be locked on Growth by plan",
+  );
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "api_webhooks", override: false }).allowed,
+    false,
+    "api_webhooks must remain blocked on Growth when override=false",
+  );
+  // Confirm it IS allowed on Scale without override
+  assert.equal(
+    evaluateFeature({ plan: "plan_3", status: "active", featureKey: "api_webhooks" }).allowed,
+    true,
+    "api_webhooks must be allowed on Scale without override",
+  );
+  // And blocked again when overridden even on Scale
+  assert.equal(
+    evaluateFeature({ plan: "plan_3", status: "active", featureKey: "api_webhooks", override: false }).allowed,
+    false,
+    "api_webhooks must be blocked even on Scale when override=false",
+  );
+});
+
+test("override=true cannot unlock a feature that the plan does not include", () => {
+  // Verified by the existing test suite, but restated here for the freeze
+  // scenario: a Growth tenant cannot be given api_webhooks via override=true
+  assert.equal(
+    evaluateFeature({ plan: "plan_2", status: "active", featureKey: "api_webhooks", override: true }).allowed,
+    false,
+    "override=true cannot grant api_webhooks to a Growth plan tenant",
+  );
+});
+
+// ─── System B: api_webhooks is PHASE_3 (Developer hidden for Growth) ─────────
+
+test("System B: api_webhooks is PHASE_3 so Developer nav is hidden for Growth tenants", () => {
+  const def = PHASE_REGISTRY["api_webhooks"];
+  assert.ok(def, "api_webhooks must exist in System B registry");
+  assert.equal(
+    def.phase,
+    "PHASE_3",
+    "api_webhooks must be PHASE_3 in System B so the Developer sidebar item is hidden (not just locked) for Growth tenants",
+  );
+  assert.ok(
+    def.pathnames?.includes("/admin/developer"),
+    "api_webhooks System B entry must include /admin/developer pathname",
+  );
+});

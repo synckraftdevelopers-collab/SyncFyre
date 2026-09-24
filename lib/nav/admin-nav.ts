@@ -46,9 +46,9 @@ export const adminNav: NavItem[] = [
   { label: "Revenue Intelligence",   href: "/admin/reports/revenue",      icon: TrendingUp,          featureKey: "revenue_intelligence" },
   { label: "Retention Intelligence", href: "/admin/retention",            icon: UserMinus,           featureKey: "retention_intelligence" },
   // Developer: API keys + webhooks (P3-12) — Scale only. Real gate is
-  // hasCurrentFeature("api_webhooks") (lib/entitlements/registry.ts); this
-  // featureKey ("api", PHASE_2) is only the closest match in the separate
-  // lib/phases/registry.ts system used for the sidebar's cosmetic lock badge
-  // — same accepted mismatch pattern as Audit Logs/"enterprise_rbac".
-  { label: "Developer",              href: "/admin/developer",            icon: KeyRound,            featureKey: "api" },
+  // hasCurrentFeature("api_webhooks") (lib/entitlements/registry.ts).
+  // featureKey here uses "api_webhooks" (System B, PHASE_3) so the sidebar
+  // correctly hides this item for Growth tenants instead of showing it as
+  // an accessible nav link.
+  { label: "Developer",              href: "/admin/developer",            icon: KeyRound,            featureKey: "api_webhooks" },
 ];

@@ -1,8 +1,10 @@
 import { completePtSessionAction, createPtPackageAction, schedulePtSessionAction, sellPtPackageAction } from "@/app/actions/pt-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/lib/auth";
+import { hasCurrentFeature } from "@/lib/entitlements/server";
 import { createClient } from "@/lib/supabase/server";
 import { SortableTh, readSort } from "@/components/ui/sortable-th";
+import { Lock } from "lucide-react";
 
 export const metadata = { title: "Personal Training" };
 const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -29,6 +31,37 @@ export default async function PtPage({
 }) {
   const sp = await searchParams;
   const profile = await requireUser(["owner", "admin", "manager", "reception", "trainer"]);
+
+  // Page-level soft gate — mirrors the same pattern used by
+  // /admin/whatsapp/templates and /admin/developer. Middleware already blocks
+  // direct URL access; this ensures the page component never renders PT data
+  // if the feature is disabled via a tenant_features override.
+  const hasPt = await hasCurrentFeature("pt");
+  if (!hasPt) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Personal Training</h1>
+          <p className="text-sm text-muted-foreground">PT session credits, packages, and trainer performance</p>
+        </div>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <div className="grid size-12 place-items-center rounded-full bg-muted">
+              <Lock className="size-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold">PT and trainer management</p>
+              <p className="text-sm text-muted-foreground">
+                Not available on your current plan. Upgrade to Growth to manage PT packages, session credits,
+                and trainer performance.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (!profile.tenant_id || !profile.branch_id) return <p className="text-sm text-muted-foreground">Your account is not assigned to a branch.</p>;
   const supabase = await createClient();
   const [packagesRes, membersRes, trainersRes, creditsRes, sessionsRes] = await Promise.all([
